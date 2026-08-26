@@ -48,7 +48,7 @@ public class GhostViewOnceHook {
                 String returnType = String.valueOf(method.getReturnType());
 
                 // Step 2: Match method signature: (?,?,AbstractClassType) -> void
-                if (paramTypes.size() == 3 && returnType.contains("void")) {
+                if (paramTypes.size() >= 2 && paramTypes.size() <= 4 && returnType.contains("void")) {
 
                     Method reflectMethod;
                     try {

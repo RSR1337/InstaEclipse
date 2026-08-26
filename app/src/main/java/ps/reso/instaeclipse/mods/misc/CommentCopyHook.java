@@ -151,7 +151,29 @@ public class CommentCopyHook {
 
     private boolean findAndHookNew(DexKitBridge bridge, ClassLoader classLoader) {
         try {
-            Class<?> effectHandlerClass = classLoader.loadClass(EFFECT_HANDLER_CLASS);
+            Class<?> effectHandlerClass = null;
+            try {
+                effectHandlerClass = classLoader.loadClass(EFFECT_HANDLER_CLASS);
+            } catch (ClassNotFoundException ignored) {}
+            if (effectHandlerClass == null) {
+                List<ClassData> found = bridge.findClass(FindClass.create()
+                        .matcher(ClassMatcher.create().usingStrings("handleCommentUiEffects")));
+                if (!found.isEmpty()) {
+                    effectHandlerClass = classLoader.loadClass(found.get(0).getName());
+                }
+            }
+            if (effectHandlerClass == null) {
+                List<ClassData> found = bridge.findClass(FindClass.create()
+                        .matcher(ClassMatcher.create()
+                                .usingStrings("com.instagram.comments.mvvm.data.MediaCommentListRepository")));
+                if (!found.isEmpty()) {
+                    effectHandlerClass = classLoader.loadClass(found.get(0).getName());
+                }
+            }
+            if (effectHandlerClass == null) {
+                ModuleLog.line("(InstaEclipse | CopyComment): ❌ comment effect handler class not found");
+                return false;
+            }
 
             java.lang.reflect.Method fmj = null;
             for (java.lang.reflect.Field f : effectHandlerClass.getDeclaredFields()) {

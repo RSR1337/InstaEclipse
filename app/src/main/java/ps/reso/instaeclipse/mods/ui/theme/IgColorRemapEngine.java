@@ -1,6 +1,7 @@
 package ps.reso.instaeclipse.mods.ui.theme;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.util.SparseIntArray;
 import android.view.View;
@@ -8,6 +9,9 @@ import android.view.View;
 import androidx.core.view.ViewCompat;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.HashMap;
+import java.util.Map;
 
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
@@ -21,6 +25,7 @@ import ps.reso.instaeclipse.utils.log.ModuleLog;
 public final class IgColorRemapEngine {
 
     private static final ThreadLocal<Integer> BYPASS_DEPTH = ThreadLocal.withInitial(() -> 0);
+    private static final Object FUZZY_LOCK = new Object();
     private static final int CACHE_MISS = Integer.MIN_VALUE;
     private static final int FUZZY_CACHE_LIMIT = 1024;
 
@@ -142,11 +147,18 @@ public final class IgColorRemapEngine {
         }
         SparseIntArray fuzzy = fuzzyCache;
         if (fuzzy != null) {
-            int cached = fuzzy.get(color, CACHE_MISS);
+            int cached;
+            synchronized (FUZZY_LOCK) {
+                cached = fuzzy.get(color, CACHE_MISS);
+            }
             if (cached != CACHE_MISS) return cached;
         }
         int result = remapFuzzy(color);
-        if (fuzzy != null && fuzzy.size() < FUZZY_CACHE_LIMIT) fuzzy.put(color, result);
+        if (fuzzy != null) {
+            synchronized (FUZZY_LOCK) {
+                if (fuzzy.size() < FUZZY_CACHE_LIMIT) fuzzy.put(color, result);
+            }
+        }
         return result;
     }
 
@@ -155,8 +167,162 @@ public final class IgColorRemapEngine {
         return remapped == color ? color : remapped;
     }
 
+    public static int remapExact(int color) {
+        if (!IgThemeEngine.isActive() || isBypassing() || color == 0) return color;
+        SparseIntArray exact = exactTable;
+        SparseIntArray rgb = rgbTable;
+        if (rgb == null) return color;
+        if (exact != null) {
+            int exactHit = exact.get(color, CACHE_MISS);
+            if (exactHit != CACHE_MISS) return exactHit;
+        }
+        int mappedRgb = rgb.get(color & 0x00FFFFFF, CACHE_MISS);
+        if (mappedRgb != CACHE_MISS) {
+            return (0xFF000000 & color) | (0x00FFFFFF & mappedRgb);
+        }
+        return color;
+    }
+
+    public static long remapComposePacked(long packed) {
+        if (!IgThemeEngine.isActive() || isBypassing() || packed == 0L) return packed;
+        if ((packed & 63L) != 0L) return packed;
+        int argb = (int) (packed >>> 32);
+        if (argb == 0) return packed;
+        int remapped = remap(argb);
+        if (remapped == argb) return packed;
+        return (((long) remapped) << 32) | (packed & 0xFFFFFFFFL);
+    }
+
+    public static ColorStateList remapColorStateList(ColorStateList original) {
+        if (original == null || !IgThemeEngine.isActive() || isBypassing()) return original;
+        try {
+            int def = original.getDefaultColor();
+            int remappedDef = remap(def);
+            if (!original.isStateful()) {
+                if (remappedDef == def) return original;
+                final ColorStateList[] holder = new ColorStateList[1];
+                withBypass(() -> holder[0] = ColorStateList.valueOf(remappedDef));
+                return holder[0] != null ? holder[0] : original;
+            }
+            Field colorsField = colorStateListColorsField();
+            Field statesField = colorStateListStatesField();
+            if (colorsField == null) {
+                if (remappedDef == def) return original;
+                final ColorStateList[] holder = new ColorStateList[1];
+                withBypass(() -> holder[0] = ColorStateList.valueOf(remappedDef));
+                return holder[0] != null ? holder[0] : original;
+            }
+            int[] colors = (int[]) colorsField.get(original);
+            if (colors == null || colors.length == 0) return original;
+            int[] remapped = remapIntArray(colors);
+            if (remapped == colors) return original;
+            int[][] states = statesField != null ? (int[][]) statesField.get(original) : null;
+            if (states != null && states.length == remapped.length) {
+                final int[][] st = cloneStates(states);
+                final int[] cols = remapped;
+                final ColorStateList[] holder = new ColorStateList[1];
+                withBypass(() -> holder[0] = new ColorStateList(st, cols));
+                return holder[0] != null ? holder[0] : original;
+            }
+            final ColorStateList[] holder = new ColorStateList[1];
+            withBypass(() -> holder[0] = ColorStateList.valueOf(remappedDef));
+            return holder[0] != null ? holder[0] : original;
+        } catch (Throwable ignored) {
+            return original;
+        }
+    }
+
+    private static int[][] cloneStates(int[][] states) {
+        int[][] copy = new int[states.length][];
+        for (int i = 0; i < states.length; i++) {
+            copy[i] = states[i] != null ? states[i].clone() : null;
+        }
+        return copy;
+    }
+
+    public static int[] remapIntArray(int[] colors) {
+        if (colors == null || !IgThemeEngine.isActive() || isBypassing()) return colors;
+        int[] out = null;
+        for (int i = 0; i < colors.length; i++) {
+            int remapped = remap(colors[i]);
+            if (remapped != colors[i]) {
+                if (out == null) {
+                    out = colors.clone();
+                }
+                out[i] = remapped;
+            }
+        }
+        return out != null ? out : colors;
+    }
+
+    public static Map<?, ?> remapNativeColorMap(Map<?, ?> original) {
+        if (original == null || original.isEmpty() || !IgThemeEngine.isActive() || isBypassing()) return original;
+        Map<Object, Object> out = new HashMap<>();
+        boolean changed = false;
+        for (Map.Entry<?, ?> entry : original.entrySet()) {
+            Object value = entry.getValue();
+            Object remapped = remapNativeColorValue(value);
+            out.put(entry.getKey(), remapped);
+            if (remapped != value && (remapped == null || !remapped.equals(value))) changed = true;
+        }
+        return changed ? out : original;
+    }
+
+    private static Object remapNativeColorValue(Object value) {
+        if (value instanceof Integer) {
+            int original = (Integer) value;
+            if (((original >>> 24) & 0xFF) != 0xFF) return value;
+            int remapped = remap(original);
+            return remapped == original ? value : remapped;
+        }
+        if (value instanceof String) {
+            String hex = (String) value;
+            if (hex.length() >= 7 && hex.charAt(0) == '#') {
+                try {
+                    int original = android.graphics.Color.parseColor(hex);
+                    int remapped = remap(original);
+                    if (remapped != original) {
+                        return String.format("#%08X", remapped);
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+        return value;
+    }
+
+    private static volatile Field colorStateListColors;
+    private static volatile Field colorStateListStates;
+
+    private static Field colorStateListColorsField() {
+        Field field = colorStateListColors;
+        if (field != null) return field;
+        field = findColorStateListField("mColors", "mDefaultColors");
+        colorStateListColors = field;
+        return field;
+    }
+
+    private static Field colorStateListStatesField() {
+        Field field = colorStateListStates;
+        if (field != null) return field;
+        field = findColorStateListField("mStateSpecs", "mStates");
+        colorStateListStates = field;
+        return field;
+    }
+
+    private static Field findColorStateListField(String... names) {
+        for (String name : names) {
+            try {
+                Field field = ColorStateList.class.getDeclaredField(name);
+                field.setAccessible(true);
+                return field;
+            } catch (Throwable ignored) {}
+        }
+        return null;
+    }
+
     public static void applyRemapArg(Object[] args, int index) {
-        if (!IgThemeEngine.isActive() || isBypassing()) return;
+        if (!IgThemeEngine.isActive() || isBypassing() || args == null || index < 0 || index >= args.length) return;
+        if (!(args[index] instanceof Integer)) return;
         int original = (Integer) args[index];
         int remapped = remap(original);
         if (remapped != original) args[index] = remapped;
@@ -226,7 +392,9 @@ public final class IgColorRemapEngine {
         mapCanonical(exact, rgb, palette);
         mapResourceNames(exact, rgb, res, pkg, palette);
         mapFromSlots(exact, rgb, res, pkg, palette);
-        mapAllResourceColors(exact, rgb, res, context.getClassLoader(), palette);
+        ClassLoader cl = context.getClassLoader();
+        mapAllResourceColors(exact, rgb, res, cl, palette);
+        mapComposePalettes(exact, rgb, cl, palette);
         exactTable = exact;
         rgbTable = rgb;
         fuzzyCache = new SparseIntArray(256);
@@ -236,17 +404,50 @@ public final class IgColorRemapEngine {
         if (cl == null) return;
         try {
             Class<?> cls = cl.loadClass("com.instagram.android.R$color");
-            for (Field field : cls.getDeclaredFields()) {
-                if (field.getType() != int.class || (field.getModifiers() & java.lang.reflect.Modifier.STATIC) == 0) continue;
-                int slot = IgThemeEngine.slotForColorName(field.getName());
-                if (slot < 0) continue;
-                try {
-                    int resId = field.getInt(null);
-                    int original = sampleColor(res, resId);
-                    if (original != 0) put(exact, rgb, original, palette.get(IgThemePalette.SLOT_KEYS[slot]));
-                } catch (Throwable ignored) {}
-            }
+            scanColorClass(exact, rgb, res, palette, cls);
         } catch (Throwable ignored) {}
+        try {
+            Class<?> cls = cl.loadClass("com.instagram.barcelona.R$color");
+            scanColorClass(exact, rgb, res, palette, cls);
+        } catch (Throwable ignored) {}
+    }
+
+    private static void scanColorClass(SparseIntArray exact, SparseIntArray rgb, Resources res, IgThemePalette palette, Class<?> cls) {
+        for (Field field : cls.getDeclaredFields()) {
+            if (field.getType() != int.class || (field.getModifiers() & java.lang.reflect.Modifier.STATIC) == 0) continue;
+            int slot = IgThemeEngine.slotForColorName(field.getName());
+            if (slot < 0) continue;
+            try {
+                int resId = field.getInt(null);
+                int original = sampleColor(res, resId);
+                if (original != 0) put(exact, rgb, original, palette.get(IgThemePalette.SLOT_KEYS[slot]));
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    private static void mapComposePalettes(SparseIntArray exact, SparseIntArray rgb, ClassLoader cl, IgThemePalette palette) {
+        if (cl == null) return;
+        String[] classes = {
+                "com.instagram.compose.core.theme.BaseColors",
+                "com.instagram.compose.core.theme.BasePrismColors",
+                "com.instagram.compose.core.theme.BasePrismColorsV2"
+        };
+        for (String className : classes) {
+            try {
+                Class<?> cls = cl.loadClass(className);
+                for (Field field : cls.getDeclaredFields()) {
+                    if (field.getType() != long.class || (field.getModifiers() & Modifier.STATIC) == 0) continue;
+                    try {
+                        long packed = field.getLong(null);
+                        int original = (int) (packed >>> 32);
+                        if (original == 0) continue;
+                        int slot = IgThemeEngine.slotForColorName(field.getName());
+                        int target = slot >= 0 ? palette.get(IgThemePalette.SLOT_KEYS[slot]) : remapFuzzy(original);
+                        put(exact, rgb, original, target);
+                    } catch (Throwable ignored) {}
+                }
+            } catch (Throwable ignored) {}
+        }
     }
 
     private static void mapCanonical(SparseIntArray exact, SparseIntArray rgb, IgThemePalette palette) {
@@ -288,8 +489,14 @@ public final class IgColorRemapEngine {
         put(exact, rgb, -13092808, palette.border);
         put(exact, rgb, -11219201, palette.link);
         put(exact, rgb, -16763029, palette.link);
+        put(exact, rgb, -16754781, palette.link);
         put(exact, rgb, -10960094, palette.accent);
         put(exact, rgb, -9360, palette.accent);
+        put(exact, rgb, -12079105, palette.accent);
+        put(exact, rgb, -9388801, palette.accent);
+        put(exact, rgb, -4989953, palette.accent);
+        put(exact, rgb, -2035201, palette.surface);
+        put(exact, rgb, -16747316, palette.button);
         put(exact, rgb, -2130706433, IgThemePalette.withAlpha(palette.primaryText, 0.5f));
         put(exact, rgb, -2131364363, IgThemePalette.withAlpha(palette.primaryText, 0.5f));
         put(exact, rgb, Integer.MIN_VALUE, IgThemePalette.withAlpha(palette.background, 0.5f));
@@ -299,14 +506,28 @@ public final class IgColorRemapEngine {
         put(exact, rgb, -7434610, palette.secondaryText);
         put(exact, rgb, -6710887, palette.secondaryText);
         put(exact, rgb, -13882324, palette.secondaryText);
+        put(exact, rgb, -2415052, palette.destructive);
+        put(exact, rgb, -14888625, palette.accent);
     }
 
     private static void mapResourceNames(SparseIntArray exact, SparseIntArray rgb, Resources res, String pkg, IgThemePalette palette) {
         String[] colorNames = {"bds_black", "igds_prism_black", "bds_white", "igds_prism_gray_00", "bds_grey_0", "bds_grey_1",
                 "bds_grey_2", "bds_grey_3", "bds_grey_4", "bds_grey_6", "bds_grey_7", "bds_grey_8", "bds_grey_9", "bds_grey_10",
                 "bds_grey_11", "bds_grey_12", "bds_grey_16", "bds_grey_18", "bds_grey_21", "bds_grey_22", "bds_grey_24",
-                "igds_prism_gray_08", "igds_prism_gray_10", "emphasized_action_color", "badge_color", "igds_prism_indigo_1000",
-                "bds_blue_1", "bds_blue_2", "bds_red_5", "bds_red_6", "igds_primary_background", "bottom_sheet_undo_redo_color"};
+                "igds_prism_gray_08", "igds_prism_gray_10", "igds_prism_gray_0000", "igds_prism_gray_0100",
+                "igds_prism_gray_0500", "igds_prism_gray_0800", "igds_prism_gray_1000", "igds_prism_gray_1300",
+                "igds_prism_gray_1400", "igds_prism_gray_1500", "igds_prism_gray_1600",
+                "emphasized_action_color", "badge_color", "igds_prism_indigo_1000",
+                "bds_blue_1", "bds_blue_2", "bds_red_5", "bds_red_6", "igds_primary_background", "bottom_sheet_undo_redo_color",
+                // Instagram 444+ semantic colors (resources renamed igds_color_* → igds_*)
+                "igds_primary_text", "igds_primary_text_disabled", "igds_secondary_text", "igds_secondary_background",
+                "igds_primary_button", "igds_primary_icon", "igds_secondary_icon", "igds_separator", "igds_stroke",
+                "igds_link", "igds_error_or_destructive", "igds_elevated_background", "igds_elevated_separator",
+                "igds_elevated_highlight_background", "igds_photo_border", "igds_photo_placeholder", "igds_selected_text_background",
+                "igds_tag_or_toast_background", "igds_context_menu_background_color", "igds_context_menu_item_background_color",
+                "igds_creation_menu_background", "igds_creation_button_destructive", "igds_icon_on_color", "igds_link_on_color",
+                "igds_pill_active_text", "igds_success", "igds_secondary_button_on_media",
+                "igds_secondary_button_elevated_pressed_panavision", "igds_secondary_media_button_onblack_panavision_updated"};
         for (String name : colorNames) {
             int id = res.getIdentifier(name, "color", pkg);
             if (id == 0) continue;

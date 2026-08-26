@@ -162,6 +162,12 @@ public class PostDownloadContextMenuHook {
                             .usingStrings("MediaOptionsOverflowMenuCreator")));
 
             if (pass1.isEmpty()) {
+                pass1 = bridge.findClass(FindClass.create()
+                        .matcher(ClassMatcher.create()
+                                .usingStrings("OverflowMenuCreator")));
+            }
+
+            if (pass1.isEmpty()) {
                 ModuleLog.line("(IE|Post) ❌ MediaOptionsOverflowMenuCreator class not found");
                 return;
             }

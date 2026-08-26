@@ -39,7 +39,10 @@ import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 public class UIHookManager {
 
-    private static final String INSTAGRAM_MAIN_ACTIVITY = "com.instagram.mainactivity.InstagramMainActivity";
+    private static final String[] MAIN_ACTIVITIES = {
+            "com.instagram.mainactivity.InstagramMainActivity",
+            "com.instagram.mainactivity.LauncherActivity"
+    };
 
     @SuppressLint("StaticFieldLeak")
     private static Activity currentActivity;
@@ -135,130 +138,10 @@ public class UIHookManager {
     }
 
     public void mainActivity(ClassLoader classLoader) {
-        // Hook onCreate of Instagram Main
-        try {
-            // Precise search for the standard onCreate(Bundle) signature
-            var methods = Module.dexKitBridge.findMethod(create()
-                    .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
-                            .declaredClass(INSTAGRAM_MAIN_ACTIVITY)
-                            .name("onCreate")
-                            .paramTypes("android.os.Bundle")
-                            .returnType("void")
-                    )
-            );
-
-            // Fallback: If "onCreate" is renamed/obfuscated but still takes a Bundle
-            if (methods.isEmpty()) {
-                ModuleLog.line("(InstaEclipse): ⚠️ Specific onCreate not found, searching by signature...");
-                methods = Module.dexKitBridge.findMethod(create()
-                        .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
-                                .declaredClass(INSTAGRAM_MAIN_ACTIVITY)
-                                .paramTypes("android.os.Bundle")
-                                .returnType("void")
-                        )
-                );
-            }
-
-            if (!methods.isEmpty()) {
-                String methodName = methods.get(0).getName();
-                if (methodName == null || methodName.isEmpty()) {
-                    ModuleLog.line("(InstaEclipse): ❌ Invalid onCreate method name discovered");
-                } else {
-                    XposedHelpers.findAndHookMethod(INSTAGRAM_MAIN_ACTIVITY, classLoader, methodName, Bundle.class, new XC_MethodHook() {
-                    @Override
-                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                        final Activity activity = (Activity) param.thisObject;
-                        currentActivity = activity;
-
-                        // Use runOnUiThread to ensure we are touching the UI safely
-                        activity.runOnUiThread(() -> {
-                            try {
-                                // 1. Initialize Hooks
-                                setupHooks(activity);
-
-                                // 2. Delay UI injections slightly.
-                                // Instagram's Main is complex; the Inbox/UI might not be inflated immediately.
-                                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                                    try {
-                                        // Add the Ghost Emoji next to Inbox
-                                        addGhostEmojiNextToInbox(activity, GhostModeUtils.isGhostModeActive());
-
-                                        // 3. Show Success Toast
-                                        if (FeatureFlags.showFeatureToasts && !CustomToast.toastShown) {
-                                            CustomToast.toastShown = true;
-
-                                            StringBuilder sb = new StringBuilder(I18n.t(activity, R.string.ig_toast_features_loaded)).append("\n");
-                                            for (Map.Entry<String, Boolean> entry : FeatureStatusTracker.getStatus().entrySet()) {
-                                                sb.append(entry.getValue() ? "✅ " : "❌ ").append(FeatureStatusTracker.getLabel(activity, entry.getKey())).append("\n");
-                                            }
-                                            CustomToast.showCustomToast(activity.getApplicationContext(), sb.toString().trim());
-                                        }
-                                    } catch (Exception innerE) {
-                                        ModuleLog.line("(InstaEclipse): UI Injection Error: " + innerE.getMessage());
-                                    }
-                                }, 1500); // 1.5s delay to let the UI settle
-
-                            } catch (Exception e) {
-                                ModuleLog.line("(InstaEclipse): UI logic error in onCreate: " + e);
-                            }
-                        });
-                    }
-                    });
-                } // end else (valid methodName)
-            } else {
-                ModuleLog.line("(InstaEclipse): ❌ Failed to find any onCreate candidate in InstagramMainActivity");
-            }
-        } catch (Exception e) {
-            ModuleLog.line("(InstaEclipse): ❌ DexKit discovery failed: " + e.getMessage());
+        for (String activityClass : MAIN_ACTIVITIES) {
+            hookMainActivityLifecycle(classLoader, activityClass);
         }
 
-        // Hook onResume - Instagram Main
-        try {
-            List<MethodData> candidates = Module.dexKitBridge.findMethod(org.luckypray.dexkit.query.FindMethod.create()
-                    .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
-                            .declaredClass(INSTAGRAM_MAIN_ACTIVITY)
-                            .modifiers(java.lang.reflect.Modifier.PUBLIC)
-                            .paramCount(0)
-                            .returnType("void")
-                    )
-            );
-
-            for (MethodData methodData : candidates) {
-                String methodName = methodData.getName();
-
-                if (methodName == null || methodName.isEmpty()) continue;
-
-                // Skip constructors and static initializers
-                if (methodName.contains("<init>") || methodName.contains("<clinit>")) {
-                    continue;
-                }
-
-                // Filter by opcode size to find the substantial lifecycle method
-                if (methodData.getOpCodes().size() < 20) {
-                    continue;
-                }
-
-                XposedHelpers.findAndHookMethod(INSTAGRAM_MAIN_ACTIVITY, classLoader, methodName, new XC_MethodHook() {
-                    @Override
-                    protected void afterHookedMethod(MethodHookParam param) {
-                        final Activity activity = (Activity) param.thisObject;
-                        currentActivity = activity;
-                        activity.runOnUiThread(() -> {
-                            try {
-                                setupHooks(activity);
-                            } catch (Exception e) {
-                                ModuleLog.line("(InstaEclipse) UI Error: " + e);
-                            }
-                        });
-                    }
-                });
-                break;
-            }
-        } catch (Throwable t) {
-            ModuleLog.line("(InstaEclipse): ❌ onResume discovery failed: " + t.getMessage());
-        }
-
-        // Hook getBottomSheetNavigator - Instagram Main
         BottomSheetHookUtil.hookBottomSheetNavigator(Module.dexKitBridge);
 
         // Hook View.performLongClick — inbox long-press override.
@@ -283,20 +166,150 @@ public class UIHookManager {
         });
 
         // Hook onResume - Model
-        XposedHelpers.findAndHookMethod("com.instagram.modal.ModalActivity", classLoader, "onResume", new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) {
-                Activity activity = (Activity) param.thisObject;
-                if (activity != null) {
-                    activity.runOnUiThread(() -> {
-                        try {
-                            setupHooks(activity);
-                        } catch (Exception ignored) {
+        try {
+            XposedHelpers.findAndHookMethod("com.instagram.modal.ModalActivity", classLoader, "onResume", new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    Activity activity = (Activity) param.thisObject;
+                    if (activity != null) {
+                        activity.runOnUiThread(() -> {
+                            try {
+                                setupHooks(activity);
+                            } catch (Exception ignored) {
+                            }
+                        });
+                    }
+                }
+            });
+        } catch (Throwable t) {
+            ModuleLog.line("(InstaEclipse): ModalActivity hook failed: " + t.getMessage());
+        }
+    }
+
+    private void hookMainActivityLifecycle(ClassLoader classLoader, String activityClass) {
+        try {
+            var methods = Module.dexKitBridge.findMethod(create()
+                    .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
+                            .declaredClass(activityClass)
+                            .name("onCreate")
+                            .paramTypes("android.os.Bundle")
+                            .returnType("void")
+                    )
+            );
+            if (methods.isEmpty()) {
+                methods = Module.dexKitBridge.findMethod(create()
+                        .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
+                                .declaredClass(activityClass)
+                                .paramTypes("android.os.Bundle")
+                                .returnType("void")
+                        )
+                );
+            }
+            if (!methods.isEmpty()) {
+                String methodName = methods.get(0).getName();
+                if (methodName != null && !methodName.isEmpty()) {
+                    XposedHelpers.findAndHookMethod(activityClass, classLoader, methodName, Bundle.class, new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) {
+                            final Activity activity = (Activity) param.thisObject;
+                            currentActivity = activity;
+                            activity.runOnUiThread(() -> {
+                                try {
+                                    setupHooks(activity);
+                                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                                        try {
+                                            addGhostEmojiNextToInbox(activity, GhostModeUtils.isGhostModeActive());
+                                            if (FeatureFlags.showFeatureToasts && !CustomToast.toastShown) {
+                                                CustomToast.toastShown = true;
+                                                StringBuilder sb = new StringBuilder(I18n.t(activity, R.string.ig_toast_features_loaded)).append("\n");
+                                                for (Map.Entry<String, Boolean> entry : FeatureStatusTracker.getStatus().entrySet()) {
+                                                    sb.append(entry.getValue() ? "✅ " : "❌ ").append(FeatureStatusTracker.getLabel(activity, entry.getKey())).append("\n");
+                                                }
+                                                CustomToast.showCustomToast(activity.getApplicationContext(), sb.toString().trim());
+                                            }
+                                        } catch (Exception innerE) {
+                                            ModuleLog.line("(InstaEclipse): UI Injection Error: " + innerE.getMessage());
+                                        }
+                                    }, 1500);
+                                } catch (Exception e) {
+                                    ModuleLog.line("(InstaEclipse): UI logic error in onCreate: " + e);
+                                }
+                            });
                         }
                     });
                 }
+            } else {
+                try {
+                    XposedHelpers.findAndHookMethod(activityClass, classLoader, "onCreate", Bundle.class, new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) {
+                            final Activity activity = (Activity) param.thisObject;
+                            currentActivity = activity;
+                            activity.runOnUiThread(() -> {
+                                try {
+                                    setupHooks(activity);
+                                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                                        try {
+                                            addGhostEmojiNextToInbox(activity, GhostModeUtils.isGhostModeActive());
+                                            if (FeatureFlags.showFeatureToasts && !CustomToast.toastShown) {
+                                                CustomToast.toastShown = true;
+                                                StringBuilder sb = new StringBuilder(I18n.t(activity, R.string.ig_toast_features_loaded)).append("\n");
+                                                for (Map.Entry<String, Boolean> entry : FeatureStatusTracker.getStatus().entrySet()) {
+                                                    sb.append(entry.getValue() ? "✅ " : "❌ ").append(FeatureStatusTracker.getLabel(activity, entry.getKey())).append("\n");
+                                                }
+                                                CustomToast.showCustomToast(activity.getApplicationContext(), sb.toString().trim());
+                                            }
+                                        } catch (Exception innerE) {
+                                            ModuleLog.line("(InstaEclipse): UI Injection Error: " + innerE.getMessage());
+                                        }
+                                    }, 1500);
+                                } catch (Exception e) {
+                                    ModuleLog.line("(InstaEclipse): UI logic error in onCreate: " + e);
+                                }
+                            });
+                        }
+                    });
+                } catch (Throwable t) {
+                    ModuleLog.line("(InstaEclipse): ❌ Failed to find onCreate candidate in " + activityClass);
+                }
             }
-        });
+        } catch (Exception e) {
+            ModuleLog.line("(InstaEclipse): ❌ DexKit discovery failed for " + activityClass + ": " + e.getMessage());
+        }
+
+        try {
+            List<MethodData> candidates = Module.dexKitBridge.findMethod(org.luckypray.dexkit.query.FindMethod.create()
+                    .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
+                            .declaredClass(activityClass)
+                            .modifiers(java.lang.reflect.Modifier.PUBLIC)
+                            .paramCount(0)
+                            .returnType("void")
+                    )
+            );
+            for (MethodData methodData : candidates) {
+                String methodName = methodData.getName();
+                if (methodName == null || methodName.isEmpty()) continue;
+                if (methodName.contains("<init>") || methodName.contains("<clinit>")) continue;
+                if (methodData.getOpCodes().size() < 20) continue;
+                XposedHelpers.findAndHookMethod(activityClass, classLoader, methodName, new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) {
+                        final Activity activity = (Activity) param.thisObject;
+                        currentActivity = activity;
+                        activity.runOnUiThread(() -> {
+                            try {
+                                setupHooks(activity);
+                            } catch (Exception e) {
+                                ModuleLog.line("(InstaEclipse) UI Error: " + e);
+                            }
+                        });
+                    }
+                });
+                break;
+            }
+        } catch (Throwable t) {
+            ModuleLog.line("(InstaEclipse): ❌ onResume discovery failed for " + activityClass + ": " + t.getMessage());
+        }
     }
 
     private static void applySearchHook(Activity activity, View v) {

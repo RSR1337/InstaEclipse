@@ -6,6 +6,9 @@ import android.util.SparseIntArray;
 import android.util.TypedValue;
 
 import java.lang.reflect.Field;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import ps.reso.instaeclipse.utils.core.CommonUtils;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
@@ -24,6 +27,8 @@ public final class IgThemeEngine {
     private static volatile SparseIntArray colorResToSlot;
     private static volatile ClassLoader hostClassLoader;
     private static volatile boolean initialized;
+
+    private static final Pattern PRISM_TONE = Pattern.compile("gr[ae]y_(\\d{4})");
 
     private IgThemeEngine() {}
 
@@ -134,21 +139,76 @@ public final class IgThemeEngine {
     }
 
     private static void mapCoreAttrs(SparseIntArray map, Resources res, String pkg) {
-        String[] names = {"igds_color_primary_background", "igds_color_media_background", "igds_color_clips_tab_bar_background",
+        String[] names = {
+                // Core backgrounds & app chrome
+                "igds_color_primary_background", "igds_color_media_background", "igds_color_clips_tab_bar_background",
+                "igds_color_elevated_background", "igds_color_elevated_background_dark", "igds_color_elevated_background_intent_card",
+                "igds_color_elevated_background_prompt_suggestion", "igds_color_highlight_background", "igds_color_highlight_media_background",
+                "igds_color_elevated_highlight_background", "igds_color_elevated_highlight_background_night",
+                "igds_color_secondary_background", "igds_color_secondary_background_on_media", "igds_color_secondary_background_strong",
+                "igds_color_tertiary_background", "igds_color_banner_background", "igds_color_banner_stroke_background",
+                "igds_color_cta_banner_background", "igds_color_notification_background", "igds_color_toast_background",
+                "igds_color_toast_95_alpha_background", "igds_color_tag_or_toast_background", "igds_color_error_background",
+                "igds_color_media_thumbnail_tray_background", "igds_color_stories_loading_background", "igds_color_reels_end_scene_background",
+                "igds_color_prism_card_background", "igds_color_meta_ai_card_background", "igds_color_sticker_background",
+                "igds_color_sticker_subtle_background", "igds_color_stamp_background", "igds_color_reels_afi_button_dark_background",
                 "actionBarBackgroundColor", "tabBarBackgroundColor", "modalActionBarBackground", "directThreadActionBarBackgroundColor",
                 "statusBarBackgroundColor", "sc_card_background_flat", "fbpay_background_color", "permissionBannerBackground",
-                "igdsPrimaryBackground", "igds_color_cta_banner_background", "status_bar_background", "android:colorBackground",
-                "android:windowBackground", "android:navigationBarColor", "igds_color_elevated_background", "igds_color_highlight_background",
-                "igds_color_elevated_highlight_background", "callout_background", "igds_color_banner_background", "creationTertiaryBackground",
-                "igds_color_form_field_background_default_color", "igds_color_generic_xma_background_color", "igds_color_secondary_background",
-                "igds_color_primary_text", "igdsPrimaryText", "glyphColorPrimary", "glyphColorSecondaryActive", "fbpay_primary_text_color",
-                "tabSelectedTextColor", "android:textColorPrimary", "snackbar_text_color", "igds_color_secondary_text", "android:textColorSecondary",
-                "reportSubtitleTextColor", "igds_color_primary_button", "igds_color_primary_button_indigo", "igds_color_data_visualization_primary",
-                "igds_color_gradient_blue", "colorControlActivated", "igds_color_creation_tools_blue", "fbpay_focus_color", "igds_color_primary_icon",
-                "igds_color_actionbar_drawable_primary", "igds_color_clips_tab_bar_icon", "colorControlNormal", "igds_color_divider",
-                "igds_color_elevated_separator", "igds_color_border_secondary", "igds_color_border_tertiary", "android:statusBarColor",
-                "igds_color_text_link", "android:textColorLink", "igds_color_action_cell_emphasized_text", "fbpay_link_text_color",
-                "igds_color_link", "igds_color_error_or_destructive", "igds_color_icon_badge"};
+                "igdsPrimaryBackground", "status_bar_background", "android:colorBackground", "android:windowBackground",
+                "android:navigationBarColor", "callout_background", "creationTertiaryBackground",
+                "igds_color_form_field_background_default_color", "igds_color_form_field_background_disabled_color",
+                "igds_color_form_field_background_focussed_color", "igds_color_generic_xma_background_color",
+                // Pills / chips / badges / reactions
+                "igds_color_pill_background", "igds_color_pill_background_pressed", "igds_color_pill_active_background",
+                "igds_color_pill_active_background_pressed", "igds_color_pill_active_text", "igds_color_pill_active_text_pressed",
+                "igds_color_selected_pill_text", "igds_color_prism_pill_active_background", "igds_color_prism_pill_active_text",
+                "igds_color_prism_chip_background", "igds_color_prism_chip_background_pressed", "igds_color_prism_chip_background_selected",
+                "igds_color_prism_chip_background_stroke", "igds_color_prism_chip_label_disabled",
+                "igds_color_bio_pill_active_background", "igds_color_bio_pill_active_text", "igds_color_bio_pill_text",
+                "igds_color_instream_pill_background", "igds_color_carrera_selected_pill_bg", "igds_color_carrera_selected_pill_bg_pressed",
+                "igds_color_carrera_selected_pill_text", "igds_color_status_pill", "igds_color_status_pill_ripple",
+                "igds_color_clips_reply_bar_pill", "igds_color_attribution_pill_background_fill", "igds_color_attribution_pill_background_stroke",
+                "igds_color_icon_badge", "igds_color_new_badge", "igds_color_list_badge", "igds_color_thumbnail_badge_background",
+                "igds_color_active_badge", "igds_color_active_badge_step_1", "igds_color_active_badge_step_2", "igds_color_active_badge_step_3",
+                "igds_color_active_badge_step_4", "igds_color_active_badge_step_5", "igds_color_active_badge_step_6",
+                "igds_color_reaction_background", "igds_color_reaction_selected_background", "igds_color_close_friends",
+                // Text
+                "igds_color_primary_text", "igds_color_primary_text_on_media", "igds_color_primary_text_pressed",
+                "igds_color_primary_text_disabled", "igds_color_primary_text_pill_redesign", "igds_color_primary_text_story_pill",
+                "igds_color_primary_text_story_pill_redesign", "igds_color_secondary_text", "igds_color_secondary_text_on_media",
+                "igds_color_secondary_selectable_text", "igds_color_text_on_color", "igds_color_text_on_white",
+                "igds_color_selected_text_background", "igds_color_temporary_highlight", "igds_color_reply_bar_hint_text",
+                "igdsPrimaryText", "glyphColorPrimary", "glyphColorSecondaryActive", "fbpay_primary_text_color",
+                "tabSelectedTextColor", "android:textColorPrimary", "snackbar_text_color", "android:textColorSecondary",
+                "reportSubtitleTextColor", "igds_color_floating_cta_text", "igds_color_clips_up_next_banner_text",
+                // Buttons / accents / links
+                "igds_color_primary_button", "igds_color_primary_button_on_media", "igds_color_primary_button_pressed",
+                "igds_color_primary_button_icon", "igds_color_primary_button_indigo", "igds_color_secondary_button_on_media",
+                "igds_color_secondary_button_background_strong", "igds_color_secondary_button_elevated_panavision",
+                "igds_color_secondary_button_elevated_pressed_panavision", "igds_color_secondary_button_selected_panavision",
+                "igds_color_data_visualization_primary", "igds_color_data_visualization_secondary", "igds_color_gradient_blue",
+                "colorControlActivated", "igds_color_creation_tools_blue", "fbpay_focus_color", "igds_color_success",
+                "igds_color_stories_progress_bar", "igds_color_feed_seekbar_knob_inner_circle",
+                "igds_color_feed_seekbar_knob_outer_circle_active",
+                // Icons
+                "igds_color_primary_icon", "igds_color_secondary_icon", "igds_color_primary_icon_pill_redesign",
+                "igds_color_primary_icon_story_pill", "igds_color_primary_icon_story_pill_redesign", "igds_color_icon_on_color",
+                "igds_color_icon_on_media", "igds_color_icon_on_white", "igds_color_actionbar_drawable_primary",
+                "igds_color_actionbar_drawable_secondary", "igds_color_clips_tab_bar_icon", "colorControlNormal",
+                "igds_color_form_field_list_icon_color",
+                // Dividers / borders / strokes
+                "igds_color_divider", "igds_color_elevated_separator", "igds_color_separator",
+                "igds_color_separator_or_stroke_on_media", "igds_color_search_typeahead_separator",
+                "igds_color_reels_tab_bar_separator", "igds_color_clips_cta_separator", "igds_color_quick_send_divider_background",
+                "igds_color_border_secondary", "igds_color_border_secondary_background", "igds_color_border_tertiary",
+                "igds_color_stroke", "igds_color_photo_border", "igds_color_inbox_filter_chip_outline",
+                // Status / nav chrome & links
+                "android:statusBarColor", "igds_color_drawer_status_bar_background", "igds_color_transparent_navigation_bar",
+                "igds_color_text_link", "igds_color_link", "igds_color_link_on_color", "igds_color_link_on_media",
+                "igds_color_link_on_white", "android:textColorLink", "igds_color_action_cell_emphasized_text",
+                "fbpay_link_text_color", "igds_color_error_or_destructive",
+                "nav3_dark_active_tab_bar_icon", "nav3_inactive_tab_bar_icon", "igds_color_prism_indigo_accent"
+        };
         for (String name : names) mapAttrByName(map, res, pkg, name);
     }
 
@@ -156,8 +216,20 @@ public final class IgThemeEngine {
         String[] names = {"bds_black", "igds_prism_black", "bds_white", "igds_prism_gray_00", "bds_grey_0", "bds_grey_1",
                 "bds_grey_2", "bds_grey_3", "bds_grey_4", "bds_grey_6", "bds_grey_7", "bds_grey_8", "bds_grey_9", "bds_grey_10",
                 "bds_grey_11", "bds_grey_12", "bds_grey_16", "bds_grey_18", "bds_grey_21", "bds_grey_22", "bds_grey_24",
-                "igds_prism_gray_08", "igds_prism_gray_10", "emphasized_action_color", "badge_color", "igds_prism_indigo_1000",
-                "bds_blue_1", "bds_blue_2", "bds_red_5", "bds_red_6", "igds_primary_background", "bottom_sheet_undo_redo_color"};
+                "igds_prism_gray_08", "igds_prism_gray_10", "igds_prism_gray_0000", "igds_prism_gray_0100",
+                "igds_prism_gray_0500", "igds_prism_gray_0800", "igds_prism_gray_1000", "igds_prism_gray_1300",
+                "igds_prism_gray_1400", "igds_prism_gray_1500", "igds_prism_gray_1600",
+                "emphasized_action_color", "badge_color", "igds_prism_indigo_1000",
+                "bds_blue_1", "bds_blue_2", "bds_red_5", "bds_red_6", "igds_primary_background", "bottom_sheet_undo_redo_color",
+                // Instagram 444+ semantic colors (resources renamed igds_color_* → igds_*)
+                "igds_primary_text", "igds_primary_text_disabled", "igds_secondary_text", "igds_secondary_background",
+                "igds_primary_button", "igds_primary_icon", "igds_secondary_icon", "igds_separator", "igds_stroke",
+                "igds_link", "igds_error_or_destructive", "igds_elevated_background", "igds_elevated_separator",
+                "igds_elevated_highlight_background", "igds_photo_border", "igds_photo_placeholder", "igds_selected_text_background",
+                "igds_tag_or_toast_background", "igds_context_menu_background_color", "igds_context_menu_item_background_color",
+                "igds_creation_menu_background", "igds_creation_button_destructive", "igds_icon_on_color", "igds_link_on_color",
+                "igds_pill_active_text", "igds_success", "igds_secondary_button_on_media",
+                "igds_secondary_button_elevated_pressed_panavision", "igds_secondary_media_button_onblack_panavision_updated"};
         for (String name : names) mapColorByName(map, res, pkg, name);
         String[] packages = {pkg, CommonUtils.IG_PACKAGE_NAME};
         for (String p : packages) {
@@ -174,13 +246,13 @@ public final class IgThemeEngine {
 
     private static void scanAttrClasses(SparseIntArray map, ClassLoader cl) {
         if (cl == null) return;
-        String[] candidates = {"com.instagram.android.R$attr"};
+        String[] candidates = {"com.instagram.android.R$attr", "com.instagram.barcelona.R$attr"};
         for (String className : candidates) scanFields(map, cl, className, true);
     }
 
     private static void scanColorClasses(SparseIntArray map, ClassLoader cl) {
         if (cl == null) return;
-        String[] candidates = {"com.instagram.android.R$color"};
+        String[] candidates = {"com.instagram.android.R$color", "com.instagram.barcelona.R$color"};
         for (String className : candidates) scanFields(map, cl, className, false);
     }
 
@@ -201,61 +273,117 @@ public final class IgThemeEngine {
 
     static int slotForAttrName(String name) {
         if (name == null) return -1;
+        name = name.toLowerCase(Locale.US);
+        if (name.contains("dimmer") || name.contains("overlay") || name.contains("shadow") || name.contains("shimmer")
+                || name.contains("legibility") || name.contains("sticker_text_vibrant")
+                || name.contains("internal_") || name.contains("whatsapp") || name.contains("messenger_")
+                || name.contains("facebook_blue") || name.contains("discord_blurple") || name.contains("line_green")
+                || name.contains("kakaotalk") || name.contains("snapchat") || name.contains("sms_blue")
+                || name.contains("live_external_link") || name.contains("band_green")) return -1;
         if (name.contains("primary_background") || name.contains("media_background") || name.contains("tab_bar_background")) return 0;
         if ((name.contains("clips_tab") && name.contains(IgThemePalette.SLOT_BACKGROUND)) || name.equals("status_bar_background")
-                || name.contains("cta_banner") || name.equals("igdsPrimaryBackground") || name.contains("actionBarBackground")
-                || name.contains("tabBarBackground") || name.contains("colorBackground") || name.contains("windowBackground")) return 0;
+                || name.contains("cta_banner") || name.equals("igdsprimarybackground") || name.contains("actionbarbackground")
+                || name.contains("tabbarbackground") || name.contains("colorbackground") || name.contains("windowbackground")) return 0;
         if (name.contains("elevated") || name.contains("highlight_background") || name.contains("secondary_background")
                 || name.contains("callout_background") || name.contains("form_field_background") || name.contains("banner_background")
-                || (name.contains("creation") && name.contains(IgThemePalette.SLOT_BACKGROUND))) return 1;
-        if (name.contains("primary_text") || name.equals("igdsPrimaryText") || name.contains("textColorPrimary")
-                || name.contains("tabSelectedText") || name.contains("snackbar_text")) return 2;
-        if (name.contains("secondary_text") || name.contains("textColorSecondary")) return 3;
-        if (name.contains("glyphColor")) return 7;
-        if (name.contains("primary_button") || name.contains("gradient_blue") || name.contains("colorControlActivated")
-                || name.contains("data_visualization_primary") || name.contains("fbpay_focus") || name.contains("creation_tools_blue")) return 5;
-        if (name.contains("emphasized") || name.contains(IgThemePalette.SLOT_ACCENT) || name.contains("cta")) return 4;
-        if (name.contains("primary_icon") || name.contains("actionbar_drawable") || name.contains("clips_tab_bar_icon")
-                || name.contains("colorControlNormal") || name.contains("tab_bar_icon")) return 6;
+                || name.contains("pill_background") || name.contains("chip_background") || name.contains("toast")
+                || name.contains("stamp_background") || name.contains("sticker_background") || name.contains("card_background")
+                || name.contains("notification_background") || name.contains("status_pill") || name.contains("reaction_background")
+                || name.contains("prism_card") || (name.contains("creation") && name.contains(IgThemePalette.SLOT_BACKGROUND))) return 1;
+        if (name.contains("disabled") && (name.contains("text") || name.contains("label"))) return 3;
+        if (name.contains("secondary_text") || name.contains("textcolorsecondary") || name.contains("selectable_text")
+                || name.contains("hint_text")) return 3;
+        if (name.contains("text_on_color") || name.contains("text_on_white") || name.contains("text_on_media")) return 2;
+        if (name.contains("primary_text") || name.equals("igdsprimarytext") || name.contains("textcolorprimary")
+                || name.contains("tabselectedtext") || name.contains("snackbar_text")
+                || name.contains("pill_active_text") || name.contains("selected_pill_text")) return 2;
+        if (name.endsWith("_text") && !name.contains("action_cell")) return 2;
+        if (name.contains("glyphcolor")) return 7;
+        if (name.contains("primary_button_icon")) return 6;
+        if (name.contains("primary_button") || name.contains("gradient_blue") || name.contains("colorcontrolactivated")
+                || name.contains("data_visualization_primary") || name.contains("fbpay_focus") || name.contains("creation_tools_blue")
+                || name.contains("prism_indigo")) return 5;
+        if (name.contains(IgThemePalette.SLOT_ACCENT) || name.contains("cta")
+                || name.contains("selected_text") || name.contains("active_badge") || name.contains("success")
+                || name.contains("close_friends") || name.contains("progress_bar") || name.contains("seekbar")) return 4;
+        if (name.contains("primary_icon") || name.contains("secondary_icon") || name.contains("actionbar_drawable")
+                || name.contains("clips_tab_bar_icon") || name.contains("colorcontrolnormal") || name.contains("tab_bar_icon")
+                || name.contains("icon_on") || name.contains("list_icon")) return 6;
         if (name.contains("nav3_") && name.contains(IgThemePalette.SLOT_ICON)) return 6;
         if (name.contains(IgThemePalette.SLOT_DIVIDER) || name.contains("separator")) return 8;
-        if (name.contains(IgThemePalette.SLOT_BORDER)) return 9;
+        if (name.contains(IgThemePalette.SLOT_BORDER) || name.contains("outline")) return 9;
         if (name.contains("stroke") && !name.contains(IgThemePalette.SLOT_DESTRUCTIVE)) return 9;
-        if (name.contains("statusBarColor") || name.contains("status_bar")) return 10;
-        if (name.contains("navigationBar") || name.contains("nav3_")) return 11;
-        if (name.contains("text_link") || name.contains("link_text") || name.equals("igds_color_link") || name.contains("action_cell_emphasized")) return 12;
+        if (name.contains("statusbarcolor") || name.contains("status_bar")) return 10;
+        if (name.contains("navigationbar") || name.contains("nav3_")) return 11;
+        if (name.contains("text_link") || name.contains("link_text") || name.contains("link_on") || name.equals("igds_color_link")
+                || name.contains("action_cell_emphasized")) return 12;
         if (name.contains(IgThemePalette.SLOT_DESTRUCTIVE)) return 14;
         if (name.contains("badge") && name.contains(IgThemePalette.SLOT_ICON)) return 14;
+        if (name.equals("igds_color_new_badge") || name.contains("list_badge") || name.contains("thumbnail_badge")) return 14;
         if (name.contains("error") || name.contains("icon_badge")) return 13;
         return name.startsWith("igds_color_") ? 1 : -1;
     }
 
     static int slotForColorName(String name) {
         if (name == null) return -1;
-        if (name.contains("primary_text") || name.contains("text_on_color") || name.contains("text_on_white")) return 2;
-        if (name.contains("secondary_text") || name.contains("text_subtitle")) return 3;
+        name = name.toLowerCase(Locale.US);
+        if (name.contains("dimmer") || name.contains("overlay") || name.contains("shadow") || name.contains("shimmer")
+                || name.contains("legibility") || name.contains("sticker_text_vibrant")
+                || name.contains("_transparent") || name.contains("_alpha_")
+                || name.contains("internal_") || name.contains("whatsapp") || name.contains("messenger_")
+                || name.contains("facebook_blue") || name.contains("discord_blurple") || name.contains("line_green")
+                || name.contains("kakaotalk") || name.contains("snapchat") || name.equals("igds_sms_blue")
+                || name.contains("live_external_link") || name.contains("band_green")) return -1;
+        int prismTone = prismGrayTone(name);
+        if (prismTone >= 0) {
+            if (prismTone <= 400) return 2;
+            if (prismTone <= 900) return 3;
+            if (prismTone <= 1300) return 1;
+            return 0;
+        }
+        if (name.contains("primary_background") || name.equals("igds_primary_background")) return 0;
+        if (name.contains("disabled")) return 3;
+        if (name.contains("primary_text") || name.contains("text_on_color") || name.contains("text_on_white")
+                || name.contains("pill_active_text")) return 2;
+        if (name.contains("secondary_text") || name.contains("text_subtitle") || name.contains("selectable_text")) return 3;
         if (name.contains(IgThemePalette.SLOT_GLYPH)) return 7;
-        if (name.contains("primary_icon") || name.contains("secondary_icon")) return 6;
+        if (name.contains("primary_icon") || name.contains("secondary_icon") || name.contains("icon_on")) return 6;
         if (name.contains(IgThemePalette.SLOT_DESTRUCTIVE) || (name.contains("badge") && name.contains(IgThemePalette.SLOT_ICON))) return 14;
         if (name.contains("error")) return 13;
-        if (name.contains(IgThemePalette.SLOT_LINK)) return 12;
-        if (name.contains("primary_button") || name.contains("bds_blue") || name.equals("emphasized_action_color")) return 5;
+        if (name.contains(IgThemePalette.SLOT_LINK) || name.contains("link_on")) return 12;
+        if (name.contains("primary_button") || name.contains("bds_blue") || name.equals("emphasized_action_color")
+                || name.equals("badge_color")) return 5;
         if (name.contains("indigo") || name.contains("blue") || name.contains("emphasized") || name.contains("gradient")
-                || name.contains(IgThemePalette.SLOT_ACCENT) || name.contains("cta")) return 4;
+                || name.contains(IgThemePalette.SLOT_ACCENT) || name.contains("cta") || name.contains("selected_text")
+                || name.contains("success") || name.contains("close_friends") || name.contains("undo_redo")) return 4;
         if (name.contains(IgThemePalette.SLOT_DIVIDER) || name.contains("separator")) return 8;
         if (name.contains(IgThemePalette.SLOT_BORDER) || name.contains("stroke")) return 9;
         if (name.contains("status_bar")) return 10;
-        if (name.contains("nav")) return 11;
+        // "nav" alone would also match "panavision"; only real navigation-bar colors belong here.
+        if (name.contains("navigation") || name.contains("nav3_")) return 11;
         if (name.contains("black") || name.equals("igds_prism_black") || name.contains("grey_9") || name.contains("gray_10")
-                || name.contains("grey_10") || name.contains("media_background")) return 0;
-        if (name.contains("grey_8") || name.contains("gray_08") || name.contains("grey_7") || name.contains("elevated")
+                || name.contains("grey_10") || name.contains("gray_9") || name.contains("media_background")
+                || name.contains("true_black")) return 0;
+        if (name.contains("grey_8") || name.contains("gray_8") || name.contains("gray_08") || name.contains("grey_7") || name.contains("elevated")
                 || name.contains("highlight") || name.contains(IgThemePalette.SLOT_SURFACE)) return 1;
-        if (name.contains("grey_0") || name.contains("gray_00") || name.contains("white")) return 2;
+        if (name.contains("grey_0") || name.contains("gray_0") || name.contains("gray_00") || name.contains("white")) return 2;
         if (name.contains("grey_1") || name.contains("secondary") || name.contains("grey_2") || name.contains("grey_3")
-                || name.contains("grey_4") || name.contains("grey_6")) return 3;
+                || name.contains("grey_4") || name.contains("grey_6") || name.contains("gray_1") || name.contains("gray_2")
+                || name.contains("gray_3") || name.contains("gray_4") || name.contains("gray_5") || name.contains("gray_6")
+                || name.contains("gray_7")) return 3;
         if (name.contains(IgThemePalette.SLOT_ICON)) return 6;
         if (name.contains("red") && (name.contains("5") || name.contains("6") || name.contains(IgThemePalette.SLOT_DESTRUCTIVE))) return 14;
         return (name.startsWith("bds_") || name.startsWith("igds_prism_") || name.startsWith("igds_")) ? 1 : -1;
+    }
+
+    private static int prismGrayTone(String name) {
+        Matcher four = PRISM_TONE.matcher(name);
+        if (!four.find()) return -1;
+        try {
+            return Integer.parseInt(four.group(1));
+        } catch (NumberFormatException ignored) {
+            return -1;
+        }
     }
 
     private static void mapAttrByName(SparseIntArray map, Resources res, String pkg, String name) {

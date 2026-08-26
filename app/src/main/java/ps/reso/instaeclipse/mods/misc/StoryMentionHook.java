@@ -92,11 +92,20 @@ public class StoryMentionHook {
                             .declaredClass("com.instagram.feed.media.LiveTreeMediaDict")
                             .paramCount(0)
                             .usingEqStrings(List.of("reel_mentions"))));
+            if (getters.isEmpty()) {
+                getters = bridge.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create()
+                                .paramCount(0)
+                                .usingEqStrings(List.of("reel_mentions"))));
+            }
             for (MethodData md : getters) {
                 if (md.getName().equals("<clinit>")) continue;
                 try {
                     Method m = md.getMethodInstance(classLoader);
                     if (!List.class.isAssignableFrom(m.getReturnType())) continue;
+                    String cn = md.getClassName();
+                    if (!cn.contains("MediaDict") && !cn.contains("LiveTree") && !cn.contains("feed.media")
+                            && getters.size() > 4) continue;
                     m.setAccessible(true);
                     rawMentionsGetter = m;
                     DexKitCache.saveMethod("MentionsRawGetter", m);
@@ -154,10 +163,23 @@ public class StoryMentionHook {
         return null;
     }
 
-    // ── Hook 1: append "View Mentions" to the story options list ─────────────
-    //
-    // Same anchor as StoryDownloadHook — CharSequence[] builder with "[INTERNAL] Pause Playback".
-    // Xposed stacks hooks, so both run independently on the same method.
+    private static Object findFieldByTypeContains(Object obj, String typePart) {
+        if (obj == null || typePart == null) return null;
+        Class<?> cls = obj.getClass();
+        while (cls != null && cls != Object.class) {
+            for (Field f : cls.getDeclaredFields()) {
+                if (f.getType().getName().contains(typePart)) {
+                    try {
+                        f.setAccessible(true);
+                        Object v = f.get(obj);
+                        if (v != null) return v;
+                    } catch (Throwable ignored) {}
+                }
+            }
+            cls = cls.getSuperclass();
+        }
+        return null;
+    }
 
     private void installButtonHook(DexKitBridge bridge, ClassLoader classLoader) {
         Method method = null;
@@ -306,6 +328,9 @@ public class StoryMentionHook {
             }
 
             Object dict = findFieldByType(media, "com.instagram.feed.media.LiveTreeMediaDict");
+            if (dict == null) dict = findFieldByTypeContains(media, "LiveTreeMediaDict");
+            if (dict == null) dict = findFieldByTypeContains(media, "MediaDict");
+            if (dict == null) dict = media;
             if (dict == null) {
                 ModuleLog.line("(IE|Mention) ❌ LiveTreeMediaDict not found on media");
                 return usernames;

@@ -44,6 +44,11 @@ public class GhostTypingIndicatorHook {
                     .matcher(MethodMatcher.create().usingStrings("is_typing_indicator_enabled")));
 
             if (methods.isEmpty()) {
+                methods = bridge.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create().usingStrings("typing_indicator")));
+            }
+
+            if (methods.isEmpty()) {
                 ModuleLog.line("(InstaEclipse | TypingBlock): ❌ No methods found containing 'is_typing_indicator_enabled'");
                 return;
             }
@@ -77,7 +82,14 @@ public class GhostTypingIndicatorHook {
                         paramTypes.size() == 1 &&
                         String.valueOf(paramTypes.get(0)).contains("boolean");
 
-                if (matchesOldShape || matchesNewShape) {
+                boolean matchesLoose = returnType.contains("void") &&
+                        Modifier.isFinal(modifiers) &&
+                        paramTypes.size() >= 1 &&
+                        paramTypes.size() <= 3 &&
+                        (String.valueOf(paramTypes.get(paramTypes.size() - 1)).contains("boolean")
+                                || String.valueOf(paramTypes.get(0)).contains("boolean"));
+
+                if (matchesOldShape || matchesNewShape || matchesLoose) {
                     try {
                         DexKitCache.saveMethod("GhostTyping", reflectMethod);
                         XposedBridge.hookMethod(reflectMethod, hook);

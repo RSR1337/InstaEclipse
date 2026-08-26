@@ -103,6 +103,22 @@ public class HideSuggestedFeedItemsHook {
             }
 
             if (methods.isEmpty()) {
+                methods = bridge.findMethod(
+                        FindMethod.create().matcher(
+                                MethodMatcher.create().usingStrings("bloks_netego", "media_or_ad")
+                        )
+                );
+            }
+
+            if (methods.isEmpty()) {
+                methods = bridge.findMethod(
+                        FindMethod.create().matcher(
+                                MethodMatcher.create().usingStrings("Unknown FeedItem Type")
+                        )
+                );
+            }
+
+            if (methods.isEmpty()) {
                 ModuleLog.line("(InstaEclipse | HideSuggested): ❌ FeedItem parser not found.");
                 return;
             }

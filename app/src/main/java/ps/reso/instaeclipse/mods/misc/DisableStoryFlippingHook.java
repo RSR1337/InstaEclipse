@@ -54,6 +54,49 @@ public class DisableStoryFlippingHook {
             );
 
             if (methods.isEmpty()) {
+                methods = bridge.findMethod(
+                        FindMethod.create().matcher(
+                                MethodMatcher.create()
+                                        .usingStrings("end_scene", "userSession")
+                                        .paramTypes("java.lang.Object")
+                                        .returnType("void")
+                        )
+                );
+            }
+
+            if (methods.isEmpty()) {
+                methods = bridge.findMethod(
+                        FindMethod.create().matcher(
+                                MethodMatcher.create()
+                                        .usingStrings("end_scene")
+                                        .paramCount(1)
+                                        .returnType("void")
+                        )
+                );
+            }
+
+            if (methods.isEmpty()) {
+                List<org.luckypray.dexkit.result.ClassData> reelClasses = bridge.findClass(
+                        org.luckypray.dexkit.query.FindClass.create().matcher(
+                                org.luckypray.dexkit.query.matchers.ClassMatcher.create()
+                                        .usingStrings("ReelViewerFragment")
+                        )
+                );
+                for (org.luckypray.dexkit.result.ClassData classData : reelClasses) {
+                    methods = bridge.findMethod(
+                            FindMethod.create().matcher(
+                                    MethodMatcher.create()
+                                            .declaredClass(classData.getName())
+                                            .paramTypes("java.lang.Object")
+                                            .returnType("void")
+                                            .usingStrings("userSession")
+                            )
+                    );
+                    if (!methods.isEmpty()) break;
+                }
+            }
+
+            if (methods.isEmpty()) {
                 ModuleLog.line("(InstaEclipse | StoryFlipping): ❌ No methods found referencing 'end_scene'.");
                 return;
             }

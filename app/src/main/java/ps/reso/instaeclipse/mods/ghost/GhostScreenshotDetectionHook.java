@@ -46,6 +46,11 @@ public class GhostScreenshotDetectionHook {
                     .matcher(ClassMatcher.create().usingStrings("ScreenshotNotificationManager")));
 
             if (classes.isEmpty()) {
+                classes = bridge.findClass(FindClass.create()
+                        .matcher(ClassMatcher.create().usingStrings("screenshot_notification")));
+            }
+
+            if (classes.isEmpty()) {
                 ModuleLog.line("(InstaEclipse | ScreenshotBlock): ❌ No class found containing 'ScreenshotNotificationManager'");
                 return;
             }
@@ -63,8 +68,10 @@ public class GhostScreenshotDetectionHook {
 
                     // Match: void method(long)
                     if (returnType.contains("void") &&
-                            paramTypes.size() == 1 &&
-                            String.valueOf(paramTypes.get(0)).contains("long")) {
+                            paramTypes.size() >= 1 &&
+                            paramTypes.size() <= 2 &&
+                            (String.valueOf(paramTypes.get(0)).contains("long")
+                                    || (paramTypes.size() == 2 && String.valueOf(paramTypes.get(1)).contains("long")))) {
 
                         try {
                             Method targetMethod = method.getMethodInstance(Module.hostClassLoader);

@@ -84,6 +84,27 @@ public class GhostDMSeenHook {
                 }
             }
 
+            for (MethodData method : methods) {
+                Method reflectMethod;
+                try {
+                    reflectMethod = method.getMethodInstance(Module.hostClassLoader);
+                } catch (Throwable e) {
+                    continue;
+                }
+                String returnType = String.valueOf(method.getReturnType());
+                if (!returnType.contains("void") || method.getParamTypes().size() < 2) continue;
+                try {
+                    DexKitCache.saveMethod("GhostSeen", reflectMethod);
+                    XposedBridge.hookMethod(reflectMethod, hook);
+                    ModuleLog.line("(InstaEclipse | GhostModeSeen): ✅ Hooked: " +
+                            method.getClassName() + "." + method.getName());
+                    FeatureStatusTracker.setHooked("GhostSeen");
+                    return;
+                } catch (Throwable e) {
+                    ModuleLog.line("(InstaEclipse | GhostModeSeen): ❌ Hook error: " + e.getMessage());
+                }
+            }
+
         } catch (Throwable e) {
             ModuleLog.line("(InstaEclipse | GhostModeSeen): ❌ DexKit exception: " + e.getMessage());
         }

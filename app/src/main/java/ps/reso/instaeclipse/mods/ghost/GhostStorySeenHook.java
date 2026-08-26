@@ -64,7 +64,7 @@ public class GhostStorySeenHook {
                 // Match: final void method with no params
                 if (Modifier.isFinal(modifiers) &&
                         returnType.contains("void") &&
-                        paramTypes.size() == 0) {
+                        paramTypes.size() <= 1) {
 
                     try {
                         DexKitCache.saveMethod("GhostStorySeen", reflectMethod);

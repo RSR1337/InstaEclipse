@@ -65,6 +65,14 @@ public class GhostEphemeralKeepHook {
                             .paramTypes("com.instagram.model.direct.DirectThreadKey", "boolean")
                             .returnType("void")));
 
+            if (methods.isEmpty()) {
+                methods = bridge.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create()
+                                .usingStrings("igThreadIgid")
+                                .paramCount(2)
+                                .returnType("void")));
+            }
+
             for (MethodData md : methods) {
                 try {
                     Method m = md.getMethodInstance(classLoader);

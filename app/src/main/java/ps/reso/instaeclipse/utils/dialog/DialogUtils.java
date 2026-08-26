@@ -36,6 +36,7 @@ import ps.reso.instaeclipse.mods.devops.config.ConfigManager;
 import ps.reso.instaeclipse.mods.ghost.ui.GhostEmojiManager;
 import ps.reso.instaeclipse.mods.location.LocationPickerActivity;
 import ps.reso.instaeclipse.mods.ui.UIHookManager;
+import ps.reso.instaeclipse.mods.ui.theme.IgColorRemapEngine;
 import ps.reso.instaeclipse.utils.core.ModuleActivityLauncher;
 import ps.reso.instaeclipse.utils.core.SettingsManager;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
@@ -50,7 +51,8 @@ public class DialogUtils {
     @SuppressLint("UseCompatLoadingForDrawables")
     public static void showEclipseOptionsDialog(Context context) {
         SettingsManager.init(context);
-
+        IgColorRemapEngine.enterModuleUi();
+        try {
         LinearLayout outer = new LinearLayout(context);
         outer.setOrientation(LinearLayout.VERTICAL);
 
@@ -105,16 +107,26 @@ public class DialogUtils {
         }
         currentDialog = null;
 
+        IgColorRemapEngine.markModuleDialogView(outer);
         currentDialog = createBottomSheetDialog(context, outer);
         currentDialog.show();
+        } finally {
+            IgColorRemapEngine.leaveModuleUi();
+        }
     }
 
     public static void showSimpleDialog(Context context, String title, String message) {
         try {
-            new AlertDialog.Builder(context).setTitle(title).setMessage(message)
-                    .setPositiveButton(I18n.t(context, R.string.ig_dialog_ok), null).show();
+            IgColorRemapEngine.enterModuleUi();
+            try {
+                AlertDialog dialog = new AlertDialog.Builder(context).setTitle(title).setMessage(message)
+                        .setPositiveButton(I18n.t(context, R.string.ig_dialog_ok), null).create();
+                markDialogDecor(dialog);
+                dialog.show();
+            } finally {
+                IgColorRemapEngine.leaveModuleUi();
+            }
         } catch (Exception e) {
-            // handle UI crash fallback
         }
     }
 
@@ -476,13 +488,15 @@ public class DialogUtils {
         }));
 
         layout.addView(createActionRow(context, R.drawable.ic_restart, I18n.t(context, R.string.ig_dialog_dev_restore_default_config), "#FF9F0A", v -> {
-            new AlertDialog.Builder(context)
+            AlertDialog restoreDialog = new AlertDialog.Builder(context)
                     .setTitle(I18n.t(context, R.string.ig_dialog_dev_restore_default_config))
                     .setMessage(I18n.t(context, R.string.ig_dialog_dev_restore_default_config_confirm))
                     .setPositiveButton(I18n.t(context, R.string.ig_dialog_yes), (dialog, which) ->
                             ConfigManager.restoreDefaultConfig(context, Module.moduleSourceDir))
                     .setNegativeButton(I18n.t(context, R.string.ig_dialog_cancel), null)
-                    .show();
+                    .create();
+            markDialogDecor(restoreDialog);
+            restoreDialog.show();
         }));
 
         layout.addView(createDivider(context));
@@ -714,7 +728,9 @@ public class DialogUtils {
                     extremeModeSwitch.setEnabled(false);
                 });
                 builder.setNegativeButton(I18n.t(context, R.string.ig_dialog_cancel), (dialog, which) -> extremeModeSwitch.setChecked(false));
-                builder.show();
+                AlertDialog extremeDialog = builder.create();
+                markDialogDecor(extremeDialog);
+                extremeDialog.show();
             }
         });
 
@@ -1312,6 +1328,8 @@ public class DialogUtils {
     private static void showSectionDialog(Context context, String title, LinearLayout contentLayout, Runnable onSave) {
         if (currentDialog != null) { try { currentDialog.dismiss(); } catch (Exception ignored) {} currentDialog = null; }
 
+        IgColorRemapEngine.enterModuleUi();
+        try {
         LinearLayout container = new LinearLayout(context);
         container.setOrientation(LinearLayout.VERTICAL);
         container.setPadding(0, 0, 0, 0);
@@ -1379,6 +1397,9 @@ public class DialogUtils {
 
         currentDialog = createBottomSheetDialog(context, scrollView);
         currentDialog.show();
+        } finally {
+            IgColorRemapEngine.leaveModuleUi();
+        }
     }
 
 
@@ -1640,6 +1661,7 @@ public class DialogUtils {
     }
 
     private static AlertDialog createBottomSheetDialog(Context context, View contentView) {
+        IgColorRemapEngine.markModuleDialogView(contentView);
         AlertDialog dialog = new AlertDialog.Builder(context).setView(contentView).setCancelable(true).create();
         Window window = dialog.getWindow();
         if (window != null) {
@@ -1647,8 +1669,17 @@ public class DialogUtils {
             window.setGravity(Gravity.BOTTOM);
             window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             window.getAttributes().windowAnimations = android.R.style.Animation_InputMethod;
+            IgColorRemapEngine.markModuleDialogView(window.getDecorView());
         }
         return dialog;
+    }
+
+    private static void markDialogDecor(AlertDialog dialog) {
+        if (dialog == null) return;
+        Window window = dialog.getWindow();
+        if (window != null) IgColorRemapEngine.markModuleDialogView(window.getDecorView());
+        View decor = dialog.findViewById(android.R.id.content);
+        if (decor != null) IgColorRemapEngine.markModuleDialogView(decor);
     }
 
 

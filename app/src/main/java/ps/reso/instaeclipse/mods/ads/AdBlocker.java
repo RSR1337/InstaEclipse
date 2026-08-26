@@ -23,7 +23,9 @@ public class AdBlocker {
     // marker first and fall back to the legacy one for older installs.
     private static final String[] INSERT_ITEM_MARKERS = {
             "Is ad pod",
-            "SponsoredContentController.insertItem"
+            "SponsoredContentController.insertItem",
+            "SponsoredContentController",
+            "ad_pod_id"
     };
 
     public void disableSponsoredContent(DexKitBridge bridge, ClassLoader classLoader) {

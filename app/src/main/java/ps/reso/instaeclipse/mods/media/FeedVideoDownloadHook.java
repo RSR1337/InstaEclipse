@@ -1042,6 +1042,27 @@ public class FeedVideoDownloadHook {
                             .returnType(userClass)
                             .usingEqStrings(java.util.List.of("user"))));
 
+            if (results.isEmpty()) {
+                results = bridge.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create()
+                                .paramCount(0)
+                                .returnType(userClass)
+                                .usingEqStrings(java.util.List.of("user"))));
+            }
+
+            for (MethodData md : results) {
+                try {
+                    String cn = md.getClassName();
+                    if (!cn.contains("MediaDict") && !cn.contains("LiveTree") && !cn.contains("feed.media")) continue;
+                    Method m = md.getMethodInstance(classLoader);
+                    m.setAccessible(true);
+                    dictUserGetter = m;
+                    DexKitCache.saveMethod("DictUserGetter", m);
+                    ModuleLog.line("(IE|DL|Username) ✅ Resolved dictUserGetter (concrete class): " + m.getName());
+                    return;
+                } catch (Throwable ignored) {}
+            }
+
             if (!results.isEmpty()) {
                 Method m = results.get(0).getMethodInstance(classLoader);
                 m.setAccessible(true);

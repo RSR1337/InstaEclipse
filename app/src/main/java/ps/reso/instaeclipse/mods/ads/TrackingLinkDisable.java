@@ -30,8 +30,12 @@ public class TrackingLinkDisable {
                         // as the first one — matching only "?param=" (old behavior) missed
                         // links where another param came first, e.g. "?igshid=X&utm_source=...".
                         boolean hasTracking = url.contains("igsh=")
+                                || url.contains("igshid=")
                                 || url.contains("ig_rid=")
+                                || url.contains("ig_mid=")
                                 || url.contains("utm_source=")
+                                || url.contains("utm_medium=")
+                                || url.contains("share_id=")
                                 || url.contains("story_media_id=")
                                 || url.matches("(?i).*saved[-_]by.*");
 

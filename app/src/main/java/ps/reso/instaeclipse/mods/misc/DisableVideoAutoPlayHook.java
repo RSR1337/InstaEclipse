@@ -61,6 +61,14 @@ public class DisableVideoAutoPlayHook {
             );
 
             if (methods.isEmpty()) {
+                methods = bridge.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create()
+                                .usingStrings("disable_video_autoplay")
+                        )
+                );
+            }
+
+            if (methods.isEmpty()) {
                 ModuleLog.line("(InstaEclipse | AutoPlayDisable): ❌ No matching methods found.");
                 return;
             }
@@ -70,7 +78,7 @@ public class DisableVideoAutoPlayHook {
                 boolean returnTypeMatch = String.valueOf(method.getReturnType()).contains("boolean");
                 boolean paramTypesMatch = method.getParamTypes().size() == 1;
 
-                if (returnTypeMatch && paramTypesMatch) {
+                if (returnTypeMatch && (paramTypesMatch || method.getParamTypes().size() == 0 || method.getParamTypes().size() == 2)) {
                     hookMethod(method);
                     return;
                 }

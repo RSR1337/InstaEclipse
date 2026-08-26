@@ -37,7 +37,9 @@ public class BottomSheetHookUtil {
             );
 
             for (MethodData method : methods) {
-                if (!method.getClassName().equals("com.instagram.mainactivity.InstagramMainActivity")) continue;
+                if (!method.getClassName().contains("InstagramMainActivity")
+                        && !method.getClassName().contains("LauncherActivity")
+                        && !method.getClassName().contains("MainActivity")) continue;
 
                 Method reflectMethod;
                 try {

@@ -50,6 +50,8 @@ import ps.reso.instaeclipse.mods.media.StoryDownloadHook;
 import ps.reso.instaeclipse.mods.misc.CommentCopyHook;
 import ps.reso.instaeclipse.mods.misc.CaptionCopyContextMenuHook;
 import ps.reso.instaeclipse.mods.misc.DisableDoubleTapLikeHook;
+import ps.reso.instaeclipse.mods.misc.IGMantleCrashHook;
+import ps.reso.instaeclipse.mods.misc.IgApiLookupCrashHook;
 import ps.reso.instaeclipse.mods.misc.DisableStoryFlippingHook;
 import ps.reso.instaeclipse.mods.misc.DisableVideoAutoPlayHook;
 import ps.reso.instaeclipse.mods.misc.StoryMentionHook;
@@ -198,6 +200,18 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     IGNetworkInterceptor interceptor = new IGNetworkInterceptor();
 
                     // --- Feature Hooks ---
+
+                    try {
+                        new IGMantleCrashHook().install(dexKitBridge, lpparam.classLoader);
+                    } catch (Throwable ignored) {
+                        ModuleLog.line("(InstaEclipse | MantleCrash): ❌ Failed to hook");
+                    }
+
+                    try {
+                        new IgApiLookupCrashHook().install(dexKitBridge, lpparam.classLoader);
+                    } catch (Throwable ignored) {
+                        ModuleLog.line("(InstaEclipse | ApiLookupCrash): ❌ Failed to hook");
+                    }
 
                     // Developer Options
                     try {

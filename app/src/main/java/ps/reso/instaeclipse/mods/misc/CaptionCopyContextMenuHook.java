@@ -180,17 +180,35 @@ public class CaptionCopyContextMenuHook {
                             .paramCount(0)
                             .usingEqStrings(List.of("caption"))));
 
+            if (results.isEmpty()) {
+                results = bridge.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create()
+                                .paramCount(0)
+                                .usingEqStrings(List.of("caption"))));
+            }
+
+            Method firstFallback = null;
             for (MethodData md : results) {
                 if (md.getName().equals("<clinit>")) continue;
                 try {
                     Method m = md.getMethodInstance(classLoader);
                     if (m.getReturnType() == void.class || m.getReturnType().isPrimitive()) continue;
                     m.setAccessible(true);
-                    captionGetter = m;
-                    DexKitCache.saveMethod("CaptionGetter", m);
-                    ModuleLog.line("(IE|Caption) ✅ captionGetter=" + m.getName());
-                    return;
+                    String cn = md.getClassName();
+                    if (cn.contains("MediaDict") || cn.contains("LiveTree") || cn.contains("feed.media")) {
+                        captionGetter = m;
+                        DexKitCache.saveMethod("CaptionGetter", m);
+                        ModuleLog.line("(IE|Caption) ✅ captionGetter=" + m.getName());
+                        return;
+                    }
+                    if (firstFallback == null) firstFallback = m;
                 } catch (Throwable ignored) {}
+            }
+            if (firstFallback != null) {
+                captionGetter = firstFallback;
+                DexKitCache.saveMethod("CaptionGetter", firstFallback);
+                ModuleLog.line("(IE|Caption) ✅ captionGetter=" + firstFallback.getName());
+                return;
             }
             ModuleLog.line("(IE|Caption) ❌ captionGetter not found");
         } catch (Throwable t) {
@@ -203,13 +221,16 @@ public class CaptionCopyContextMenuHook {
         try {
             Object dict = null;
             for (Field f : media.getClass().getDeclaredFields()) {
-                if (f.getType().getName().equals("com.instagram.feed.media.LiveTreeMediaDict")) {
+                String typeName = f.getType().getName();
+                if (typeName.equals("com.instagram.feed.media.LiveTreeMediaDict")
+                        || typeName.contains("LiveTreeMediaDict")
+                        || typeName.endsWith("MediaDict")) {
                     f.setAccessible(true);
                     dict = f.get(media);
-                    break;
+                    if (dict != null) break;
                 }
             }
-            if (dict == null) return null;
+            if (dict == null) dict = media;
 
             Object captionObj = captionGetter.invoke(dict);
             if (captionObj == null) return null;
@@ -268,6 +289,12 @@ public class CaptionCopyContextMenuHook {
             List<ClassData> pass1 = bridge.findClass(FindClass.create()
                     .matcher(ClassMatcher.create()
                             .usingStrings("MediaOptionsOverflowMenuCreator")));
+
+            if (pass1.isEmpty()) {
+                pass1 = bridge.findClass(FindClass.create()
+                        .matcher(ClassMatcher.create()
+                                .usingStrings("OverflowMenuCreator")));
+            }
 
             if (pass1.isEmpty()) {
                 ModuleLog.line("(IE|Caption) ❌ MediaOptionsOverflowMenuCreator class not found");

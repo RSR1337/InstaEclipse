@@ -111,6 +111,13 @@ public class ForceReelQualityHook {
                             .paramCount(0)
                             .usingEqStrings(List.of("video_versions"))));
 
+            if (results.isEmpty()) {
+                results = bridge.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create()
+                                .paramCount(0)
+                                .usingEqStrings(List.of("video_versions"))));
+            }
+
             for (MethodData md : results) {
                 try {
                     Method m = md.getMethodInstance(classLoader);
@@ -125,14 +132,32 @@ public class ForceReelQualityHook {
     }
 
     private static String resolveHeightGetterName(DexKitBridge bridge, ClassLoader classLoader) {
+        String[] versionClasses = {
+                VIDEO_VERSION_CLASS,
+                "com.instagram.model.mediasize.VideoVersionIntf",
+                "com.instagram.api.schemas.VideoVersionIntf"
+        };
+        for (String className : versionClasses) {
+            try {
+                List<MethodData> results = bridge.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create()
+                                .declaredClass(className)
+                                .paramCount(0)
+                                .returnType("java.lang.Integer")
+                                .usingNumbers(List.of(HEIGHT_HASH))));
+                if (!results.isEmpty()) return results.get(0).getName();
+            } catch (Throwable ignored) {}
+        }
         try {
             List<MethodData> results = bridge.findMethod(FindMethod.create()
                     .matcher(MethodMatcher.create()
-                            .declaredClass(VIDEO_VERSION_CLASS)
                             .paramCount(0)
                             .returnType("java.lang.Integer")
                             .usingNumbers(List.of(HEIGHT_HASH))));
-
+            for (MethodData md : results) {
+                String cn = md.getClassName();
+                if (cn.contains("VideoVersion") || cn.contains("mediasize")) return md.getName();
+            }
             if (!results.isEmpty()) return results.get(0).getName();
         } catch (Throwable t) {
             ModuleLog.line("(InstaEclipse | ForceReelQuality): ❌ resolveHeightGetterName – " + t);
