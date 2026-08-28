@@ -501,7 +501,6 @@ public class ReelDownloadHook {
             }
 
             if (methods.isEmpty()) {
-                ModuleLog.line("(IE|Reel) ⚠️ Gate method not found for config " + configId);
                 return;
             }
 

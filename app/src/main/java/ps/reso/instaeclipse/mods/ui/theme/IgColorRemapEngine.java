@@ -134,29 +134,36 @@ public final class IgColorRemapEngine {
 
     public static int remap(int color) {
         if (!IgThemeEngine.isActive() || isBypassing() || color == 0) return color;
+        if (isPaletteColor(color)) return color;
         SparseIntArray exact = exactTable;
         SparseIntArray rgb = rgbTable;
         if (rgb == null) return color;
+        int result = CACHE_MISS;
         if (exact != null) {
-            int exactHit = exact.get(color, CACHE_MISS);
-            if (exactHit != CACHE_MISS) return exactHit;
+            result = exact.get(color, CACHE_MISS);
         }
-        int mappedRgb = rgb.get(color & 0x00FFFFFF, CACHE_MISS);
-        if (mappedRgb != CACHE_MISS) {
-            return (0xFF000000 & color) | (0x00FFFFFF & mappedRgb);
-        }
-        SparseIntArray fuzzy = fuzzyCache;
-        if (fuzzy != null) {
-            int cached;
-            synchronized (FUZZY_LOCK) {
-                cached = fuzzy.get(color, CACHE_MISS);
+        if (result == CACHE_MISS) {
+            int mappedRgb = rgb.get(color & 0x00FFFFFF, CACHE_MISS);
+            if (mappedRgb != CACHE_MISS) {
+                result = (0xFF000000 & color) | (0x00FFFFFF & mappedRgb);
             }
-            if (cached != CACHE_MISS) return cached;
         }
-        int result = remapFuzzy(color);
-        if (fuzzy != null) {
-            synchronized (FUZZY_LOCK) {
-                if (fuzzy.size() < FUZZY_CACHE_LIMIT) fuzzy.put(color, result);
+        if (result == CACHE_MISS) {
+            SparseIntArray fuzzy = fuzzyCache;
+            if (fuzzy != null) {
+                int cached;
+                synchronized (FUZZY_LOCK) {
+                    cached = fuzzy.get(color, CACHE_MISS);
+                }
+                if (cached != CACHE_MISS) result = cached;
+            }
+            if (result == CACHE_MISS) {
+                result = remapFuzzy(color);
+                if (fuzzy != null) {
+                    synchronized (FUZZY_LOCK) {
+                        if (fuzzy.size() < FUZZY_CACHE_LIMIT) fuzzy.put(color, result);
+                    }
+                }
             }
         }
         return result;
@@ -169,18 +176,32 @@ public final class IgColorRemapEngine {
 
     public static int remapExact(int color) {
         if (!IgThemeEngine.isActive() || isBypassing() || color == 0) return color;
+        if (isPaletteColor(color)) return color;
         SparseIntArray exact = exactTable;
         SparseIntArray rgb = rgbTable;
         if (rgb == null) return color;
+        int result = CACHE_MISS;
         if (exact != null) {
-            int exactHit = exact.get(color, CACHE_MISS);
-            if (exactHit != CACHE_MISS) return exactHit;
+            result = exact.get(color, CACHE_MISS);
         }
-        int mappedRgb = rgb.get(color & 0x00FFFFFF, CACHE_MISS);
-        if (mappedRgb != CACHE_MISS) {
-            return (0xFF000000 & color) | (0x00FFFFFF & mappedRgb);
+        if (result == CACHE_MISS) {
+            int mappedRgb = rgb.get(color & 0x00FFFFFF, CACHE_MISS);
+            if (mappedRgb != CACHE_MISS) {
+                result = (0xFF000000 & color) | (0x00FFFFFF & mappedRgb);
+            }
         }
-        return color;
+        if (result == CACHE_MISS) return color;
+        return result;
+    }
+
+    public static long remapComposePackedExact(long packed) {
+        if (!IgThemeEngine.isActive() || isBypassing() || packed == 0L) return packed;
+        if ((packed & 63L) != 0L) return packed;
+        int argb = (int) (packed >>> 32);
+        if (argb == 0) return packed;
+        int remapped = remapExact(argb);
+        if (remapped == argb) return packed;
+        return (((long) remapped) << 32) | (packed & 0xFFFFFFFFL);
     }
 
     public static long remapComposePacked(long packed) {
@@ -340,6 +361,7 @@ public final class IgColorRemapEngine {
         int r = (color >> 16) & 0xFF;
         int g = (color >> 8) & 0xFF;
         int b = color & 0xFF;
+        if (looksLikePhotographic(r, g, b)) return color;
         double lum = ((r * 0.299d) + (g * 0.587d) + (b * 0.114d)) / 255.0d;
         int target;
         if (isAccentBlue(r, g, b)) target = fuzzyButton;
@@ -355,6 +377,25 @@ public final class IgColorRemapEngine {
         else if (lum < 0.25d) target = fuzzyPrimary;
         else target = fuzzySecondary;
         return (alpha << 24) | (0x00FFFFFF & target);
+    }
+
+    public static boolean isPaletteColor(int color) {
+        IgThemePalette palette = IgThemeEngine.getActivePalette();
+        if (palette == null) return false;
+        int rgb = color & 0x00FFFFFF;
+        for (String key : IgThemePalette.SLOT_KEYS) {
+            if ((palette.get(key) & 0x00FFFFFF) == rgb) return true;
+        }
+        return false;
+    }
+
+    private static boolean looksLikePhotographic(int r, int g, int b) {
+        int max = Math.max(r, Math.max(g, b));
+        int min = Math.min(r, Math.min(g, b));
+        if (max - min < 28) return false;
+        if (isAccentBlue(r, g, b) || isLinkBlue(r, g, b) || isDestructiveRed(r, g, b)) return false;
+        float lum = (r * 0.299f + g * 0.587f + b * 0.114f) / 255f;
+        return lum > 0.06f && lum < 0.94f;
     }
 
     private static void cacheFuzzyPalette(IgThemePalette palette) {
@@ -430,7 +471,10 @@ public final class IgColorRemapEngine {
         String[] classes = {
                 "com.instagram.compose.core.theme.BaseColors",
                 "com.instagram.compose.core.theme.BasePrismColors",
-                "com.instagram.compose.core.theme.BasePrismColorsV2"
+                "com.instagram.compose.core.theme.BasePrismColorsV2",
+                "com.instagram.compose.core.theme.SemanticColors",
+                "com.instagram.compose.core.theme.InstagramColors",
+                "com.instagram.compose.core.ui.theme.Theme"
         };
         for (String className : classes) {
             try {
@@ -514,9 +558,11 @@ public final class IgColorRemapEngine {
         String[] colorNames = {"bds_black", "igds_prism_black", "bds_white", "igds_prism_gray_00", "bds_grey_0", "bds_grey_1",
                 "bds_grey_2", "bds_grey_3", "bds_grey_4", "bds_grey_6", "bds_grey_7", "bds_grey_8", "bds_grey_9", "bds_grey_10",
                 "bds_grey_11", "bds_grey_12", "bds_grey_16", "bds_grey_18", "bds_grey_21", "bds_grey_22", "bds_grey_24",
-                "igds_prism_gray_08", "igds_prism_gray_10", "igds_prism_gray_0000", "igds_prism_gray_0100",
-                "igds_prism_gray_0500", "igds_prism_gray_0800", "igds_prism_gray_1000", "igds_prism_gray_1300",
-                "igds_prism_gray_1400", "igds_prism_gray_1500", "igds_prism_gray_1600",
+                "igds_prism_gray_08", "igds_prism_gray_10",                 "igds_prism_gray_0000", "igds_prism_gray_0100", "igds_prism_gray_0200", "igds_prism_gray_0300",
+                "igds_prism_gray_0400", "igds_prism_gray_0500", "igds_prism_gray_0600", "igds_prism_gray_0700",
+                "igds_prism_gray_0800", "igds_prism_gray_0900", "igds_prism_gray_1000", "igds_prism_gray_1100",
+                "igds_prism_gray_1200", "igds_prism_gray_1300", "igds_prism_gray_1400", "igds_prism_gray_1500",
+                "igds_prism_gray_1600",
                 "emphasized_action_color", "badge_color", "igds_prism_indigo_1000",
                 "bds_blue_1", "bds_blue_2", "bds_red_5", "bds_red_6", "igds_primary_background", "bottom_sheet_undo_redo_color",
                 // Instagram 444+ semantic colors (resources renamed igds_color_* → igds_*)
@@ -527,7 +573,10 @@ public final class IgColorRemapEngine {
                 "igds_tag_or_toast_background", "igds_context_menu_background_color", "igds_context_menu_item_background_color",
                 "igds_creation_menu_background", "igds_creation_button_destructive", "igds_icon_on_color", "igds_link_on_color",
                 "igds_pill_active_text", "igds_success", "igds_secondary_button_on_media",
-                "igds_secondary_button_elevated_pressed_panavision", "igds_secondary_media_button_onblack_panavision_updated"};
+                "igds_secondary_button_elevated_pressed_panavision", "igds_secondary_media_button_onblack_panavision_updated",
+                "igds_composer_background", "igds_search_bar_background", "igds_nav3_background",
+                "igds_bottom_sheet_background", "igds_modal_background", "igds_input_background",
+                "igds_comment_composer_background", "igds_direct_inbox_background", "igds_notes_background"};
         for (String name : colorNames) {
             int id = res.getIdentifier(name, "color", pkg);
             if (id == 0) continue;

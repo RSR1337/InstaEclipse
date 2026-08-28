@@ -10,13 +10,16 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsetsController;
+import android.widget.CompoundButton;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import java.lang.reflect.Field;
@@ -25,8 +28,11 @@ import java.util.List;
 import java.util.Map;
 
 import org.luckypray.dexkit.query.FindClass;
+import org.luckypray.dexkit.query.FindMethod;
 import org.luckypray.dexkit.query.matchers.ClassMatcher;
+import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.ClassData;
+import org.luckypray.dexkit.result.MethodData;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -60,6 +66,8 @@ public class IgThemeHook {
             hookComposeColors(classLoader);
             hookNativeColors(classLoader);
             hookColorData(classLoader);
+            hookWidgetTints();
+            hookIgdsColorProviders(classLoader);
             hookActivityLifecycle();
             hookPhoneWindowColors(classLoader);
             installed = true;
@@ -291,6 +299,21 @@ public class IgThemeHook {
                 }
             }
         }));
+        tryHook(() -> XposedHelpers.findAndHookMethod(View.class, "setBackground", android.graphics.drawable.Drawable.class, new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) {
+                if (!IgThemeEngine.isActive() || IgColorRemapEngine.shouldSkipRemap(param.thisObject)) return;
+                if (param.args[0] instanceof ColorDrawable) {
+                    ColorDrawable cd = (ColorDrawable) param.args[0];
+                    int original = cd.getColor();
+                    int remapped = IgColorRemapEngine.remap(original);
+                    if (remapped != original) {
+                        ColorDrawable next = new ColorDrawable(remapped);
+                        param.args[0] = next;
+                    }
+                }
+            }
+        }));
     }
 
     private void hookTextViewColors() {
@@ -392,6 +415,24 @@ public class IgThemeHook {
                 }
             }
         }));
+        tryHook(() -> XposedHelpers.findAndHookConstructor(RippleDrawable.class, ColorStateList.class, android.graphics.drawable.Drawable.class, android.graphics.drawable.Drawable.class, new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) {
+                if (!IgThemeEngine.isActive() || IgColorRemapEngine.isBypassing()) return;
+                if (param.args[0] instanceof ColorStateList) {
+                    param.args[0] = IgColorRemapEngine.remapColorStateList((ColorStateList) param.args[0]);
+                }
+            }
+        }));
+        tryHook(() -> XposedHelpers.findAndHookMethod(RippleDrawable.class, "setColor", ColorStateList.class, new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) {
+                if (!IgThemeEngine.isActive() || IgColorRemapEngine.isBypassing()) return;
+                if (param.args[0] instanceof ColorStateList) {
+                    param.args[0] = IgColorRemapEngine.remapColorStateList((ColorStateList) param.args[0]);
+                }
+            }
+        }));
     }
 
     private void hookImageViewTint() {
@@ -409,6 +450,32 @@ public class IgThemeHook {
                 IgColorRemapEngine.applyRemapArg(param.args, 0);
             }
         }));
+        tryHook(() -> XposedHelpers.findAndHookMethod(ImageView.class, "setImageTintList", ColorStateList.class, new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) {
+                if (!IgThemeEngine.isActive() || IgColorRemapEngine.shouldSkipRemap(param.thisObject)) return;
+                if (param.args[0] instanceof ColorStateList) {
+                    param.args[0] = IgColorRemapEngine.remapColorStateList((ColorStateList) param.args[0]);
+                }
+            }
+        }));
+    }
+
+    private void hookWidgetTints() {
+        XC_MethodHook cslHook = new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) {
+                if (!IgThemeEngine.isActive() || IgColorRemapEngine.shouldSkipRemap(param.thisObject)) return;
+                if (param.args[0] instanceof ColorStateList) {
+                    param.args[0] = IgColorRemapEngine.remapColorStateList((ColorStateList) param.args[0]);
+                }
+            }
+        };
+        tryHook(() -> XposedHelpers.findAndHookMethod(CompoundButton.class, "setButtonTintList", ColorStateList.class, cslHook));
+        tryHook(() -> XposedHelpers.findAndHookMethod(ProgressBar.class, "setProgressTintList", ColorStateList.class, cslHook));
+        tryHook(() -> XposedHelpers.findAndHookMethod(ProgressBar.class, "setIndeterminateTintList", ColorStateList.class, cslHook));
+        tryHook(() -> XposedHelpers.findAndHookMethod(ProgressBar.class, "setProgressBackgroundTintList", ColorStateList.class, cslHook));
+        tryHook(() -> XposedHelpers.findAndHookMethod("android.widget.AbsSeekBar", null, "setThumbTintList", ColorStateList.class, cslHook));
     }
 
     private void hookWindowColors() {
@@ -432,26 +499,47 @@ public class IgThemeHook {
         try {
             Class<?> colorKt = cl.loadClass("androidx.compose.ui.graphics.ColorKt");
             for (Method method : colorKt.getDeclaredMethods()) {
-                if (!method.getName().contains("toArgb")) continue;
                 Class<?>[] params = method.getParameterTypes();
-                if (method.getReturnType() != int.class || params.length != 1 || params[0] != long.class) continue;
-                XposedBridge.hookMethod(method, new XC_MethodHook() {
-                    @Override
-                    protected void afterHookedMethod(MethodHookParam param) {
-                        if (!IgThemeEngine.isActive() || IgColorRemapEngine.isBypassing() || param.getThrowable() != null) return;
-                        Object result = param.getResult();
-                        if (!(result instanceof Integer)) return;
-                        int resolved = (Integer) result;
-                        int remapped = IgColorRemapEngine.remap(resolved);
-                        if (remapped != resolved) param.setResult(remapped);
-                    }
-                });
+                if (method.getName().contains("toArgb")
+                        && method.getReturnType() == int.class
+                        && params.length == 1
+                        && params[0] == long.class) {
+                    XposedBridge.hookMethod(method, new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) {
+                            if (!IgThemeEngine.isActive() || IgColorRemapEngine.isBypassing() || param.getThrowable() != null) return;
+                            Object result = param.getResult();
+                            if (!(result instanceof Integer)) return;
+                            int resolved = (Integer) result;
+                            int remapped = IgColorRemapEngine.remapExact(resolved);
+                            if (remapped != resolved) param.setResult(remapped);
+                        }
+                    });
+                    continue;
+                }
+                if (method.getReturnType() == long.class && params.length == 1 && params[0] == int.class
+                        && method.getName().contains("Color")) {
+                    XposedBridge.hookMethod(method, new XC_MethodHook() {
+                        @Override
+                        protected void beforeHookedMethod(MethodHookParam param) {
+                            if (!IgThemeEngine.isActive() || IgColorRemapEngine.isBypassing()) return;
+                            if (param.args[0] instanceof Integer) {
+                                int original = (Integer) param.args[0];
+                                int remapped = IgColorRemapEngine.remapExact(original);
+                                if (remapped != original) param.args[0] = remapped;
+                            }
+                        }
+                    });
+                }
             }
         } catch (Throwable ignored) {}
         String[] palettes = {
                 "com.instagram.compose.core.theme.BaseColors",
                 "com.instagram.compose.core.theme.BasePrismColors",
-                "com.instagram.compose.core.theme.BasePrismColorsV2"
+                "com.instagram.compose.core.theme.BasePrismColorsV2",
+                "com.instagram.compose.core.theme.SemanticColors",
+                "com.instagram.compose.core.theme.InstagramColors",
+                "com.instagram.compose.core.ui.theme.Theme"
         };
         XC_MethodHook packedHook = new XC_MethodHook() {
             @Override
@@ -472,6 +560,46 @@ public class IgThemeHook {
                     XposedBridge.hookMethod(method, packedHook);
                 }
             } catch (Throwable ignored) {}
+        }
+    }
+
+    private void hookIgdsColorProviders(ClassLoader cl) {
+        if (Module.dexKitBridge == null) return;
+        XC_MethodHook intHook = new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                if (!IgThemeEngine.isActive() || IgColorRemapEngine.isBypassing() || param.getThrowable() != null) return;
+                Object result = param.getResult();
+                if (!(result instanceof Integer)) return;
+                int resolved = (Integer) result;
+                int remapped = IgColorRemapEngine.remap(resolved);
+                if (remapped != resolved) param.setResult(remapped);
+            }
+        };
+        String[] needles = {
+                "igds_primary_background", "igds_color_primary_background",
+                "igds_primary_text", "igds_color_primary_text",
+                "igds_secondary_background", "igds_elevated_background"
+        };
+        int hooked = 0;
+        for (String needle : needles) {
+            if (hooked >= 48) break;
+            try {
+                List<MethodData> methods = Module.dexKitBridge.findMethod(
+                        FindMethod.create().matcher(MethodMatcher.create().usingStrings(needle)));
+                for (MethodData methodData : methods) {
+                    if (hooked >= 48) break;
+                    try {
+                        Method method = methodData.getMethodInstance(cl);
+                        if (method.getReturnType() != int.class || method.getParameterTypes().length > 1) continue;
+                        XposedBridge.hookMethod(method, intHook);
+                        hooked++;
+                    } catch (Throwable ignored) {}
+                }
+            } catch (Throwable ignored) {}
+        }
+        if (hooked > 0) {
+            ModuleLog.line("(InstaEclipse | Theme): IGDS color providers hooked=" + hooked);
         }
     }
 
@@ -622,9 +750,10 @@ public class IgThemeHook {
                             | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS : 0,
                             WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
                 }
-                return;
+            } else {
+                applyLegacySystemUiVisibility(window, palette.background);
             }
-            applyLegacySystemUiVisibility(window, palette.background);
+            IgThemeViewSweep.attach(activity);
         } catch (Throwable ignored) {}
     }
 

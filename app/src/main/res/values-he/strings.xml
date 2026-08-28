@@ -349,7 +349,7 @@
 
     <!-- Story mentions dialog -->
     <string name="ig_mention_dialog_title">אזכורי סטורי</string>
-    <string name="ig_mention_subtitle">%1$d אזכור(ים) • הקש להעתקה</string>
+    <string name="ig_mention_subtitle">%1$d אזכור(ים) • הקש לפתיחת הפרופיל</string>
     <string name="ig_mention_no_mentions">לא נמצאו אזכורים בסטורי זה</string>
     <string name="ig_mention_copy_all">העתק הכל</string>
 
@@ -357,6 +357,10 @@
     <string name="ig_toast_no_download_folder">לא הוגדרה תיקיית הורדות</string>
     <string name="ig_toast_file_saved">נשמר: %1$s</string>
     <string name="ig_toast_features_loaded">InstaEclipse נטען 🎯</string>
+    <string name="ig_toast_features_active_count">%1$d פעילות</string>
+    <string name="ig_toast_features_status_count">%1$d פעילות · %2$d בהמתנה</string>
+    <string name="ig_toast_features_on_off_count">%1$d פעילות · %2$d כבויות</string>
+    <string name="ig_toast_features_status_full">%1$d פעילות · %2$d בהמתנה · %3$d כבויות</string>
 
 
     <!-- Update check dialog -->

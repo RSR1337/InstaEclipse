@@ -1,22 +1,38 @@
 package ps.reso.instaeclipse.utils.core;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Bundle;
 
+import java.util.Map;
+
+import ps.reso.instaeclipse.providers.SettingsProvider;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureManager;
+import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 public class SettingsManager {
     private static final String PREF_NAME = "instaeclipse_prefs";
     private static SharedPreferences prefs;
+    private static Context appContext;
 
     public static void init(Context context) {
+        if (context == null) return;
+        appContext = context.getApplicationContext();
         if (prefs == null) {
             prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
         }
     }
 
+    public static long stampUpdatedAt(SharedPreferences.Editor editor) {
+        long updatedAt = System.currentTimeMillis();
+        editor.putLong(SettingsProvider.KEY_UPDATED_AT, updatedAt);
+        return updatedAt;
+    }
+
     public static void saveAllFlags() {
+        if (prefs == null) return;
         SharedPreferences.Editor editor = prefs.edit();
 
         editor.putBoolean("isDevEnabled", FeatureFlags.isDevEnabled);
@@ -88,19 +104,56 @@ public class SettingsManager {
         editor.putBoolean("enableStoryDownload", FeatureFlags.enableStoryDownload);
         editor.putBoolean("enableReelDownload", FeatureFlags.enableReelDownload);
         editor.putBoolean("enableProfileDownload", FeatureFlags.enableProfileDownload);
+        editor.putBoolean("enableBatchDownload", FeatureFlags.enableBatchDownload);
         editor.putBoolean("downloaderUsernameFolder", FeatureFlags.downloaderUsernameFolder);
         editor.putBoolean("downloaderAddTimestamp", FeatureFlags.downloaderAddTimestamp);
         editor.putString("downloaderCustomPath", FeatureFlags.downloaderCustomPath);
         editor.putString("downloaderCustomUri",  FeatureFlags.downloaderCustomUri);
 
-        // Custom Theme
         editor.putBoolean("customThemeEnabled", FeatureFlags.customThemeEnabled);
         editor.putInt("themePresetId", FeatureFlags.themePresetId);
         editor.putString("themePaletteJson", FeatureFlags.themePaletteJson);
+        editor.putString("themeCustomPresetsJson", FeatureFlags.themeCustomPresetsJson);
 
-        editor.apply();
+        stampUpdatedAt(editor);
+        editor.commit();
 
+        LsPatchCompanionBridge.syncFrom(prefs);
+        LsPatchCompanionBridge.makeWorldReadable(appContext, PREF_NAME);
+        pushSettingsToCompanion();
         FeatureManager.refreshFeatureStatus();
+    }
+
+    public static void mergeFrom(Context context, SharedPreferences source) {
+        if (source == null) return;
+        init(context);
+        Map<String, ?> all = source.getAll();
+        if (all == null || all.isEmpty()) return;
+        SharedPreferences.Editor editor = prefs.edit();
+        boolean changed = false;
+        for (Map.Entry<String, ?> entry : all.entrySet()) {
+            Object value = entry.getValue();
+            if (value instanceof Boolean) {
+                editor.putBoolean(entry.getKey(), (Boolean) value);
+                changed = true;
+            } else if (value instanceof String) {
+                editor.putString(entry.getKey(), (String) value);
+                changed = true;
+            } else if (value instanceof Integer) {
+                editor.putInt(entry.getKey(), (Integer) value);
+                changed = true;
+            } else if (value instanceof Long) {
+                editor.putLong(entry.getKey(), (Long) value);
+                changed = true;
+            } else if (value instanceof Float) {
+                editor.putFloat(entry.getKey(), (Float) value);
+                changed = true;
+            }
+        }
+        if (changed) {
+            editor.commit();
+            loadAllFlags(context);
+        }
     }
 
     public static void loadAllFlags(Context context) {
@@ -177,17 +230,111 @@ public class SettingsManager {
         FeatureFlags.enableStoryDownload = prefs.getBoolean("enableStoryDownload", false);
         FeatureFlags.enableReelDownload = prefs.getBoolean("enableReelDownload", false);
         FeatureFlags.enableProfileDownload = prefs.getBoolean("enableProfileDownload", false);
+        FeatureFlags.enableBatchDownload = prefs.getBoolean("enableBatchDownload", false);
         FeatureFlags.downloaderUsernameFolder = prefs.getBoolean("downloaderUsernameFolder", false);
         FeatureFlags.downloaderAddTimestamp   = prefs.getBoolean("downloaderAddTimestamp", false);
         FeatureFlags.downloaderCustomPath     = prefs.getString("downloaderCustomPath", "");
         FeatureFlags.downloaderCustomUri      = prefs.getString("downloaderCustomUri",  "");
 
-        // Custom Theme
         FeatureFlags.customThemeEnabled = prefs.getBoolean("customThemeEnabled", false);
         FeatureFlags.themePresetId = prefs.getInt("themePresetId", 1);
         FeatureFlags.themePaletteJson = prefs.getString("themePaletteJson", "");
+        FeatureFlags.themeCustomPresetsJson = prefs.getString("themeCustomPresetsJson", "");
 
         FeatureManager.refreshFeatureStatus();
+    }
+
+    public static boolean syncFromCompanion(Context context, boolean force) {
+        init(context);
+        try {
+            Bundle bundle = context.getContentResolver().call(SettingsProvider.URI, "getAll", null, null);
+            if (bundle == null || bundle.isEmpty()) {
+                overlayCompanionPrefs(context);
+                return false;
+            }
+
+            long remoteUpdatedAt = CommonUtils.readUpdatedAt(
+                    CommonUtils.readBundleValue(bundle, SettingsProvider.KEY_UPDATED_AT));
+            long localUpdatedAt = prefs.getLong(SettingsProvider.KEY_UPDATED_AT, 0L);
+            if (!force) {
+                if (remoteUpdatedAt < localUpdatedAt) return false;
+                if (remoteUpdatedAt == 0L && localUpdatedAt == 0L) {
+                    boolean localHasData = false;
+                    for (String key : prefs.getAll().keySet()) {
+                        if (!SettingsProvider.KEY_UPDATED_AT.equals(key)) {
+                            localHasData = true;
+                            break;
+                        }
+                    }
+                    if (localHasData) {
+                        SharedPreferences.Editor editor = prefs.edit();
+                        stampUpdatedAt(editor);
+                        editor.commit();
+                        pushSettingsToCompanion();
+                        return false;
+                    }
+                }
+            }
+
+            SharedPreferences.Editor editor = prefs.edit();
+            applyBundleToEditor(bundle, editor);
+            if (remoteUpdatedAt > 0L) {
+                editor.putLong(SettingsProvider.KEY_UPDATED_AT, remoteUpdatedAt);
+            } else {
+                stampUpdatedAt(editor);
+            }
+            editor.commit();
+            return true;
+        } catch (Throwable t) {
+            ModuleLog.line("(InstaEclipse) Failed to sync settings from companion: " + t.getMessage());
+            overlayCompanionPrefs(context);
+            return false;
+        }
+    }
+
+    public static void pushSettingsToCompanion() {
+        Context context = appContext;
+        if (context == null) return;
+        if (CommonUtils.MY_PACKAGE_NAME.equals(context.getPackageName())) return;
+
+        try {
+            Bundle bundle = prefsToBundle();
+            if (bundle.isEmpty()) return;
+            context.getContentResolver().call(SettingsProvider.URI, "putAll", null, bundle);
+
+            Intent reply = new Intent("ps.reso.instaeclipse.ACTION_SEND_PREFS");
+            reply.setPackage(CommonUtils.MY_PACKAGE_NAME);
+            reply.putExtras(bundle);
+            context.sendBroadcast(reply);
+        } catch (Throwable t) {
+            ModuleLog.line("(InstaEclipse) Failed to push settings to companion: " + t.getMessage());
+        }
+    }
+
+    private static void overlayCompanionPrefs(Context context) {
+        try {
+            de.robv.android.xposed.XSharedPreferences cache =
+                    new de.robv.android.xposed.XSharedPreferences(
+                            CommonUtils.MY_PACKAGE_NAME, SettingsProvider.CACHE_PREFS);
+            cache.reload();
+            if (!cache.getAll().isEmpty()) mergeFrom(context, cache);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static Bundle prefsToBundle() {
+        Bundle bundle = new Bundle();
+        if (prefs == null) return bundle;
+        for (Map.Entry<String, ?> entry : prefs.getAll().entrySet()) {
+            SettingsProvider.putValue(bundle, entry.getKey(), entry.getValue());
+        }
+        return bundle;
+    }
+
+    private static void applyBundleToEditor(Bundle bundle, SharedPreferences.Editor editor) {
+        for (String key : bundle.keySet()) {
+            SettingsProvider.putPref(editor, key, CommonUtils.readBundleValue(bundle, key));
+        }
     }
 
     private static double readDoublePref(SharedPreferences p, String key, double fallback) {

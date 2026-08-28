@@ -43,6 +43,8 @@ import java.util.concurrent.Executors;
 
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.utils.core.CommonUtils;
+import ps.reso.instaeclipse.utils.core.SettingsManager;
+import ps.reso.instaeclipse.providers.SettingsProvider;
 
 /**
  * Full-screen OpenStreetMap picker used to choose the coordinates GPS-spoofing reports to
@@ -149,23 +151,28 @@ public class LocationPickerActivity extends AppCompatActivity {
     }
 
     private void persistCoords(double lat, double lng) {
-        getSharedPreferences("instaeclipse_prefs", MODE_PRIVATE).edit()
-                .putString("spoofLat", String.valueOf(lat))
-                .putString("spoofLng", String.valueOf(lng))
-                .apply();
-        getSharedPreferences("instaeclipse_cache", MODE_PRIVATE).edit()
-                .putString("spoofLat", String.valueOf(lat))
-                .putString("spoofLng", String.valueOf(lng))
-                .apply();
+        SharedPreferences.Editor prefs = getSharedPreferences("instaeclipse_prefs", MODE_PRIVATE).edit();
+        prefs.putString("spoofLat", String.valueOf(lat));
+        prefs.putString("spoofLng", String.valueOf(lng));
+        long updatedAt = SettingsManager.stampUpdatedAt(prefs);
+        prefs.commit();
+
+        SharedPreferences.Editor cache = getSharedPreferences("instaeclipse_cache", MODE_PRIVATE).edit();
+        cache.putString("spoofLat", String.valueOf(lat));
+        cache.putString("spoofLng", String.valueOf(lng));
+        cache.putLong(SettingsProvider.KEY_UPDATED_AT, updatedAt);
+        cache.commit();
 
         Intent latIntent = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING");
         latIntent.putExtra("key", "spoofLat");
         latIntent.putExtra("value", String.valueOf(lat));
+        latIntent.putExtra(SettingsProvider.KEY_UPDATED_AT, updatedAt);
         CommonUtils.broadcastToInstagram(this, latIntent);
 
         Intent lngIntent = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING");
         lngIntent.putExtra("key", "spoofLng");
         lngIntent.putExtra("value", String.valueOf(lng));
+        lngIntent.putExtra(SettingsProvider.KEY_UPDATED_AT, updatedAt);
         CommonUtils.broadcastToInstagram(this, lngIntent);
     }
 

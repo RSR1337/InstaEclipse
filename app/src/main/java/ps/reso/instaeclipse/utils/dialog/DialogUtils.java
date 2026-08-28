@@ -51,6 +51,8 @@ public class DialogUtils {
     @SuppressLint("UseCompatLoadingForDrawables")
     public static void showEclipseOptionsDialog(Context context) {
         SettingsManager.init(context);
+        SettingsManager.syncFromCompanion(context, false);
+        SettingsManager.loadAllFlags(context);
         IgColorRemapEngine.enterModuleUi();
         try {
         LinearLayout outer = new LinearLayout(context);
@@ -147,7 +149,7 @@ public class DialogUtils {
         featuresGroup.addView(createMenuRow(context, R.drawable.ic_download, I18n.t(context, R.string.ig_dialog_menu_downloader), "#FF9F0A", () -> showDownloaderOptions(context)));
         featuresGroup.addView(createMenuRow(context, R.drawable.ic_pin, I18n.t(context, R.string.ig_dialog_menu_location), "#FFD60A", () -> showLocationOptions(context)));
         featuresGroup.addView(createMenuRow(context, R.drawable.ic_movie, I18n.t(context, R.string.ig_dialog_menu_quality), "#32D74B", () -> showQualityOptions(context)));
-        featuresGroup.addView(createMenuRow(context, R.drawable.ic_palette, I18n.t(context, R.string.ig_dialog_menu_theme), "#FF2D55", () -> showThemeOptions(context)));
+        featuresGroup.addView(createMenuRow(context, R.drawable.ic_palette, I18n.t(context, R.string.theme_customize), "#FF2D55", () -> openThemeCustomizer(context)));
         mainLayout.addView(featuresGroup);
 
         mainLayout.addView(sectionHeader(context, I18n.t(context, R.string.feat_tools)));
@@ -983,34 +985,14 @@ public class DialogUtils {
         });
     }
 
-    private static void showThemeOptions(Context context) {
-        LinearLayout layout = createSwitchLayout(context);
-
-        ToggleRow themeSwitch = createSwitch(context, R.drawable.ic_palette, "#FF2D55",
-                I18n.t(context, R.string.theme_enable), FeatureFlags.customThemeEnabled);
-        themeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            FeatureFlags.customThemeEnabled = isChecked;
-            SettingsManager.saveAllFlags();
-            ps.reso.instaeclipse.mods.ui.theme.IgThemeEngine.invalidate();
-            ps.reso.instaeclipse.mods.ui.theme.IgThemeHook.refreshCurrentActivity();
-        });
-
-        layout.addView(createDivider(context));
-        layout.addView(themeSwitch);
-        layout.addView(createDivider(context));
-        layout.addView(createActionRow(context, R.drawable.ic_palette,
-                I18n.t(context, R.string.theme_customize), "#FF2D55", v -> {
-                    if (ModuleActivityLauncher.launch(context,
-                            "ps.reso.instaeclipse.ui.theme.ThemeCustomizerActivity", null)) {
-                        if (currentDialog != null) {
-                            try { currentDialog.dismiss(); } catch (Exception ignored) {}
-                            currentDialog = null;
-                        }
-                    }
-                }));
-
-        showSectionDialog(context, I18n.t(context, R.string.theme_title), layout, () -> {
-        });
+    private static void openThemeCustomizer(Context context) {
+        if (ModuleActivityLauncher.launch(context,
+                "ps.reso.instaeclipse.ui.theme.ThemeCustomizerActivity", null)) {
+            if (currentDialog != null) {
+                try { currentDialog.dismiss(); } catch (Exception ignored) {}
+                currentDialog = null;
+            }
+        }
     }
 
     private static String qualityLabel(Context context, int h) {
@@ -1107,6 +1089,7 @@ public class DialogUtils {
         ToggleRow storySwitch   = createSwitch(context, R.drawable.ic_download, "#FF9F0A", I18n.t(context, R.string.ig_dialog_downloader_stories),  FeatureFlags.enableStoryDownload);
         ToggleRow reelSwitch    = createSwitch(context, R.drawable.ic_download, "#FF9F0A", I18n.t(context, R.string.ig_dialog_downloader_reels),    FeatureFlags.enableReelDownload);
         ToggleRow profileSwitch = createSwitch(context, R.drawable.ic_download, "#FF9F0A", I18n.t(context, R.string.ig_dialog_downloader_profiles), FeatureFlags.enableProfileDownload);
+        ToggleRow batchSwitch   = createSwitch(context, R.drawable.ic_download, "#FF9F0A", I18n.t(context, R.string.ig_dialog_downloader_batch),    FeatureFlags.enableBatchDownload);
 
         ToggleRow[] switches = new ToggleRow[]{postSwitch, storySwitch, reelSwitch, profileSwitch};
 
@@ -1145,6 +1128,12 @@ public class DialogUtils {
         for (ToggleRow s :switches) {
             layout.addView(s);
         }
+
+        batchSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            FeatureFlags.enableBatchDownload = isChecked;
+            SettingsManager.saveAllFlags();
+        });
+        layout.addView(batchSwitch);
 
         showSectionDialog(context, I18n.t(context, R.string.ig_dialog_section_downloader), layout, () -> {});
     }

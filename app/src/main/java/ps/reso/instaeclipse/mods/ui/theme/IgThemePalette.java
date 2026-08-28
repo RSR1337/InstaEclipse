@@ -3,7 +3,10 @@ package ps.reso.instaeclipse.mods.ui.theme;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
 import org.json.JSONException;
@@ -53,8 +56,6 @@ public class IgThemePalette {
     public int link;
     public int error;
     public int destructive;
-
-    public IgThemePalette() {}
 
     public IgThemePalette(int background, int surface, int primaryText, int secondaryText, int accent,
                            int button, int icon, int glyph, int divider, int border, int statusBar,
@@ -123,29 +124,115 @@ public class IgThemePalette {
         }
     }
 
-    public int[] previewColors() {
-        return new int[]{background, surface, accent, destructive};
+    public static void bindCardPreview(Context context, ViewGroup container, IgThemePalette palette) {
+        container.removeAllViews();
+        if (palette == null) return;
+        float density = context.getResources().getDisplayMetrics().density;
+        int screenCorner = Math.round(18.0f * density);
+        int cardCorner = Math.round(10.0f * density);
+        int stroke = Math.round(1.0f * density);
+        int pad = Math.round(8.0f * density);
+        int bar = Math.round(8.0f * density);
+        int avatar = Math.round(18.0f * density);
+        int lineH = Math.round(5.0f * density);
+
+        GradientDrawable screen = new GradientDrawable();
+        screen.setColor(palette.background);
+        screen.setCornerRadius(screenCorner);
+        screen.setStroke(stroke, palette.border);
+        container.setBackground(screen);
+        container.setPadding(0, 0, 0, 0);
+
+        View status = new View(context);
+        GradientDrawable statusBg = new GradientDrawable();
+        statusBg.setColor(palette.statusBar);
+        statusBg.setCornerRadii(new float[]{screenCorner, screenCorner, screenCorner, screenCorner, 0, 0, 0, 0});
+        status.setBackground(statusBg);
+        FrameLayout.LayoutParams statusLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, bar);
+        container.addView(status, statusLp);
+
+        LinearLayout body = new LinearLayout(context);
+        body.setOrientation(LinearLayout.VERTICAL);
+        FrameLayout.LayoutParams bodyLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        bodyLp.topMargin = bar;
+        bodyLp.bottomMargin = Math.round(14.0f * density);
+        bodyLp.setMarginStart(pad);
+        bodyLp.setMarginEnd(pad);
+        body.setLayoutParams(bodyLp);
+
+        LinearLayout post = new LinearLayout(context);
+        post.setOrientation(LinearLayout.HORIZONTAL);
+        post.setGravity(Gravity.CENTER_VERTICAL);
+        GradientDrawable postBg = new GradientDrawable();
+        postBg.setColor(palette.surface);
+        postBg.setCornerRadius(cardCorner);
+        post.setBackground(postBg);
+        post.setPadding(pad, pad, pad, pad);
+        LinearLayout.LayoutParams postLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        postLp.topMargin = pad;
+        post.setLayoutParams(postLp);
+
+        View avatarView = new View(context);
+        GradientDrawable avatarBg = new GradientDrawable();
+        avatarBg.setShape(GradientDrawable.OVAL);
+        avatarBg.setColor(palette.accent);
+        avatarView.setBackground(avatarBg);
+        LinearLayout.LayoutParams avatarLp = new LinearLayout.LayoutParams(avatar, avatar);
+        avatarLp.setMarginEnd(pad);
+        post.addView(avatarView, avatarLp);
+
+        LinearLayout lines = new LinearLayout(context);
+        lines.setOrientation(LinearLayout.VERTICAL);
+        lines.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f));
+        View line1 = colorBar(context, palette.primaryText, lineH, cardCorner);
+        View line2 = colorBar(context, palette.secondaryText, lineH, cardCorner);
+        LinearLayout.LayoutParams line2Lp = (LinearLayout.LayoutParams) line2.getLayoutParams();
+        line2Lp.topMargin = Math.round(4.0f * density);
+        line2Lp.width = Math.round(48.0f * density);
+        lines.addView(line1);
+        lines.addView(line2);
+        post.addView(lines);
+        body.addView(post);
+
+        View accentChip = new View(context);
+        GradientDrawable chip = new GradientDrawable();
+        chip.setCornerRadius(Math.round(8.0f * density));
+        chip.setColor(palette.button);
+        accentChip.setBackground(chip);
+        LinearLayout.LayoutParams chipLp = new LinearLayout.LayoutParams(Math.round(52.0f * density), Math.round(12.0f * density));
+        chipLp.topMargin = pad;
+        body.addView(accentChip, chipLp);
+        container.addView(body);
+
+        View nav = new View(context);
+        GradientDrawable navBg = new GradientDrawable();
+        navBg.setColor(palette.navigation);
+        navBg.setCornerRadii(new float[]{0, 0, 0, 0, screenCorner, screenCorner, screenCorner, screenCorner});
+        nav.setBackground(navBg);
+        FrameLayout.LayoutParams navLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.round(14.0f * density));
+        navLp.gravity = Gravity.BOTTOM;
+        container.addView(nav, navLp);
+
+        View navAccent = new View(context);
+        GradientDrawable navDot = new GradientDrawable();
+        navDot.setShape(GradientDrawable.OVAL);
+        navDot.setColor(palette.accent);
+        navAccent.setBackground(navDot);
+        int dot = Math.round(6.0f * density);
+        FrameLayout.LayoutParams dotLp = new FrameLayout.LayoutParams(dot, dot);
+        dotLp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+        dotLp.bottomMargin = Math.round(4.0f * density);
+        container.addView(navAccent, dotLp);
     }
 
-    public static void bindCardPreview(Context context, LinearLayout container, int[] colors) {
-        container.removeAllViews();
-        container.setBackground(null);
-        float density = context.getResources().getDisplayMetrics().density;
-        int gap = Math.round(5.0f * density);
-        int corner = Math.round(10.0f * density);
-        int height = Math.round(40.0f * density);
-        int count = Math.min(colors.length, 4);
-        for (int i = 0; i < count; i++) {
-            View swatch = new View(context);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, height, 1.0f);
-            if (i < count - 1) lp.setMarginEnd(gap);
-            swatch.setLayoutParams(lp);
-            GradientDrawable bg = new GradientDrawable();
-            bg.setCornerRadius(corner);
-            bg.setColor(colors[i]);
-            swatch.setBackground(bg);
-            container.addView(swatch);
-        }
+    private static View colorBar(Context context, int color, int height, int corner) {
+        View view = new View(context);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(corner);
+        bg.setColor(color);
+        view.setBackground(bg);
+        view.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height));
+        return view;
     }
 
     public String toJson() {

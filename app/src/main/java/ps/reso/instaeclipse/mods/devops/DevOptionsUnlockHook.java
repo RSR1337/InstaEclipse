@@ -69,8 +69,6 @@ public class DevOptionsUnlockHook {
 
     private void findAndHookDynamicMethod(DexKitBridge bridge) {
         try {
-            // Tier 1: Existing String-based search
-            ModuleLog.line("(InstaEclipse | DevOptionsEnable): 🔍 Discovery Tier 1 (String)...");
             List<ClassData> classes = bridge.findClass(FindClass.create()
                     .matcher(ClassMatcher.create().usingStrings("is_employee"))
             );
@@ -102,15 +100,12 @@ public class DevOptionsUnlockHook {
             // MobileConfig directly and is reused from many unrelated classes. Survives
             // both string stripping and per-build MobileConfig ID churn.
             if (!found) {
-                ModuleLog.line("(InstaEclipse | DevOptionsEnable): ⚠️ Tier 1 failed. Discovery Tier 2 (Structural)...");
                 MethodData structural = resolveEmployeeGateStructurally(bridge);
                 if (structural != null) {
                     try {
                         Method targetMethod = structural.getMethodInstance(Module.hostClassLoader);
                         DexKitCache.saveMethod("DevOptionsMethod", targetMethod);
                         hookExactMethod(targetMethod);
-                        ModuleLog.line("(InstaEclipse | DevOptionsEnable): 🎯 Found via structural match: "
-                                + structural.getClassName() + "." + structural.getName());
                         found = true;
                     } catch (Throwable e) {
                         ModuleLog.line("(InstaEclipse | DevOptionsEnable): ❌ Structural match failed to bind: " + e.getMessage());
@@ -118,9 +113,7 @@ public class DevOptionsUnlockHook {
                 }
             }
 
-            // Tier 3: Failover to hardcoded MobileConfig IDs (legacy, last resort)
             if (!found) {
-                ModuleLog.line("(InstaEclipse | DevOptionsEnable): ⚠️ Tier 2 failed. Discovery Tier 3 (Config ID)...");
                 for (long configId : IS_EMPLOYEE_CONFIG_IDS) {
                     List<MethodData> idMethods = bridge.findMethod(FindMethod.create()
                             .matcher(MethodMatcher.create()

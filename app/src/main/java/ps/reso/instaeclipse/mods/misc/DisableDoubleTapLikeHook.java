@@ -103,9 +103,6 @@ public class DisableDoubleTapLikeHook {
                     ModuleLog.line("(InstaEclipse | DoubleTapLike): Feed: " + e.getMessage());
                 }
             }
-            if (feedMethods.isEmpty()) {
-                ModuleLog.line("(InstaEclipse | DoubleTapLike): Feed method not found");
-            }
         }
 
         List<Method> reelsGestureMethods = findReelsGestureMethods(bridge, classLoader);
@@ -140,11 +137,10 @@ public class DisableDoubleTapLikeHook {
                 }
             }
         }
-        if (!reelsHooked) {
-            ModuleLog.line("(InstaEclipse | DoubleTapLike): Reels entry not found");
-        }
         if (feedHooked || reelsHooked) {
             FeatureStatusTracker.setHooked("DisableDoubleTapLike");
+        } else {
+            ModuleLog.line("(InstaEclipse | DoubleTapLike): ❌ not hooked");
         }
     }
 

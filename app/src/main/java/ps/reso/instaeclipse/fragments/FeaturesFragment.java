@@ -56,6 +56,10 @@ import java.util.Scanner;
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.mods.location.LocationPickerActivity;
 import ps.reso.instaeclipse.ui.theme.ThemeCustomizerActivity;
+import ps.reso.instaeclipse.utils.core.CommonUtils;
+import ps.reso.instaeclipse.utils.core.LsPatchCompanionBridge;
+import ps.reso.instaeclipse.utils.core.SettingsManager;
+import ps.reso.instaeclipse.providers.SettingsProvider;
 
 public class FeaturesFragment extends Fragment {
 
@@ -83,30 +87,13 @@ public class FeaturesFragment extends Fragment {
             if ("ps.reso.instaeclipse.ACTION_SEND_PREFS".equals(intent.getAction())) {
                 Bundle bundle = intent.getExtras();
                 if (bundle != null) {
-                    // If we just set the path locally (via dirPickerLauncher), the incoming
-                    // reply from Instagram may still carry the old value — skip overwriting.
-                    boolean suppressPath = localCache.getBoolean("pathJustSetLocally", false);
-                    SharedPreferences.Editor editor = localCache.edit();
-                    if (suppressPath) editor.remove("pathJustSetLocally");
-                    for (String key : bundle.keySet()) {
-                        Object value = bundle.get(key);
-                        if (value instanceof Boolean) {
-                            editor.putBoolean(key, (Boolean) value);
-                        } else if (value instanceof String) {
-                            if (suppressPath && ("downloaderCustomPath".equals(key) || "downloaderCustomUri".equals(key))) {
-                                continue;
-                            }
-                            editor.putString(key, (String) value);
-                        } else if (value instanceof Integer) {
-                            editor.putInt(key, (Integer) value);
-                        }
-                    }
-                    editor.apply();
-                    // Rebuild downloader/quality menus so the current value reflects immediately
+                    applyPrefsBundle(bundle);
                     if ("downloader".equals(currentMenu)) {
                         loadDownloaderMenu();
                     } else if ("quality".equals(currentMenu)) {
                         loadQualityMenu();
+                    } else if ("location".equals(currentMenu)) {
+                        loadLocationMenu();
                     } else if (adapter != null) {
                         adapter.notifyDataSetChanged();
                     }
@@ -114,6 +101,68 @@ public class FeaturesFragment extends Fragment {
             }
         }
     };
+
+    private void applyPrefsBundle(Bundle bundle) {
+        long remoteUpdatedAt = CommonUtils.readUpdatedAt(
+                CommonUtils.readBundleValue(bundle, SettingsProvider.KEY_UPDATED_AT));
+        long localUpdatedAt = localCache.getLong(SettingsProvider.KEY_UPDATED_AT, 0L);
+        if (remoteUpdatedAt > 0L && remoteUpdatedAt < localUpdatedAt) return;
+
+        boolean suppressPath = localCache.getBoolean("pathJustSetLocally", false);
+        SharedPreferences.Editor editor = localCache.edit();
+        if (suppressPath) editor.remove("pathJustSetLocally");
+        for (String key : bundle.keySet()) {
+            Object value = CommonUtils.readBundleValue(bundle, key);
+            if (value instanceof String
+                    && suppressPath
+                    && ("downloaderCustomPath".equals(key) || "downloaderCustomUri".equals(key))) {
+                continue;
+            }
+            SettingsProvider.putPref(editor, key, value);
+        }
+        if (remoteUpdatedAt == 0L) {
+            SettingsManager.stampUpdatedAt(editor);
+        }
+        editor.commit();
+        LsPatchCompanionBridge.makeWorldReadable(requireContext(), LsPatchCompanionBridge.COMPANION_CACHE);
+        LsPatchCompanionBridge.syncFrom(localCache);
+    }
+
+    private long touchAndFlush(SharedPreferences.Editor editor) {
+        long updatedAt = SettingsManager.stampUpdatedAt(editor);
+        editor.commit();
+        LsPatchCompanionBridge.makeWorldReadable(requireContext(), LsPatchCompanionBridge.COMPANION_CACHE);
+        LsPatchCompanionBridge.syncFrom(localCache);
+        return updatedAt;
+    }
+
+    private void sendToInstagram(Intent intent) {
+        CommonUtils.broadcastToInstagram(requireContext(), intent);
+    }
+
+    private void sendBoolPref(String key, boolean value, long updatedAt) {
+        Intent intent = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF");
+        intent.putExtra("key", key);
+        intent.putExtra("value", value);
+        intent.putExtra(SettingsProvider.KEY_UPDATED_AT, updatedAt);
+        sendToInstagram(intent);
+    }
+
+    private void sendStringPref(String key, String value, long updatedAt) {
+        Intent intent = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING");
+        intent.putExtra("key", key);
+        intent.putExtra("value", value);
+        intent.putExtra(SettingsProvider.KEY_UPDATED_AT, updatedAt);
+        sendToInstagram(intent);
+    }
+
+    private void sendIntPref(String key, int value, long updatedAt) {
+        Intent intent = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_INT");
+        intent.putExtra("key", key);
+        intent.putExtra("value", value);
+        intent.putExtra(SettingsProvider.KEY_UPDATED_AT, updatedAt);
+        sendToInstagram(intent);
+    }
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -130,15 +179,19 @@ public class FeaturesFragment extends Fragment {
                 while (keys.hasNext()) {
                     String key = keys.next();
                     Object val = s.get(key);
-                    if (val instanceof Boolean) {
-                        editor.putBoolean(key, (Boolean) val);
-                        Intent intent = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF");
-                        intent.putExtra("key", key);
-                        intent.putExtra("value", (boolean) (Boolean) val);
-                        requireContext().sendBroadcast(intent);
-                    }
+                    if (val instanceof Boolean) editor.putBoolean(key, (Boolean) val);
+                    else if (val instanceof String) editor.putString(key, (String) val);
+                    else if (val instanceof Integer) editor.putInt(key, (Integer) val);
                 }
-                editor.apply();
+                long updatedAt = touchAndFlush(editor);
+                keys = s.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    Object val = s.get(key);
+                    if (val instanceof Boolean) sendBoolPref(key, (Boolean) val, updatedAt);
+                    else if (val instanceof String) sendStringPref(key, (String) val, updatedAt);
+                    else if (val instanceof Integer) sendIntPref(key, (Integer) val, updatedAt);
+                }
                 if (adapter != null) adapter.notifyDataSetChanged();
                 Toast.makeText(requireContext(), getString(R.string.ig_toast_settings_restored), Toast.LENGTH_SHORT).show();
             } catch (Exception e) {
@@ -158,26 +211,15 @@ public class FeaturesFragment extends Fragment {
                     SharedPreferences.Editor ed = localCache.edit();
                     ed.putString("spoofLat", String.valueOf(lat));
                     ed.putString("spoofLng", String.valueOf(lng));
-                    ed.commit();
-                    makeLocalCacheWorldReadable();
-
-                    Intent b1 = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING");
-                    b1.putExtra("key", "spoofLat");
-                    b1.putExtra("value", String.valueOf(lat));
-                    requireContext().sendBroadcast(b1);
-
-                    Intent b2 = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING");
-                    b2.putExtra("key", "spoofLng");
-                    b2.putExtra("value", String.valueOf(lng));
-                    requireContext().sendBroadcast(b2);
+                    long updatedAt = touchAndFlush(ed);
+                    sendStringPref("spoofLat", String.valueOf(lat), updatedAt);
+                    sendStringPref("spoofLng", String.valueOf(lng), updatedAt);
 
                     if ("location".equals(currentMenu)) loadLocationMenu();
                 });
 
         themeCustomizerLauncher = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(), result -> {
-                    if ("theme".equals(currentMenu)) loadThemeMenu();
-                });
+                new ActivityResultContracts.StartActivityForResult(), result -> {});
 
         dirPickerLauncher = registerForActivityResult(new ActivityResultContracts.OpenDocumentTree(), uri -> {
             if (uri != null) {
@@ -202,18 +244,9 @@ public class FeaturesFragment extends Fragment {
                 editor.putBoolean("pathJustSetLocally", true);
                 editor.putString("downloaderCustomUri", uriString);
                 editor.putString("downloaderCustomPath", path);
-                editor.commit();
-                makeLocalCacheWorldReadable();
-
-                Intent intentUri = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING");
-                intentUri.putExtra("key", "downloaderCustomUri");
-                intentUri.putExtra("value", uriString);
-                requireContext().sendBroadcast(intentUri);
-
-                Intent intentPath = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING");
-                intentPath.putExtra("key", "downloaderCustomPath");
-                intentPath.putExtra("value", path);
-                requireContext().sendBroadcast(intentPath);
+                long updatedAt = touchAndFlush(editor);
+                sendStringPref("downloaderCustomUri", uriString, updatedAt);
+                sendStringPref("downloaderCustomPath", path, updatedAt);
 
                 Toast.makeText(requireContext(), getString(R.string.ig_toast_download_folder_updated), Toast.LENGTH_SHORT).show();
 
@@ -699,7 +732,8 @@ public class FeaturesFragment extends Fragment {
                 createNav(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_menu_downloader), this::loadDownloaderMenu),
                 createNav(R.drawable.ic_pin, "#FFD60A", getString(R.string.ig_dialog_menu_location), this::loadLocationMenu),
                 createNav(R.drawable.ic_movie, "#32D74B", getString(R.string.ig_dialog_menu_quality), this::loadQualityMenu),
-                createNav(R.drawable.ic_palette, "#FF2D55", getString(R.string.ig_dialog_menu_theme), this::loadThemeMenu)
+                createNav(R.drawable.ic_palette, "#FF2D55", getString(R.string.theme_customize), () ->
+                        themeCustomizerLauncher.launch(new Intent(requireContext(), ThemeCustomizerActivity.class)))
         ));
 
         defs.add(getString(R.string.feat_tools));
@@ -930,21 +964,6 @@ public class FeaturesFragment extends Fragment {
         currentMenu = "location";
     }
 
-    private void loadThemeMenu() {
-        List<Object> defs = new ArrayList<>();
-
-        defs.add(getString(R.string.feat_features));
-        defs.add(Arrays.asList(createSwitch(R.drawable.ic_palette, "#FF2D55", getString(R.string.theme_enable), "customThemeEnabled")));
-
-        defs.add(getString(R.string.feat_options));
-        defs.add(Arrays.asList(createClickable(R.drawable.ic_palette, "#FF2D55",
-                getString(R.string.theme_customize), () ->
-                        themeCustomizerLauncher.launch(new Intent(requireContext(), ThemeCustomizerActivity.class)))));
-
-        showMenu(getString(R.string.theme_title), defs);
-        currentMenu = "theme";
-    }
-
     private String qualityLabel(int h) {
         if (h == 360) return getString(R.string.ig_dialog_quality_360);
         if (h == 480) return getString(R.string.ig_dialog_quality_480);
@@ -985,13 +1004,8 @@ public class FeaturesFragment extends Fragment {
                     int value = values[which];
                     SharedPreferences.Editor ed = localCache.edit();
                     ed.putInt("forceReelQuality", value);
-                    ed.commit();
-                    makeLocalCacheWorldReadable();
-
-                    Intent b = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_INT");
-                    b.putExtra("key", "forceReelQuality");
-                    b.putExtra("value", value);
-                    requireContext().sendBroadcast(b);
+                    long updatedAt = touchAndFlush(ed);
+                    sendIntPref("forceReelQuality", value, updatedAt);
 
                     dialog.dismiss();
                     loadQualityMenu();
@@ -1011,7 +1025,8 @@ public class FeaturesFragment extends Fragment {
                 createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_posts), "enablePostDownload"),
                 createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_stories), "enableStoryDownload"),
                 createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_reels), "enableReelDownload"),
-                createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_profiles), "enableProfileDownload")
+                createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_profiles), "enableProfileDownload"),
+                createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_batch), "enableBatchDownload")
         ));
 
         defs.add(getString(R.string.feat_options));
@@ -1040,20 +1055,6 @@ public class FeaturesFragment extends Fragment {
     // TOOLS ACTIONS & HANDLERS
     // =========================================================
 
-    /**
-     * Makes the localCache SharedPreferences file world-readable so the module can
-     * access it via XSharedPreferences on a cold Instagram start (when the sync
-     * broadcast was never delivered because Instagram wasn't running at the time).
-     * Apps are allowed to change permissions on their own files.
-     */
-    private void makeLocalCacheWorldReadable() {
-        try {
-            java.io.File prefsFile = new java.io.File(
-                    requireContext().getApplicationInfo().dataDir + "/shared_prefs/instaeclipse_cache.xml");
-            prefsFile.setReadable(true, false);
-        } catch (Throwable ignored) {}
-    }
-
     private void pickDownloadFolder() {
         dirPickerLauncher.launch(null);
     }
@@ -1067,18 +1068,9 @@ public class FeaturesFragment extends Fragment {
         editor.remove("pathJustSetLocally");
         editor.putString("downloaderCustomUri", "");
         editor.putString("downloaderCustomPath", "");
-        editor.commit();
-        makeLocalCacheWorldReadable();
-
-        Intent intentUri = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING");
-        intentUri.putExtra("key", "downloaderCustomUri");
-        intentUri.putExtra("value", "");
-        requireContext().sendBroadcast(intentUri);
-
-        Intent intentPath = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING");
-        intentPath.putExtra("key", "downloaderCustomPath");
-        intentPath.putExtra("value", "");
-        requireContext().sendBroadcast(intentPath);
+        long updatedAt = touchAndFlush(editor);
+        sendStringPref("downloaderCustomUri", "", updatedAt);
+        sendStringPref("downloaderCustomPath", "", updatedAt);
 
         Toast.makeText(requireContext(), getString(R.string.ig_toast_download_folder_reset), Toast.LENGTH_SHORT).show();
 
@@ -1214,17 +1206,12 @@ public class FeaturesFragment extends Fragment {
 
         SharedPreferences.Editor editor = localCache.edit();
         for (Map.Entry<String, Boolean> entry : stagedChanges.entrySet()) {
-            String key = entry.getKey();
-            boolean value = entry.getValue();
-
-            editor.putBoolean(key, value);
-
-            Intent intent = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF");
-            intent.putExtra("key", key);
-            intent.putExtra("value", value);
-            requireContext().sendBroadcast(intent);
+            editor.putBoolean(entry.getKey(), entry.getValue());
         }
-        editor.apply();
+        long updatedAt = touchAndFlush(editor);
+        for (Map.Entry<String, Boolean> entry : stagedChanges.entrySet()) {
+            sendBoolPref(entry.getKey(), entry.getValue(), updatedAt);
+        }
         stagedChanges.clear();
         fabSave.hide();
         Toast.makeText(requireContext(), getString(R.string.ig_toast_settings_applied), Toast.LENGTH_SHORT).show();
@@ -1249,7 +1236,7 @@ public class FeaturesFragment extends Fragment {
         } else {
             ContextCompat.registerReceiver(requireContext(), prefsReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
         }
-        requireContext().sendBroadcast(new Intent("ps.reso.instaeclipse.ACTION_REQUEST_PREFS"));
+        sendToInstagram(new Intent("ps.reso.instaeclipse.ACTION_REQUEST_PREFS"));
     }
 
     @Override

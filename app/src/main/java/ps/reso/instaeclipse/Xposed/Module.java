@@ -1,6 +1,5 @@
 package ps.reso.instaeclipse.Xposed;
 
-import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -18,8 +17,6 @@ import java.util.Map;
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.IXposedHookZygoteInit;
 import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XSharedPreferences;
-import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import ps.reso.instaeclipse.mods.ads.AdBlocker;
@@ -53,6 +50,8 @@ import ps.reso.instaeclipse.mods.misc.CaptionCopyContextMenuHook;
 import ps.reso.instaeclipse.mods.misc.DisableDoubleTapLikeHook;
 import ps.reso.instaeclipse.mods.misc.IGMantleCrashHook;
 import ps.reso.instaeclipse.mods.misc.IgApiLookupCrashHook;
+import ps.reso.instaeclipse.mods.misc.LsPatchVerifyErrorGuard;
+import ps.reso.instaeclipse.mods.misc.StaleStateCrashGuardHook;
 import ps.reso.instaeclipse.mods.misc.DisableStoryFlippingHook;
 import ps.reso.instaeclipse.mods.misc.DisableVideoAutoPlayHook;
 import ps.reso.instaeclipse.mods.misc.StoryMentionHook;
@@ -62,70 +61,49 @@ import ps.reso.instaeclipse.mods.ui.theme.IgThemeEngine;
 import ps.reso.instaeclipse.mods.ui.theme.IgThemeHook;
 import ps.reso.instaeclipse.utils.core.CommonUtils;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
+import ps.reso.instaeclipse.utils.core.LsPatchCompanionBridge;
+import ps.reso.instaeclipse.utils.core.NativeLibLoader;
+import ps.reso.instaeclipse.utils.core.SelfUninstallGuard;
 import ps.reso.instaeclipse.utils.core.SettingsManager;
-import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureManager;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 
-@SuppressLint("UnsafeDynamicallyLoadedCode")
 public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
     // List of supported Instagram package names (maintained in CommonUtils)
     private static final List<String> SUPPORTED_PACKAGES = CommonUtils.SUPPORTED_PACKAGES;
     public static DexKitBridge dexKitBridge;
     public static ClassLoader hostClassLoader;
     public static String moduleSourceDir;
-    private static String moduleLibDir;
-
-    // for dev usage
-    /*
-    public static void showToast(final String text) {
-        new Handler(Looper.getMainLooper()).post(() -> Toast.makeText(AndroidAppHelper.currentApplication().getApplicationContext(), text, Toast.LENGTH_LONG).show());
-    }
-    */
+    public static Context hostAppContext;
 
     @Override
     public void initZygote(StartupParam startupParam) {
-        moduleSourceDir = startupParam.modulePath;
-
-        String abi = Build.SUPPORTED_ABIS[0];
-        String abiFolder;
-        if (abi.equalsIgnoreCase("arm64-v8a")) abiFolder = "arm64";
-        else if (abi.equalsIgnoreCase("armeabi-v7a") || abi.equalsIgnoreCase("armeabi") || abi.equalsIgnoreCase("armv8i"))
-            abiFolder = "arm";
-        else if (abi.equalsIgnoreCase("x86")) abiFolder = "x86";
-        else if (abi.equalsIgnoreCase("x86_64")) abiFolder = "x86_64";
-        else abiFolder = abi;
-
-        moduleLibDir = moduleSourceDir.substring(0, moduleSourceDir.lastIndexOf("/")) + "/lib/" + abiFolder;
+        moduleSourceDir = NativeLibLoader.normalizeModulePath(startupParam.modulePath);
     }
 
     @Override
     public void handleLoadPackage(final XC_LoadPackage.LoadPackageParam lpparam) {
-        // Ensure preferences are loaded
-
-
-        // Hook into Instagram and its clones
         if (SUPPORTED_PACKAGES.contains(lpparam.packageName)) {
             try {
-                if (dexKitBridge == null) {
-                    // Load the .so file from your module (if not already loaded)
-                    System.load(moduleLibDir + "/libdexkit.so");
-                    // ModuleLog.line("libdexkit.so loaded successfully.");
+                hookDefaultUncaughtExceptionHandler();
+                setupUncaughtExceptionHandler();
+                LsPatchVerifyErrorGuard.install();
 
-                    // Initialize DexKitBridge with the target app's APK
+                if (dexKitBridge == null) {
+                    moduleSourceDir = NativeLibLoader.resolveModulePath(moduleSourceDir);
+                    String dataDir = lpparam.appInfo != null ? lpparam.appInfo.dataDir : null;
+                    NativeLibLoader.loadDexKit(moduleSourceDir, dataDir);
                     dexKitBridge = DexKitBridge.create(lpparam.appInfo.sourceDir);
-                    // ModuleLog.line("DexKitBridge initialized with target APK: " + lpparam.appInfo.sourceDir);
                 }
 
-                // Use the target app's ClassLoader
                 hostClassLoader = lpparam.classLoader;
-
-                // Call the method to hook the target app
                 hookInstagram(lpparam);
 
             } catch (Exception e) {
                 ModuleLog.line("(InstaEclipse): Failed to initialize DexKitBridge for " + lpparam.packageName + ": " + e.getMessage());
+            } catch (UnsatisfiedLinkError e) {
+                ModuleLog.line("(InstaEclipse): Failed to load native libs for " + lpparam.packageName + ": " + e.getMessage());
             }
         }
     }
@@ -141,6 +119,10 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     // Install CommentCopyButtonHook BEFORE Instagram's Application.attach() runs
                     // so we catch any ViewBinding pre-inflation that happens during attach()
                     Context context = (Context) param.args[0];
+                    hostAppContext = context;
+                    if (SelfUninstallGuard.checkAndCleanIfUninstalled(context)) {
+                        return;
+                    }
                     SettingsManager.init(context);
                     SettingsManager.loadAllFlags(context);
 
@@ -161,25 +143,17 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
 
                     // Setup context, preferences
                     Context context = (Context) param.args[0];
+                    hostAppContext = context;
+                    if (SelfUninstallGuard.checkAndCleanIfUninstalled(context)) {
+                        return;
+                    }
                     SettingsManager.init(context);
+                    LsPatchCompanionBridge.initForHook(context);
+                    SettingsManager.syncFromCompanion(context, false);
                     SettingsManager.loadAllFlags(context);
 
-                    // In-app log viewer: every ModuleLog.line(...) call across the hook codebase
-                    // appends to this buffer, which the companion app can read via IPC.
                     Logging.init(context, "instaeclipse_module.log");
                     DownloadHistory.init(context);
-
-                    // Pull downloader path from companion app's cache so it's available even
-                    // when Instagram was started without ever receiving the sync broadcast.
-                    try {
-                        XSharedPreferences cp = new XSharedPreferences(CommonUtils.MY_PACKAGE_NAME, "instaeclipse_cache");
-                        cp.reload();
-                        String path = cp.getString("downloaderCustomPath", "");
-                        String uri  = cp.getString("downloaderCustomUri",  "");
-                        if (!path.isEmpty()) FeatureFlags.downloaderCustomPath = path;
-                        if (!uri.isEmpty())  FeatureFlags.downloaderCustomUri  = uri;
-                    } catch (Throwable ignored) {
-                    }
 
                     FeatureManager.refreshFeatureStatus(); // Update internal feature states
 
@@ -202,6 +176,12 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     IGNetworkInterceptor interceptor = new IGNetworkInterceptor();
 
                     // --- Feature Hooks ---
+
+                    try {
+                        new StaleStateCrashGuardHook().install(dexKitBridge, lpparam.classLoader);
+                    } catch (Throwable ignored) {
+                        ModuleLog.line("(InstaEclipse | CrashGuard): ❌ Failed to hook");
+                    }
 
                     try {
                         new IGMantleCrashHook().install(dexKitBridge, lpparam.classLoader);
@@ -446,7 +426,11 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     ModuleLog.line("(InstaEclipse) Sync: Updating " + key + " to " + value);
 
                     android.content.SharedPreferences prefs = ctx.getSharedPreferences("instaeclipse_prefs", Context.MODE_PRIVATE);
-                    prefs.edit().putBoolean(key, value).apply();
+                    long updatedAt = intent.getLongExtra(ps.reso.instaeclipse.providers.SettingsProvider.KEY_UPDATED_AT, System.currentTimeMillis());
+                    prefs.edit()
+                            .putBoolean(key, value)
+                            .putLong(ps.reso.instaeclipse.providers.SettingsProvider.KEY_UPDATED_AT, updatedAt)
+                            .commit();
 
                     SettingsManager.loadAllFlags(ctx);
                     FeatureManager.refreshFeatureStatus();
@@ -460,7 +444,11 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     ModuleLog.line("(InstaEclipse) Sync: Updating string pref " + key);
 
                     android.content.SharedPreferences prefs = ctx.getSharedPreferences("instaeclipse_prefs", Context.MODE_PRIVATE);
-                    prefs.edit().putString(key, value).apply();
+                    long updatedAt = intent.getLongExtra(ps.reso.instaeclipse.providers.SettingsProvider.KEY_UPDATED_AT, System.currentTimeMillis());
+                    prefs.edit()
+                            .putString(key, value)
+                            .putLong(ps.reso.instaeclipse.providers.SettingsProvider.KEY_UPDATED_AT, updatedAt)
+                            .commit();
 
                     SettingsManager.loadAllFlags(ctx);
                     IgThemeEngine.invalidate();
@@ -473,7 +461,11 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     ModuleLog.line("(InstaEclipse) Sync: Updating int pref " + key + " to " + value);
 
                     android.content.SharedPreferences prefs = ctx.getSharedPreferences("instaeclipse_prefs", Context.MODE_PRIVATE);
-                    prefs.edit().putInt(key, value).apply();
+                    long updatedAt = intent.getLongExtra(ps.reso.instaeclipse.providers.SettingsProvider.KEY_UPDATED_AT, System.currentTimeMillis());
+                    prefs.edit()
+                            .putInt(key, value)
+                            .putLong(ps.reso.instaeclipse.providers.SettingsProvider.KEY_UPDATED_AT, updatedAt)
+                            .commit();
 
                     SettingsManager.loadAllFlags(ctx);
                     FeatureManager.refreshFeatureStatus();
@@ -525,13 +517,8 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
 
                     Bundle bundle = new Bundle();
                     for (Map.Entry<String, ?> entry : prefs.getAll().entrySet()) {
-                        if (entry.getValue() instanceof Boolean) {
-                            bundle.putBoolean(entry.getKey(), (Boolean) entry.getValue());
-                        } else if (entry.getValue() instanceof String) {
-                            bundle.putString(entry.getKey(), (String) entry.getValue());
-                        } else if (entry.getValue() instanceof Integer) {
-                            bundle.putInt(entry.getKey(), (Integer) entry.getValue());
-                        }
+                        ps.reso.instaeclipse.providers.SettingsProvider.putValue(
+                                bundle, entry.getKey(), entry.getValue());
                     }
                     reply.putExtras(bundle);
                     ctx.sendBroadcast(reply);
@@ -595,6 +582,64 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
             context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
         } else {
             ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED);
+        }
+    }
+
+    private void setupUncaughtExceptionHandler() {
+        try {
+            Thread.UncaughtExceptionHandler original = Thread.getDefaultUncaughtExceptionHandler();
+            if (original instanceof ModuleExceptionHandler) return;
+            Thread.setDefaultUncaughtExceptionHandler(new ModuleExceptionHandler(original));
+        } catch (Throwable ignored) {}
+    }
+
+    private void hookDefaultUncaughtExceptionHandler() {
+        try {
+            XposedHelpers.findAndHookMethod(
+                    Thread.class,
+                    "setDefaultUncaughtExceptionHandler",
+                    Thread.UncaughtExceptionHandler.class,
+                    new XC_MethodHook() {
+                        @Override
+                        protected void beforeHookedMethod(MethodHookParam param) {
+                            Object handler = param.args[0];
+                            if (handler != null && !(handler instanceof ModuleExceptionHandler)) {
+                                param.args[0] = new ModuleExceptionHandler((Thread.UncaughtExceptionHandler) handler);
+                            }
+                        }
+                    }
+            );
+        } catch (Throwable t) {
+            ModuleLog.line("(InstaEclipse) Failed to hook setDefaultUncaughtExceptionHandler: " + t.getMessage());
+        }
+    }
+
+    private static final class ModuleExceptionHandler implements Thread.UncaughtExceptionHandler {
+        private final Thread.UncaughtExceptionHandler original;
+
+        ModuleExceptionHandler(Thread.UncaughtExceptionHandler original) {
+            this.original = original;
+        }
+
+        @Override
+        public void uncaughtException(Thread thread, Throwable throwable) {
+            if (LsPatchVerifyErrorGuard.isCertVerifyError(throwable)) {
+                LsPatchVerifyErrorGuard.swallow(throwable);
+                return;
+            }
+            try {
+                ModuleLog.line("(InstaEclipse) UNCAUGHT EXCEPTION in thread \"" + thread.getName() + "\":", throwable);
+            } catch (Throwable ignored) {}
+            if (StaleStateCrashGuardHook.looksLikeStaleFragmentState(throwable)) {
+                try {
+                    Context ctx = hostAppContext;
+                    if (ctx != null) {
+                        StaleStateCrashGuardHook.flagPendingCleanRestart(ctx);
+                        ModuleLog.line("(InstaEclipse | CrashGuard): Flagged stale-state crash — next launch will drop savedInstanceState");
+                    }
+                } catch (Throwable ignored) {}
+            }
+            if (original != null) original.uncaughtException(thread, throwable);
         }
     }
 }

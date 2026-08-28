@@ -79,8 +79,14 @@ public class SettingsBackupManager {
         s.put("enableStoryDownload",     FeatureFlags.enableStoryDownload);
         s.put("enableReelDownload",      FeatureFlags.enableReelDownload);
         s.put("enableProfileDownload",   FeatureFlags.enableProfileDownload);
+        s.put("enableBatchDownload",     FeatureFlags.enableBatchDownload);
         s.put("downloaderUsernameFolder",FeatureFlags.downloaderUsernameFolder);
         s.put("downloaderAddTimestamp",  FeatureFlags.downloaderAddTimestamp);
+
+        s.put("customThemeEnabled", FeatureFlags.customThemeEnabled);
+        s.put("themePresetId", FeatureFlags.themePresetId);
+        s.put("themePaletteJson", FeatureFlags.themePaletteJson);
+        s.put("themeCustomPresetsJson", FeatureFlags.themeCustomPresetsJson);
 
         JSONObject root = new JSONObject();
         root.put("version",  VERSION);
@@ -155,8 +161,14 @@ public class SettingsBackupManager {
         if (s.has("enableStoryDownload"))    FeatureFlags.enableStoryDownload    = s.getBoolean("enableStoryDownload");
         if (s.has("enableReelDownload"))     FeatureFlags.enableReelDownload     = s.getBoolean("enableReelDownload");
         if (s.has("enableProfileDownload"))  FeatureFlags.enableProfileDownload  = s.getBoolean("enableProfileDownload");
+        if (s.has("enableBatchDownload"))    FeatureFlags.enableBatchDownload    = s.getBoolean("enableBatchDownload");
         if (s.has("downloaderUsernameFolder")) FeatureFlags.downloaderUsernameFolder = s.getBoolean("downloaderUsernameFolder");
         if (s.has("downloaderAddTimestamp")) FeatureFlags.downloaderAddTimestamp  = s.getBoolean("downloaderAddTimestamp");
+
+        if (s.has("customThemeEnabled")) FeatureFlags.customThemeEnabled = s.getBoolean("customThemeEnabled");
+        if (s.has("themePresetId")) FeatureFlags.themePresetId = s.getInt("themePresetId");
+        if (s.has("themePaletteJson")) FeatureFlags.themePaletteJson = s.getString("themePaletteJson");
+        if (s.has("themeCustomPresetsJson")) FeatureFlags.themeCustomPresetsJson = s.getString("themeCustomPresetsJson");
     }
 
     private static double parseDouble(Object raw, double fallback) {

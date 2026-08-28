@@ -51,6 +51,12 @@ public final class Logging {
 
     private static final Runnable REWRITE_RUNNABLE = Logging::rewriteFileRunnable;
 
+    public enum Filter {
+        ALL,
+        ISSUES,
+        ERRORS
+    }
+
     private Logging() {}
 
     public static void init(Context context) {
@@ -191,6 +197,44 @@ public final class Logging {
         synchronized (LOCK) {
             return buildSnapshot(true);
         }
+    }
+
+    public static String filterText(String text, Filter filter) {
+        if (text == null || text.isEmpty() || filter == Filter.ALL) return text;
+        StringBuilder out = new StringBuilder(text.length() / 2);
+        int start = 0;
+        while (start <= text.length()) {
+            int nl = text.indexOf('\n', start);
+            String line = nl < 0 ? text.substring(start) : text.substring(start, nl);
+            if (keepLine(line, filter)) {
+                out.append(line).append('\n');
+            }
+            if (nl < 0) break;
+            start = nl + 1;
+        }
+        int len = out.length();
+        while (len > 0 && out.charAt(len - 1) == '\n') {
+            out.setLength(--len);
+        }
+        return out.toString();
+    }
+
+    private static boolean keepLine(String line, Filter filter) {
+        if (line.isEmpty()) return true;
+        if (line.startsWith("===") || line.startsWith("[")) return true;
+        String upper = line.toUpperCase(Locale.US);
+        boolean error = upper.contains("EXCEPTION")
+                || upper.contains("ERROR")
+                || upper.contains(" FATAL")
+                || upper.contains(" BROKEN ")
+                || line.contains("❌")
+                || upper.contains("INSTALL_ERROR");
+        boolean warn = line.contains("⚠️")
+                || upper.contains("FAILED")
+                || upper.contains("NOT_CONFIRMED")
+                || upper.contains(" ISSUE ");
+        if (filter == Filter.ERRORS) return error;
+        return error || warn;
     }
 
     private static String buildSnapshot(boolean forIpc) {

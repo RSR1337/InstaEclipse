@@ -14,10 +14,15 @@ import org.luckypray.dexkit.result.MethodData;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -42,6 +47,12 @@ public class StoryDownloadHook {
     private static volatile Object lastReelItem;
     private static Class<?> reelItemClass;
     private static Class<?> mediaClass;
+    private static Class<?> reelClass;
+    private static Class<?> userSessionClass;
+    private static volatile String injectedDownloadLabel;
+    private static final Map<Object, List<Object>> reelItemsCache =
+            Collections.synchronizedMap(new WeakHashMap<>());
+    private static volatile List<Object> lastStorySequence = new ArrayList<>();
 
     private volatile String currentStoryUsername = null;
     private volatile String currentStoryMediaId  = null;
@@ -65,7 +76,14 @@ public class StoryDownloadHook {
         try {
             mediaClass = classLoader.loadClass("com.instagram.feed.media.Media");
         } catch (Throwable ignored) {}
+        try {
+            reelClass = classLoader.loadClass("com.instagram.model.reels.Reel");
+        } catch (Throwable ignored) {}
+        try {
+            userSessionClass = classLoader.loadClass("com.instagram.common.session.UserSession");
+        } catch (Throwable ignored) {}
 
+        installReelItemsCacheHook();
         installButtonInjectorHook(bridge, classLoader);
         installClickHandlerHook(bridge, classLoader);
     }
@@ -137,15 +155,27 @@ public class StoryDownloadHook {
                     CharSequence[] original = (CharSequence[]) param.getResult();
                     if (original == null) return;
 
-                    // Guard: don't inject twice
-                    String dlLabel = I18n.t(AndroidAppHelper.currentApplication(), R.string.ig_dl_title);
+                    Context app = AndroidAppHelper.currentApplication();
+                    String dlLabel = I18n.t(app, R.string.ig_dl_title);
+                    int seqCount = 1;
+                    try {
+                        seqCount = collectStoryHosts(param.thisObject).size();
+                        if (seqCount < 2 && param.args.length > 0 && hasReelItemField(param.args[0])) {
+                            seqCount = Math.max(seqCount, collectStoryHosts(param.args[0]).size());
+                        }
+                        if (seqCount < 2) seqCount = Math.max(seqCount, collectStoryHosts(lastReelItem).size());
+                    } catch (Throwable ignored) {}
+                    String label = seqCount >= 2 && FeatureFlags.enableBatchDownload
+                            ? I18n.t(app, R.string.ig_dl_carousel_all, seqCount)
+                            : dlLabel;
                     for (CharSequence cs : original) {
-                        if (dlLabel.contentEquals(cs)) return;
+                        if (dlLabel.contentEquals(cs) || label.contentEquals(cs)) return;
                     }
 
                     CharSequence[] extended = new CharSequence[original.length + 1];
                     System.arraycopy(original, 0, extended, 0, original.length);
-                    extended[original.length] = dlLabel;
+                    injectedDownloadLabel = label;
+                    extended[original.length] = label;
                     param.setResult(extended);
                 }
             });
@@ -208,14 +238,15 @@ public class StoryDownloadHook {
                     for (Object arg : param.args) {
                         if (arg instanceof CharSequence cs) { tapped = cs; break; }
                     }
-                    String dlLabel = I18n.t(AndroidAppHelper.currentApplication(), R.string.ig_dl_title);
-                    if (tapped == null || !dlLabel.contentEquals(tapped)) return;
+                    Context app = AndroidAppHelper.currentApplication();
+                    String dlLabel = I18n.t(app, R.string.ig_dl_title);
+                    if (tapped == null) return;
+                    boolean ours = dlLabel.contentEquals(tapped)
+                            || (injectedDownloadLabel != null && injectedDownloadLabel.contentEquals(tapped));
+                    if (!ours) return;
 
-                    // 2. Consume the event — Instagram won't process an option it didn't add
                     param.setResult(null);
 
-                    // 3. Locate the object that holds ReelItem — it is either 'this' or a
-                    //    parameter of the same declaring class (piko's smali shows the latter).
                     Object holder = findReelItemHolder(param);
 
                     Context ctx = findContext(holder != null ? holder : param.thisObject);
@@ -228,16 +259,37 @@ public class StoryDownloadHook {
                     }
 
                     Object effectiveHolder = holder != null ? holder : param.thisObject;
-                    String url = extractStoryUrl(ctx, effectiveHolder);
+                    currentStoryUsername = extractUsernameFromReelItemHolder(effectiveHolder);
+
+                    List<StoryDl> sequence = new ArrayList<>();
+                    try {
+                        sequence = collectStoryDownloads(ctx, effectiveHolder);
+                    } catch (Throwable t) {
+                        ModuleLog.line("(IE|Story) collect sequence: " + t);
+                    }
+                    if (sequence.size() >= 2 && FeatureFlags.enableBatchDownload) {
+                        ModuleLog.line("(IE|Story) batch sequence=" + sequence.size()
+                                + " user=" + currentStoryUsername);
+                        startBatchDownload(ctx, sequence);
+                        return;
+                    }
+
+                    String url = null;
+                    if (sequence.size() == 1) {
+                        url = sequence.get(0).url;
+                        currentStoryMediaId = sequence.get(0).mediaId;
+                    }
+                    if (url == null || url.isEmpty()) {
+                        url = extractStoryUrl(ctx, effectiveHolder);
+                        currentStoryMediaId = extractMediaIdFromReelItemHolder(effectiveHolder);
+                    }
 
                     if (url == null || url.isEmpty()) {
                         Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_story_url_not_found), Toast.LENGTH_SHORT).show();
                         return;
                     }
 
-                    currentStoryUsername = extractUsernameFromReelItemHolder(effectiveHolder);
-                    currentStoryMediaId  = extractMediaIdFromReelItemHolder(effectiveHolder);
-                    startDownload(ctx, url, isVideoUrl(url));
+                    startDownload(ctx, url, FeedVideoDownloadHook.isVideoUrl(url));
                 }
             });
 
@@ -734,7 +786,442 @@ public class StoryDownloadHook {
         return null;
     }
 
-    // ── Download dispatch ─────────────────────────────────────────────────────
+    private static final class StoryDl {
+        final String url;
+        final String mediaId;
+        final boolean video;
+        StoryDl(String url, String mediaId, boolean video) {
+            this.url = url;
+            this.mediaId = mediaId;
+            this.video = video;
+        }
+    }
+
+    private static void installReelItemsCacheHook() {
+        if (reelClass == null) return;
+        XC_MethodHook hook = new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                rememberReelItems(param.thisObject, param.getResult());
+            }
+        };
+        int hooked = 0;
+        Class<?> cls = reelClass;
+        while (cls != null && cls != Object.class) {
+            for (Method m : cls.getDeclaredMethods()) {
+                Class<?> ret = m.getReturnType();
+                if (!List.class.isAssignableFrom(ret)
+                        && !Map.class.isAssignableFrom(ret)
+                        && !Collection.class.isAssignableFrom(ret)) continue;
+                try {
+                    XposedBridge.hookMethod(m, hook);
+                    hooked++;
+                } catch (Throwable ignored) {}
+            }
+            cls = cls.getSuperclass();
+        }
+        ModuleLog.line("(IE|Story) reel item cache hooks=" + hooked);
+    }
+
+    private static void rememberReelItems(Object reel, Object result) {
+        if (reel == null || result == null) return;
+        List<Object> items = asStoryHostList(result);
+        if (items.size() < 1) return;
+        List<Object> existing = reelItemsCache.get(reel);
+        if (existing == null || items.size() >= existing.size()) {
+            reelItemsCache.put(reel, items);
+        }
+        if (items.size() >= 2) lastStorySequence = items;
+    }
+
+    private static List<Object> asStoryHostList(Object result) {
+        List<?> raw;
+        if (result instanceof List<?> list) raw = list;
+        else if (result instanceof Map<?, ?> map) raw = new ArrayList<>(map.values());
+        else if (result instanceof Collection<?> col) raw = new ArrayList<>(col);
+        else if (result instanceof Object[] arr) {
+            List<Object> tmp = new ArrayList<>();
+            Collections.addAll(tmp, arr);
+            raw = tmp;
+        } else return new ArrayList<>();
+        if (!isMediaOrReelItemList(raw)) return new ArrayList<>();
+        List<Object> out = new ArrayList<>();
+        for (Object o : raw) if (o != null) out.add(o);
+        return out;
+    }
+
+    private static List<StoryDl> collectStoryDownloads(Context ctx, Object seed) {
+        List<StoryDl> out = new ArrayList<>();
+        Set<String> seenUrls = new HashSet<>();
+        for (Object host : collectStoryHosts(seed)) {
+            String url = extractUrlFromHost(ctx, host);
+            if (url == null || url.isEmpty() || !seenUrls.add(url)) continue;
+            out.add(new StoryDl(url, mediaIdOf(host), FeedVideoDownloadHook.isVideoUrl(url)));
+        }
+        return out;
+    }
+
+    private static List<Object> collectStoryHosts(Object seed) {
+        Object reelItem = resolveReelItem(seed);
+        Object media = resolveMedia(reelItem != null ? reelItem : seed);
+        Object current = reelItem != null ? reelItem : media;
+
+        Object reel = findReel(seed);
+        if (reel == null && reelItem != null) reel = findReel(reelItem);
+
+        List<Object> items = new ArrayList<>();
+        if (reel != null) items = itemsFromReel(reel, seed);
+        if (items.size() < 2) {
+            List<Object> cached = findCachedSequence(current, media);
+            if (cached.size() > items.size()) items = cached;
+        }
+        if (items.size() < 2) {
+            List<Object> last = lastStorySequence;
+            if (last.size() >= 2 && containsHost(last, current, media)) {
+                items = new ArrayList<>(last);
+            }
+        }
+        if (items.size() < 2) {
+            List<Object> walked = walkForStoryLists(seed, current, media);
+            if (walked.size() > items.size()) items = walked;
+        }
+        if (items.size() < 2 && lastReelItem != null && lastReelItem != seed) {
+            List<Object> walked = walkForStoryLists(lastReelItem, current, media);
+            if (walked.size() > items.size()) items = walked;
+            Object lastReel = findReel(lastReelItem);
+            if (lastReel != null) {
+                List<Object> fromLast = itemsFromReel(lastReel, lastReelItem);
+                if (fromLast.size() > items.size()) items = fromLast;
+            }
+        }
+
+        items = filterSameAuthor(items, current, media);
+        items = dedupeByMediaId(items);
+
+        if (items.isEmpty() && current != null) items.add(current);
+        else if (current != null && !containsHost(items, current, media)) items.add(current);
+        return items;
+    }
+
+    private static Object findReel(Object seed) {
+        if (seed == null || reelClass == null) return null;
+        if (reelClass.isInstance(seed)) return seed;
+        Object direct = readFieldByTypeName(seed, "com.instagram.model.reels.Reel");
+        if (direct != null) return direct;
+        Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        return findTypedDeep(seed, reelClass, visited, 0, 3);
+    }
+
+    private static Object findTypedDeep(Object obj, Class<?> type, Set<Object> visited, int depth, int maxDepth) {
+        if (obj == null || type == null || depth > maxDepth || !visited.add(obj)) return null;
+        if (type.isInstance(obj)) return obj;
+        String cn = obj.getClass().getName();
+        if (cn.startsWith("android.") || cn.startsWith("java.") || cn.startsWith("kotlin.")) return null;
+        Class<?> cls = obj.getClass();
+        while (cls != null && cls != Object.class) {
+            for (Field f : cls.getDeclaredFields()) {
+                try {
+                    f.setAccessible(true);
+                    Object val = f.get(obj);
+                    if (val == null) continue;
+                    if (type.isInstance(val)) return val;
+                    String vcn = val.getClass().getName();
+                    if (vcn.startsWith("X.") || vcn.startsWith("com.instagram.") || vcn.startsWith("com.facebook.")) {
+                        Object found = findTypedDeep(val, type, visited, depth + 1, maxDepth);
+                        if (found != null) return found;
+                    }
+                } catch (Throwable ignored) {}
+            }
+            cls = cls.getSuperclass();
+        }
+        return null;
+    }
+
+    private static List<Object> itemsFromReel(Object reel, Object sessionSeed) {
+        if (reel == null) return new ArrayList<>();
+        List<Object> cached = reelItemsCache.get(reel);
+        if (cached != null && cached.size() >= 2) return new ArrayList<>(cached);
+
+        List<Object> best = new ArrayList<>();
+        if (cached != null) best = new ArrayList<>(cached);
+
+        Class<?> cls = reel.getClass();
+        while (cls != null && cls != Object.class) {
+            for (Field f : cls.getDeclaredFields()) {
+                try {
+                    f.setAccessible(true);
+                    List<Object> fromVal = asStoryHostList(f.get(reel));
+                    if (fromVal.size() > best.size()) best = fromVal;
+                } catch (Throwable ignored) {}
+            }
+            cls = cls.getSuperclass();
+        }
+
+        if (best.size() >= 2) return best;
+
+        Object session = findTypedDeep(sessionSeed, userSessionClass,
+                Collections.newSetFromMap(new IdentityHashMap<>()), 0, 3);
+        cls = reel.getClass();
+        while (cls != null && cls != Object.class) {
+            for (Method m : cls.getDeclaredMethods()) {
+                try {
+                    Class<?> ret = m.getReturnType();
+                    if (!List.class.isAssignableFrom(ret)
+                            && !Map.class.isAssignableFrom(ret)
+                            && !Collection.class.isAssignableFrom(ret)) continue;
+                    Object invoked = null;
+                    if (m.getParameterCount() == 0) {
+                        m.setAccessible(true);
+                        invoked = m.invoke(reel);
+                    } else if (m.getParameterCount() == 1 && session != null
+                            && userSessionClass != null
+                            && userSessionClass.isAssignableFrom(m.getParameterTypes()[0])) {
+                        m.setAccessible(true);
+                        invoked = m.invoke(reel, session);
+                    }
+                    if (invoked == null) continue;
+                    rememberReelItems(reel, invoked);
+                    List<Object> fromM = asStoryHostList(invoked);
+                    if (fromM.size() > best.size()) best = fromM;
+                } catch (Throwable ignored) {}
+            }
+            cls = cls.getSuperclass();
+        }
+        return best;
+    }
+
+    private static List<Object> findCachedSequence(Object current, Object media) {
+        List<Object> best = new ArrayList<>();
+        try {
+            synchronized (reelItemsCache) {
+                for (List<Object> items : reelItemsCache.values()) {
+                    if (items == null || items.size() < 2) continue;
+                    if (!containsHost(items, current, media)) continue;
+                    if (items.size() > best.size()) best = new ArrayList<>(items);
+                }
+            }
+        } catch (Throwable ignored) {}
+        return best;
+    }
+
+    private static List<Object> walkForStoryLists(Object seed, Object current, Object media) {
+        List<Object> best = new ArrayList<>();
+        if (seed == null) return best;
+        walkStoryLists(seed, best, current, media,
+                Collections.newSetFromMap(new IdentityHashMap<>()), 0);
+        return best;
+    }
+
+    private static void walkStoryLists(Object obj, List<Object> best, Object current, Object media,
+                                       Set<Object> visited, int depth) {
+        if (obj == null || depth > 4 || !visited.add(obj)) return;
+        String cn = obj.getClass().getName();
+        if (cn.startsWith("android.") || cn.startsWith("java.") || cn.startsWith("kotlin.")) return;
+
+        if (reelClass != null && reelClass.isInstance(obj)) {
+            considerMediaList(itemsFromReel(obj, obj), best, current, media);
+        }
+
+        Class<?> cls = obj.getClass();
+        while (cls != null && cls != Object.class) {
+            for (Field f : cls.getDeclaredFields()) {
+                try {
+                    f.setAccessible(true);
+                    Object val = f.get(obj);
+                    if (val == null) continue;
+                    if (val instanceof List<?> list) {
+                        considerAnyList(list, best, current, media);
+                    } else if (val instanceof Map<?, ?> map) {
+                        considerAnyList(new ArrayList<>(map.values()), best, current, media);
+                    } else if (val instanceof Object[] arr) {
+                        List<Object> asList = new ArrayList<>();
+                        Collections.addAll(asList, arr);
+                        considerAnyList(asList, best, current, media);
+                    } else {
+                        String vcn = val.getClass().getName();
+                        if (vcn.startsWith("X.") || vcn.startsWith("com.instagram.")
+                                || vcn.startsWith("com.facebook.")) {
+                            walkStoryLists(val, best, current, media, visited, depth + 1);
+                        }
+                    }
+                } catch (Throwable ignored) {}
+            }
+            cls = cls.getSuperclass();
+        }
+    }
+
+    private static void considerAnyList(List<?> list, List<Object> best, Object current, Object media) {
+        if (list == null || list.isEmpty() || list.size() > 200) return;
+        if (isReelList(list)) {
+            for (Object r : list) {
+                if (r == null) continue;
+                considerMediaList(itemsFromReel(r, r), best, current, media);
+            }
+            return;
+        }
+        if (isMediaOrReelItemList(list)) considerMediaList(list, best, current, media);
+    }
+
+    private static void considerMediaList(List<?> list, List<Object> best, Object current, Object media) {
+        if (list == null || list.size() < 2 || list.size() > 200) return;
+        if (current != null && !containsHost(list, current, media)) return;
+        List<Object> filtered = filterSameAuthor(list, current, media);
+        if (filtered.size() < 2) return;
+        if (filtered.size() > best.size()) {
+            best.clear();
+            best.addAll(filtered);
+        }
+    }
+
+    private static boolean isMediaOrReelItemList(List<?> list) {
+        if (list == null || list.isEmpty() || list.size() > 200) return false;
+        for (Object item : list) {
+            if (item == null) continue;
+            if (reelItemClass != null && reelItemClass.isInstance(item)) return true;
+            if (mediaClass != null && mediaClass.isInstance(item)) return true;
+            return false;
+        }
+        return false;
+    }
+
+    private static boolean isReelList(List<?> list) {
+        if (list == null || list.isEmpty() || reelClass == null) return false;
+        for (Object item : list) {
+            if (item == null) continue;
+            return reelClass.isInstance(item);
+        }
+        return false;
+    }
+
+    private static boolean containsHost(List<?> list, Object current, Object media) {
+        if (current == null && media == null) return true;
+        String cid = mediaIdOf(current);
+        String mid = mediaIdOf(media);
+        for (Object o : list) {
+            if (o == null) continue;
+            if (o == current || o == media) return true;
+            String id = mediaIdOf(o);
+            if (id != null && (id.equals(cid) || id.equals(mid))) return true;
+            Object om = resolveMedia(o);
+            if (om != null && (om == media || om == current)) return true;
+        }
+        return false;
+    }
+
+    private static List<Object> filterSameAuthor(List<?> items, Object current, Object media) {
+        String user = usernameOf(current);
+        if (user == null) user = usernameOf(media);
+        List<Object> out = new ArrayList<>();
+        if (user == null) {
+            for (Object o : items) if (o != null) out.add(o);
+            return out;
+        }
+        for (Object o : items) {
+            if (o == null) continue;
+            String u = usernameOf(o);
+            if (u == null || user.equalsIgnoreCase(u)) out.add(o);
+        }
+        return out;
+    }
+
+    private static List<Object> dedupeByMediaId(List<Object> items) {
+        LinkedHashMap<String, Object> byId = new LinkedHashMap<>();
+        int anon = 0;
+        for (Object o : items) {
+            if (o == null) continue;
+            String id = mediaIdOf(o);
+            if (id == null || id.isEmpty()) id = "anon_" + (anon++);
+            byId.putIfAbsent(id, o);
+        }
+        return new ArrayList<>(byId.values());
+    }
+
+    private static String usernameOf(Object host) {
+        if (host == null) return null;
+        if (reelItemClass != null && reelItemClass.isInstance(host)) {
+            return extractUsernameFromReelItemHolder(host);
+        }
+        if (mediaClass != null && mediaClass.isInstance(host)) {
+            return FeedVideoDownloadHook.extractUsernameFromMediaObject(host);
+        }
+        Object media = resolveMedia(host);
+        if (media != null) return FeedVideoDownloadHook.extractUsernameFromMediaObject(media);
+        return null;
+    }
+
+    private static String mediaIdOf(Object host) {
+        if (host == null) return null;
+        try {
+            Object id = host.getClass().getMethod("getId").invoke(host);
+            if (id instanceof String s && !s.isEmpty()) return s.split("_")[0];
+        } catch (Throwable ignored) {}
+        Object media = resolveMedia(host);
+        if (media != null && media != host) {
+            try {
+                Object id = media.getClass().getMethod("getId").invoke(media);
+                if (id instanceof String s && !s.isEmpty()) return s.split("_")[0];
+            } catch (Throwable ignored) {}
+        }
+        return null;
+    }
+
+    private static String extractUrlFromHost(Context ctx, Object host) {
+        if (host == null) return null;
+        try {
+            Object media = resolveMedia(host);
+            Object target = media != null ? media : host;
+            if (media != null) {
+                String single = FeedVideoDownloadHook.extractSingleUrlFromMedia(ctx, media);
+                if (single != null && !single.isEmpty()) return single;
+            }
+            if (videoVersionIntfClass != null && videoVersionGetUrl != null) {
+                String videoUrl = findVideoUrl(target,
+                        Collections.newSetFromMap(new IdentityHashMap<>()), 0);
+                if (videoUrl != null) return videoUrl;
+            }
+            List<CandidateInfo> candidates = new ArrayList<>();
+            collectImageCandidates(target, candidates,
+                    Collections.newSetFromMap(new IdentityHashMap<>()), 0);
+            if (!candidates.isEmpty()) {
+                candidates.sort((a, b) -> Integer.compare(b.area, a.area));
+                return candidates.get(0).url;
+            }
+            List<String> cdnUrls = new ArrayList<>();
+            scanCdnUrls(target, cdnUrls, 0, Collections.newSetFromMap(new IdentityHashMap<>()));
+            if (!cdnUrls.isEmpty()) return pickBestUrl(cdnUrls);
+        } catch (Throwable t) {
+            ModuleLog.line("(IE|Story) extractUrlFromHost: " + t);
+        }
+        return null;
+    }
+
+    private void startBatchDownload(Context ctx, List<StoryDl> items) {
+        int n = items.size();
+        Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_downloading_all_n_items, n), Toast.LENGTH_SHORT).show();
+        String username = currentStoryUsername;
+        FeedVideoDownloadHook.executor.submit(() -> {
+            int failed = 0;
+            for (StoryDl item : items) {
+                String fn = FeedVideoDownloadHook.buildFilename(username, "story", item.mediaId, item.video);
+                try {
+                    FeedVideoDownloadHook.downloadAndSave(ctx, item.url, fn, item.video, username);
+                } catch (Throwable e) {
+                    failed++;
+                    ModuleLog.line("(IE|Story|DL) item failed: " + e);
+                }
+            }
+            final int finalFailed = failed;
+            mainHandler.post(() -> {
+                if (finalFailed == 0) {
+                    Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_all_items_saved, n),
+                            Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_items_partial_saved,
+                            n - finalFailed, n, finalFailed), Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
+    }
 
     private void startDownload(Context ctx, String url, boolean isVideo) {
         String fn = FeedVideoDownloadHook.buildFilename(currentStoryUsername, "story", currentStoryMediaId, isVideo);

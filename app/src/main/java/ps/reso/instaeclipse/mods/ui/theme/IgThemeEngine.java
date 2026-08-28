@@ -158,6 +158,15 @@ public final class IgThemeEngine {
                 "android:navigationBarColor", "callout_background", "creationTertiaryBackground",
                 "igds_color_form_field_background_default_color", "igds_color_form_field_background_disabled_color",
                 "igds_color_form_field_background_focussed_color", "igds_color_generic_xma_background_color",
+                "igds_composer_background", "igds_search_bar_background", "igds_nav3_background",
+                "igds_bottom_sheet_background", "igds_modal_background", "igds_input_background",
+                "igds_comment_composer_background", "igds_direct_inbox_background", "igds_profile_background",
+                "igdsPrimaryBackground", "colorPrimary", "colorPrimaryDark", "colorSurface",
+                "android:colorBackground", "android:colorPrimary", "android:colorPrimaryDark", "android:colorAccent",
+                "android:navigationBarColor", "android:statusBarColor", "android:colorControlActivated",
+                "android:colorControlNormal", "android:textColorLink", "igds_notes_background",
+                "igds_color_bottom_sheet_background", "igds_color_modal_background", "igds_color_search_background",
+                "igds_color_composer_background", "igds_color_input_background", "igds_color_direct_background",
                 // Pills / chips / badges / reactions
                 "igds_color_pill_background", "igds_color_pill_background_pressed", "igds_color_pill_active_background",
                 "igds_color_pill_active_background_pressed", "igds_color_pill_active_text", "igds_color_pill_active_text_pressed",
@@ -216,9 +225,11 @@ public final class IgThemeEngine {
         String[] names = {"bds_black", "igds_prism_black", "bds_white", "igds_prism_gray_00", "bds_grey_0", "bds_grey_1",
                 "bds_grey_2", "bds_grey_3", "bds_grey_4", "bds_grey_6", "bds_grey_7", "bds_grey_8", "bds_grey_9", "bds_grey_10",
                 "bds_grey_11", "bds_grey_12", "bds_grey_16", "bds_grey_18", "bds_grey_21", "bds_grey_22", "bds_grey_24",
-                "igds_prism_gray_08", "igds_prism_gray_10", "igds_prism_gray_0000", "igds_prism_gray_0100",
-                "igds_prism_gray_0500", "igds_prism_gray_0800", "igds_prism_gray_1000", "igds_prism_gray_1300",
-                "igds_prism_gray_1400", "igds_prism_gray_1500", "igds_prism_gray_1600",
+                "igds_prism_gray_08", "igds_prism_gray_10",                 "igds_prism_gray_0000", "igds_prism_gray_0100", "igds_prism_gray_0200", "igds_prism_gray_0300",
+                "igds_prism_gray_0400", "igds_prism_gray_0500", "igds_prism_gray_0600", "igds_prism_gray_0700",
+                "igds_prism_gray_0800", "igds_prism_gray_0900", "igds_prism_gray_1000", "igds_prism_gray_1100",
+                "igds_prism_gray_1200", "igds_prism_gray_1300", "igds_prism_gray_1400", "igds_prism_gray_1500",
+                "igds_prism_gray_1600",
                 "emphasized_action_color", "badge_color", "igds_prism_indigo_1000",
                 "bds_blue_1", "bds_blue_2", "bds_red_5", "bds_red_6", "igds_primary_background", "bottom_sheet_undo_redo_color",
                 // Instagram 444+ semantic colors (resources renamed igds_color_* → igds_*)
@@ -229,7 +240,11 @@ public final class IgThemeEngine {
                 "igds_tag_or_toast_background", "igds_context_menu_background_color", "igds_context_menu_item_background_color",
                 "igds_creation_menu_background", "igds_creation_button_destructive", "igds_icon_on_color", "igds_link_on_color",
                 "igds_pill_active_text", "igds_success", "igds_secondary_button_on_media",
-                "igds_secondary_button_elevated_pressed_panavision", "igds_secondary_media_button_onblack_panavision_updated"};
+                "igds_secondary_button_elevated_pressed_panavision", "igds_secondary_media_button_onblack_panavision_updated",
+                "igds_composer_background", "igds_search_bar_background", "igds_nav3_background",
+                "igds_bottom_sheet_background", "igds_modal_background", "igds_input_background",
+                "igds_comment_composer_background", "igds_direct_inbox_background", "igds_notes_background",
+                "igds_prism_indigo_900", "igds_prism_indigo_1100", "igds_link_on_media"};
         for (String name : names) mapColorByName(map, res, pkg, name);
         String[] packages = {pkg, CommonUtils.IG_PACKAGE_NAME};
         for (String p : packages) {
@@ -279,21 +294,31 @@ public final class IgThemeEngine {
                 || name.contains("internal_") || name.contains("whatsapp") || name.contains("messenger_")
                 || name.contains("facebook_blue") || name.contains("discord_blurple") || name.contains("line_green")
                 || name.contains("kakaotalk") || name.contains("snapchat") || name.contains("sms_blue")
-                || name.contains("live_external_link") || name.contains("band_green")) return -1;
+                || name.contains("live_external_link") || name.contains("band_green")
+                || name.contains("on_media") || name.contains("on_color") || name.contains("story_ring")
+                || name.contains("gradient_red") || name.contains("gradient_orange") || name.contains("gradient_pink")
+                || name.contains("gradient_purple") || name.contains("gradient_yellow")) return -1;
         if (name.contains("primary_background") || name.contains("media_background") || name.contains("tab_bar_background")) return 0;
         if ((name.contains("clips_tab") && name.contains(IgThemePalette.SLOT_BACKGROUND)) || name.equals("status_bar_background")
                 || name.contains("cta_banner") || name.equals("igdsprimarybackground") || name.contains("actionbarbackground")
-                || name.contains("tabbarbackground") || name.contains("colorbackground") || name.contains("windowbackground")) return 0;
+                || name.contains("tabbarbackground") || name.contains("colorbackground") || name.contains("windowbackground")
+                || name.contains("nav3_background") || name.equals("colorprimarydark")) return 0;
+        if (name.contains("composer") && name.contains(IgThemePalette.SLOT_BACKGROUND)) return 1;
+        if (name.contains("search") && name.contains(IgThemePalette.SLOT_BACKGROUND)) return 1;
+        if (name.contains("bottom_sheet") || name.contains("bottomsheet") || name.contains("modal_background")
+                || name.contains("input_background") || name.contains("notes_background")
+                || name.contains("inbox_background") || name.contains("direct_background")) return 1;
         if (name.contains("elevated") || name.contains("highlight_background") || name.contains("secondary_background")
                 || name.contains("callout_background") || name.contains("form_field_background") || name.contains("banner_background")
                 || name.contains("pill_background") || name.contains("chip_background") || name.contains("toast")
                 || name.contains("stamp_background") || name.contains("sticker_background") || name.contains("card_background")
                 || name.contains("notification_background") || name.contains("status_pill") || name.contains("reaction_background")
-                || name.contains("prism_card") || (name.contains("creation") && name.contains(IgThemePalette.SLOT_BACKGROUND))) return 1;
+                || name.contains("prism_card") || name.contains("colorsurface")
+                || (name.contains("creation") && name.contains(IgThemePalette.SLOT_BACKGROUND))) return 1;
         if (name.contains("disabled") && (name.contains("text") || name.contains("label"))) return 3;
         if (name.contains("secondary_text") || name.contains("textcolorsecondary") || name.contains("selectable_text")
                 || name.contains("hint_text")) return 3;
-        if (name.contains("text_on_color") || name.contains("text_on_white") || name.contains("text_on_media")) return 2;
+        if (name.contains("text_on_white")) return 2;
         if (name.contains("primary_text") || name.equals("igdsprimarytext") || name.contains("textcolorprimary")
                 || name.contains("tabselectedtext") || name.contains("snackbar_text")
                 || name.contains("pill_active_text") || name.contains("selected_pill_text")) return 2;
@@ -302,7 +327,7 @@ public final class IgThemeEngine {
         if (name.contains("primary_button_icon")) return 6;
         if (name.contains("primary_button") || name.contains("gradient_blue") || name.contains("colorcontrolactivated")
                 || name.contains("data_visualization_primary") || name.contains("fbpay_focus") || name.contains("creation_tools_blue")
-                || name.contains("prism_indigo")) return 5;
+                || name.contains("prism_indigo") || name.equals("coloraccent") || name.equals("colorprimary")) return 5;
         if (name.contains(IgThemePalette.SLOT_ACCENT) || name.contains("cta")
                 || name.contains("selected_text") || name.contains("active_badge") || name.contains("success")
                 || name.contains("close_friends") || name.contains("progress_bar") || name.contains("seekbar")) return 4;
@@ -316,12 +341,12 @@ public final class IgThemeEngine {
         if (name.contains("statusbarcolor") || name.contains("status_bar")) return 10;
         if (name.contains("navigationbar") || name.contains("nav3_")) return 11;
         if (name.contains("text_link") || name.contains("link_text") || name.contains("link_on") || name.equals("igds_color_link")
-                || name.contains("action_cell_emphasized")) return 12;
+                || name.contains("action_cell_emphasized") || name.contains("textcolorlink")) return 12;
         if (name.contains(IgThemePalette.SLOT_DESTRUCTIVE)) return 14;
         if (name.contains("badge") && name.contains(IgThemePalette.SLOT_ICON)) return 14;
         if (name.equals("igds_color_new_badge") || name.contains("list_badge") || name.contains("thumbnail_badge")) return 14;
         if (name.contains("error") || name.contains("icon_badge")) return 13;
-        return name.startsWith("igds_color_") ? 1 : -1;
+        return name.startsWith("igds_color_") || name.startsWith("igds_") ? 1 : -1;
     }
 
     static int slotForColorName(String name) {
@@ -333,7 +358,10 @@ public final class IgThemeEngine {
                 || name.contains("internal_") || name.contains("whatsapp") || name.contains("messenger_")
                 || name.contains("facebook_blue") || name.contains("discord_blurple") || name.contains("line_green")
                 || name.contains("kakaotalk") || name.contains("snapchat") || name.equals("igds_sms_blue")
-                || name.contains("live_external_link") || name.contains("band_green")) return -1;
+                || name.contains("live_external_link") || name.contains("band_green")
+                || name.contains("on_media") || name.contains("on_color") || name.contains("story_ring")
+                || name.contains("gradient_red") || name.contains("gradient_orange") || name.contains("gradient_pink")
+                || name.contains("gradient_purple") || name.contains("gradient_yellow")) return -1;
         int prismTone = prismGrayTone(name);
         if (prismTone >= 0) {
             if (prismTone <= 400) return 2;
@@ -341,29 +369,33 @@ public final class IgThemeEngine {
             if (prismTone <= 1300) return 1;
             return 0;
         }
-        if (name.contains("primary_background") || name.equals("igds_primary_background")) return 0;
+        if (name.contains("primary_background") || name.equals("igds_primary_background")
+                || name.contains("nav3_background")) return 0;
         if (name.contains("disabled")) return 3;
-        if (name.contains("primary_text") || name.contains("text_on_color") || name.contains("text_on_white")
+        if (name.contains("primary_text") || name.contains("text_on_white")
                 || name.contains("pill_active_text")) return 2;
         if (name.contains("secondary_text") || name.contains("text_subtitle") || name.contains("selectable_text")) return 3;
         if (name.contains(IgThemePalette.SLOT_GLYPH)) return 7;
         if (name.contains("primary_icon") || name.contains("secondary_icon") || name.contains("icon_on")) return 6;
         if (name.contains(IgThemePalette.SLOT_DESTRUCTIVE) || (name.contains("badge") && name.contains(IgThemePalette.SLOT_ICON))) return 14;
         if (name.contains("error")) return 13;
-        if (name.contains(IgThemePalette.SLOT_LINK) || name.contains("link_on")) return 12;
+        if (name.contains(IgThemePalette.SLOT_LINK) || name.contains("link_on") || name.contains("textcolorlink")) return 12;
         if (name.contains("primary_button") || name.contains("bds_blue") || name.equals("emphasized_action_color")
-                || name.equals("badge_color")) return 5;
+                || name.equals("badge_color") || name.equals("coloraccent") || name.equals("colorprimary")) return 5;
         if (name.contains("indigo") || name.contains("blue") || name.contains("emphasized") || name.contains("gradient")
                 || name.contains(IgThemePalette.SLOT_ACCENT) || name.contains("cta") || name.contains("selected_text")
                 || name.contains("success") || name.contains("close_friends") || name.contains("undo_redo")) return 4;
         if (name.contains(IgThemePalette.SLOT_DIVIDER) || name.contains("separator")) return 8;
         if (name.contains(IgThemePalette.SLOT_BORDER) || name.contains("stroke")) return 9;
         if (name.contains("status_bar")) return 10;
-        // "nav" alone would also match "panavision"; only real navigation-bar colors belong here.
         if (name.contains("navigation") || name.contains("nav3_")) return 11;
         if (name.contains("black") || name.equals("igds_prism_black") || name.contains("grey_9") || name.contains("gray_10")
                 || name.contains("grey_10") || name.contains("gray_9") || name.contains("media_background")
                 || name.contains("true_black")) return 0;
+        if (name.contains("composer") || name.contains("bottom_sheet") || name.contains("bottomsheet")
+                || name.contains("modal_background") || name.contains("input_background")
+                || name.contains("search_bar") || name.contains("notes_background")
+                || name.contains("inbox_background")) return 1;
         if (name.contains("grey_8") || name.contains("gray_8") || name.contains("gray_08") || name.contains("grey_7") || name.contains("elevated")
                 || name.contains("highlight") || name.contains(IgThemePalette.SLOT_SURFACE)) return 1;
         if (name.contains("grey_0") || name.contains("gray_0") || name.contains("gray_00") || name.contains("white")) return 2;

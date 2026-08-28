@@ -58,7 +58,6 @@ public class GhostReplayLimitHook {
                     return;
                 } catch (Throwable ignored) {}
             }
-            ModuleLog.line("(IE|Replays) ❌ update method not found");
         } catch (Throwable t) {
             ModuleLog.line("(IE|Replays) ❌ hookUpdateMethod: " + t);
         }

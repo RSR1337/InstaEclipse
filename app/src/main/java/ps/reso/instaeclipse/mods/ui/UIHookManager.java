@@ -18,7 +18,6 @@ import android.widget.Toast;
 import org.luckypray.dexkit.result.MethodData;
 
 import java.util.List;
-import java.util.Map;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -31,7 +30,6 @@ import ps.reso.instaeclipse.mods.ui.utils.VibrationUtil;
 import ps.reso.instaeclipse.utils.core.SettingsManager;
 import ps.reso.instaeclipse.utils.dialog.DialogUtils;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
-import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.ghost.GhostModeUtils;
 import ps.reso.instaeclipse.utils.i18n.I18n;
 import ps.reso.instaeclipse.utils.toast.CustomToast;
@@ -219,14 +217,7 @@ public class UIHookManager {
                                     new Handler(Looper.getMainLooper()).postDelayed(() -> {
                                         try {
                                             addGhostEmojiNextToInbox(activity, GhostModeUtils.isGhostModeActive());
-                                            if (FeatureFlags.showFeatureToasts && !CustomToast.toastShown) {
-                                                CustomToast.toastShown = true;
-                                                StringBuilder sb = new StringBuilder(I18n.t(activity, R.string.ig_toast_features_loaded)).append("\n");
-                                                for (Map.Entry<String, Boolean> entry : FeatureStatusTracker.getStatus().entrySet()) {
-                                                    sb.append(entry.getValue() ? "✅ " : "❌ ").append(FeatureStatusTracker.getLabel(activity, entry.getKey())).append("\n");
-                                                }
-                                                CustomToast.showCustomToast(activity.getApplicationContext(), sb.toString().trim());
-                                            }
+                                            maybeShowFeatureToasts(activity);
                                         } catch (Exception innerE) {
                                             ModuleLog.line("(InstaEclipse): UI Injection Error: " + innerE.getMessage());
                                         }
@@ -251,14 +242,7 @@ public class UIHookManager {
                                     new Handler(Looper.getMainLooper()).postDelayed(() -> {
                                         try {
                                             addGhostEmojiNextToInbox(activity, GhostModeUtils.isGhostModeActive());
-                                            if (FeatureFlags.showFeatureToasts && !CustomToast.toastShown) {
-                                                CustomToast.toastShown = true;
-                                                StringBuilder sb = new StringBuilder(I18n.t(activity, R.string.ig_toast_features_loaded)).append("\n");
-                                                for (Map.Entry<String, Boolean> entry : FeatureStatusTracker.getStatus().entrySet()) {
-                                                    sb.append(entry.getValue() ? "✅ " : "❌ ").append(FeatureStatusTracker.getLabel(activity, entry.getKey())).append("\n");
-                                                }
-                                                CustomToast.showCustomToast(activity.getApplicationContext(), sb.toString().trim());
-                                            }
+                                            maybeShowFeatureToasts(activity);
                                         } catch (Exception innerE) {
                                             ModuleLog.line("(InstaEclipse): UI Injection Error: " + innerE.getMessage());
                                         }
@@ -310,6 +294,12 @@ public class UIHookManager {
         } catch (Throwable t) {
             ModuleLog.line("(InstaEclipse): ❌ onResume discovery failed for " + activityClass + ": " + t.getMessage());
         }
+    }
+
+    private static void maybeShowFeatureToasts(Activity activity) {
+        if (!FeatureFlags.showFeatureToasts || CustomToast.toastShown) return;
+        CustomToast.toastShown = true;
+        CustomToast.showFeatureStatusToast(activity);
     }
 
     private static void applySearchHook(Activity activity, View v) {

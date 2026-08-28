@@ -4,29 +4,45 @@
     android:id="@+id/theme_preset_card"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="6.0dp"
-    app:cardCornerRadius="14.0dp"
-    app:cardElevation="0.0dp"
-    app:strokeWidth="1.0dp">
+    android:layout_margin="6dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp"
+    app:strokeWidth="1dp">
 
     <LinearLayout
         android:orientation="vertical"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="12.0dp">
+        android:padding="10dp">
 
-        <LinearLayout
-            android:id="@+id/theme_preset_preview"
-            android:orientation="horizontal"
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="40.0dp"
-            android:layout_marginBottom="8.0dp" />
+            android:layout_height="wrap_content">
+
+            <FrameLayout
+                android:id="@+id/theme_preset_preview"
+                android:layout_width="match_parent"
+                android:layout_height="120dp" />
+
+            <ImageView
+                android:id="@+id/theme_preset_delete"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_gravity="top|end"
+                android:padding="4dp"
+                android:src="@drawable/ic_close"
+                android:background="?selectableItemBackgroundBorderless"
+                android:contentDescription="@string/theme_delete_preset"
+                android:visibility="gone" />
+        </FrameLayout>
 
         <TextView
             android:id="@+id/theme_preset_name"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
             android:maxLines="1"
             android:ellipsize="end" />
 

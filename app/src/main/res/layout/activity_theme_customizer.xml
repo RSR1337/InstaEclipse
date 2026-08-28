@@ -34,6 +34,32 @@
                     android:src="@drawable/ic_expand_less" android:contentDescription="@string/theme_collapse_section" />
             </LinearLayout>
             <LinearLayout android:id="@+id/theme_presets_content" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content">
+                <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:scrollbars="none" android:fillViewport="true">
+                    <com.google.android.material.chip.ChipGroup android:id="@+id/theme_preset_categories"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:paddingStart="16dp" android:paddingEnd="16dp" android:paddingBottom="4dp"
+                        app:singleSelection="true" app:selectionRequired="true" app:chipSpacingHorizontal="8dp">
+                        <com.google.android.material.chip.Chip android:id="@+id/theme_cat_dark"
+                            style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" android:text="@string/theme_cat_dark"
+                            android:checked="true" android:checkable="true" />
+                        <com.google.android.material.chip.Chip android:id="@+id/theme_cat_amoled"
+                            style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" android:text="@string/theme_cat_amoled"
+                            android:checkable="true" />
+                        <com.google.android.material.chip.Chip android:id="@+id/theme_cat_mine"
+                            style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" android:text="@string/theme_cat_my_presets"
+                            android:checkable="true" />
+                    </com.google.android.material.chip.ChipGroup>
+                </HorizontalScrollView>
+                <TextView android:id="@+id/theme_my_presets_empty" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:paddingStart="20dp" android:paddingEnd="20dp"
+                    android:paddingTop="12dp" android:paddingBottom="12dp"
+                    android:text="@string/theme_my_presets_empty"
+                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                    android:visibility="gone" />
                 <androidx.recyclerview.widget.RecyclerView android:id="@+id/theme_preset_list" android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:paddingStart="12.0dp" android:paddingEnd="12.0dp" android:clipToPadding="false" android:nestedScrollingEnabled="false" />
             </LinearLayout>
@@ -50,8 +76,11 @@
             <LinearLayout android:id="@+id/theme_custom_content" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content">
                 <androidx.recyclerview.widget.RecyclerView android:id="@+id/theme_color_slots" android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:paddingStart="16.0dp" android:paddingEnd="16.0dp" android:clipToPadding="false" android:nestedScrollingEnabled="false" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/theme_save_preset" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginStart="16.0dp" android:layout_marginEnd="16.0dp" android:layout_marginTop="8.0dp"
+                    android:text="@string/theme_save_preset" style="@style/Widget.Material3.Button.TonalButton" />
                 <com.google.android.material.button.MaterialButton android:id="@+id/theme_reset_custom" android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:layout_margin="16.0dp" android:text="@string/theme_reset_custom" style="@style/Widget.Material3.Button.TonalButton" />
+                    android:layout_margin="16.0dp" android:text="@string/theme_reset_custom" style="@style/Widget.Material3.Button.OutlinedButton" />
             </LinearLayout>
 
         </LinearLayout>

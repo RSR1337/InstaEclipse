@@ -220,6 +220,7 @@
     <string name="ig_dialog_downloader_stories">تنزيل القصص</string>
     <string name="ig_dialog_downloader_reels">تنزيل الريلز</string>
     <string name="ig_dialog_downloader_profiles">تنزيل صور الملف الشخصي</string>
+    <string name="ig_dialog_downloader_batch">تحميل جماعي</string>
     <string name="ig_dialog_downloader_folder">مجلد التنزيل</string>
     <string name="ig_dialog_downloader_username_subfolder">الحفظ في مجلد فرعي باسم المستخدم</string>
     <string name="ig_dialog_downloader_add_timestamp">إضافة الطابع الزمني إلى اسم الملف</string>
@@ -292,6 +293,8 @@
     <string name="ig_dl_carousel_subtitle">كاروسيل • %1$d عنصر</string>
     <string name="ig_dl_carousel_current">تنزيل الحالي (%1$d من %2$d)</string>
     <string name="ig_dl_carousel_all">تنزيل جميع %1$d عناصر</string>
+    <string name="ig_dl_type_photo">صورة</string>
+    <string name="ig_dl_type_video">فيديو</string>
     <string name="ig_btn_view_mentions">عرض الإشارات</string>
     <string name="ig_toast_mention_copied">تم نسخ @%1$s</string>
     <string name="ig_toast_all_mentions_copied">تم نسخ جميع الإشارات</string>
@@ -317,7 +320,7 @@
 
     <!-- Story mentions dialog -->
     <string name="ig_mention_dialog_title">إشارات القصة</string>
-    <string name="ig_mention_subtitle">%1$d إشارة • انقر للنسخ</string>
+    <string name="ig_mention_subtitle">%1$d إشارة • انقر لفتح الملف الشخصي</string>
     <string name="ig_mention_no_mentions">لم يتم العثور على إشارات في هذه القصة</string>
     <string name="ig_mention_copy_all">نسخ الكل</string>
 
@@ -325,6 +328,10 @@
     <string name="ig_toast_no_download_folder">لم يتم تعيين مجلد للتنزيل</string>
     <string name="ig_toast_file_saved">تم الحفظ: %1$s</string>
     <string name="ig_toast_features_loaded">InstaEclipse جاهز 🎯</string>
+    <string name="ig_toast_features_active_count">%1$d نشط</string>
+    <string name="ig_toast_features_status_count">%1$d نشط · %2$d قيد الانتظار</string>
+    <string name="ig_toast_features_on_off_count">%1$d نشط · %2$d متوقف</string>
+    <string name="ig_toast_features_status_full">%1$d نشط · %2$d قيد الانتظار · %3$d متوقف</string>
 
     <!-- Update check dialog -->
     <string name="ig_update_title">تحديث متاح</string>
@@ -338,6 +345,14 @@
     <string name="theme_enable">تفعيل السمة المخصصة</string>
     <string name="theme_customize">تخصيص السمة…</string>
     <string name="theme_section_presets">الأنماط الجاهزة</string>
+    <string name="theme_cat_dark">داكن</string>
+    <string name="theme_cat_amoled">أموليد</string>
+    <string name="theme_cat_my_presets">إعداداتي</string>
+    <string name="theme_my_presets_empty">لا توجد أنماط محفوظة بعد. عدّل الألوان بالأسفل ثم اضغط حفظ في إعداداتي.</string>
+    <string name="theme_save_preset">حفظ في إعداداتي</string>
+    <string name="theme_delete_preset">حذف النمط</string>
+    <string name="theme_preset_name_hint">اسم النمط</string>
+    <string name="theme_preset_saved">تم الحفظ في إعداداتي</string>
     <string name="theme_section_custom">ألوان مخصصة</string>
     <string name="theme_collapse_section">طي القسم</string>
     <string name="theme_expand_section">توسيع القسم</string>
