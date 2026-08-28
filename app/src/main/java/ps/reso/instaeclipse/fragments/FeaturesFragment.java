@@ -1017,7 +1017,8 @@ public class FeaturesFragment extends Fragment {
         defs.add(getString(R.string.feat_options));
         defs.add(Arrays.asList(
                 createSwitch(R.drawable.ic_folder, "#FF9F0A", getString(R.string.ig_dialog_downloader_username_subfolder), "downloaderUsernameFolder"),
-                createSwitch(R.drawable.ic_timer, "#FF9F0A", getString(R.string.ig_dialog_downloader_add_timestamp), "downloaderAddTimestamp")
+                createSwitch(R.drawable.ic_timer, "#FF9F0A", getString(R.string.ig_dialog_downloader_add_timestamp), "downloaderAddTimestamp"),
+                createClickable(R.drawable.ic_download, "#FF9F0A", getString(R.string.feat_downloader_view_history), this::openDownloadHistory)
         ));
 
         String customPath = localCache.getString("downloaderCustomPath", "");
@@ -1055,6 +1056,10 @@ public class FeaturesFragment extends Fragment {
 
     private void pickDownloadFolder() {
         dirPickerLauncher.launch(null);
+    }
+
+    private void openDownloadHistory() {
+        startActivity(new Intent(requireContext(), ps.reso.instaeclipse.DownloadHistoryActivity.class));
     }
 
     private void resetDownloadFolder() {

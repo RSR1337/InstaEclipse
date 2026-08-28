@@ -31,6 +31,8 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.ByteBuffer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Foreground service that runs in the companion-app process and saves downloaded media
@@ -56,6 +58,11 @@ public class DownloadSaveService extends Service {
 
     /** Throttle: minimum ms between notification updates. */
     private static final long NOTIF_INTERVAL_MS = 250;
+
+    // Matches "{stem}_{yyyyMMdd}_{HHmmss}{.ext}" — the timestamp suffix buildFilename()
+    // appends when FeatureFlags.downloaderAddTimestamp is on.
+    private static final Pattern TIMESTAMPED_FILENAME_PATTERN =
+            Pattern.compile("^(.*)_([0-9]{8}_[0-9]{6})(\\.[^.]+)$");
 
     private NotificationManager nm;
     private long lastNotifMs  = 0;
@@ -99,6 +106,11 @@ public class DownloadSaveService extends Service {
 
         new Thread(() -> {
             try {
+                if (safFileExists(fSave, fUser, fUF, fFile)) {
+                    postDoneNotification(sid, "Already downloaded: " + fFile, fMime, null);
+                    showToast(getString(R.string.ig_toast_already_downloaded));
+                    return;
+                }
                 Uri savedUri = fAudio != null
                         ? downloadMergeAndSave(fUrl, fAudio, fFile, fMime, fSave, fUser, fUF)
                         : downloadAndSave(fUrl, fFile, fMime, fSave, fUser, fUF);
@@ -211,6 +223,71 @@ public class DownloadSaveService extends Service {
             while ((n = in.read(buf)) != -1) os.write(buf, 0, n);
         }
         return file.getUri();
+    }
+
+    // ── Dedup: skip re-downloading a file that's already in the SAF folder ─────
+
+    private boolean safFileExists(String saveUri, String username, boolean usernameFolder,
+                                   String filename) {
+        try {
+            DocumentFile dir = DocumentFile.fromTreeUri(this, Uri.parse(saveUri));
+            if (dir == null || !dir.canWrite()) return false;
+            if (usernameFolder && username != null && !username.isEmpty()) {
+                DocumentFile sub = dir.findFile(username);
+                if (sub == null || !sub.isDirectory()) return false;
+                dir = sub;
+            }
+            DocumentFile existing = dir.findFile(filename);
+            if (existing != null && existing.exists() && existing.isFile() && existing.length() > 0) return true;
+            String[] stemAndExt = stemAndExtFromFilename(filename);
+            if (stemAndExt == null) return false;
+            String stem = stemAndExt[0], ext = stemAndExt[1];
+            String exact = stem + ext;
+            for (DocumentFile child : dir.listFiles()) {
+                if (child == null || !child.isFile() || !child.exists() || child.length() <= 0) continue;
+                String name = child.getName();
+                if (name == null) continue;
+                if (exact.equals(name) || isTimestampedVariantName(name, stem, ext)) return true;
+            }
+            return false;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static String[] stemAndExtFromFilename(String filename) {
+        Matcher matcher = TIMESTAMPED_FILENAME_PATTERN.matcher(filename);
+        if (matcher.matches()) {
+            return new String[]{matcher.group(1), matcher.group(3)};
+        }
+        int dot = filename.lastIndexOf('.');
+        if (dot <= 0) return null;
+        String ext = filename.substring(dot);
+        String base = filename.substring(0, dot);
+        int lastUnderscore = base.lastIndexOf('_');
+        if (lastUnderscore > 0 && isTimestampToken(base.substring(lastUnderscore + 1))) {
+            return new String[]{base.substring(0, lastUnderscore), ext};
+        }
+        return new String[]{base, ext};
+    }
+
+    private static boolean isTimestampToken(String token) {
+        if (token.length() != 15) return false;
+        if (token.charAt(8) != '_') return false;
+        for (int i = 0; i < token.length(); i++) {
+            if (i == 8) continue;
+            char ch = token.charAt(i);
+            if (ch < '0' || ch > '9') return false;
+        }
+        return true;
+    }
+
+    private static boolean isTimestampedVariantName(String name, String stem, String ext) {
+        if (!name.endsWith(ext) || !name.startsWith(stem + "_")) return false;
+        int start = stem.length() + 1;
+        int end = name.length() - ext.length();
+        if (start >= end) return false;
+        return isTimestampToken(name.substring(start, end));
     }
 
     // ── Network / merge utilities ─────────────────────────────────────────────

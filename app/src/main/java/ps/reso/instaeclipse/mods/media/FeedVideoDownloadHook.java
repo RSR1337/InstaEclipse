@@ -1,6 +1,7 @@
 package ps.reso.instaeclipse.mods.media;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.ContentValues;
@@ -26,11 +27,13 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -70,12 +73,15 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
+import ps.reso.instaeclipse.utils.history.DownloadHistory;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.i18n.I18n;
@@ -84,10 +90,47 @@ import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 public class FeedVideoDownloadHook {
 
-    private static final String DOWNLOAD_BTN_TAG = "ie_media_download_btn";
+    // Matches "{stem}_{yyyyMMdd}_{HHmmss}{.ext}" — the timestamp suffix buildFilename()
+    // appends when FeatureFlags.downloaderAddTimestamp is on.
+    private static final Pattern TIMESTAMPED_FILENAME_PATTERN =
+            Pattern.compile("^(.*)_([0-9]{8}_[0-9]{6})(\\.[^.]+)$");
 
-    /** View tag key used by ReelDownloadHook to bind a Media object to the reel like_button. */
-    static final int TAG_REEL_MEDIA = "ie_reel_media".hashCode();
+    static final String[] VIDEO_VERSION_INTF_CLASSES = {
+            "com.instagram.api.schemas.VideoVersionIntf",
+            "com.instagram.model.mediasize.VideoVersionIntf"
+    };
+
+    // ── Floating download button overlay state ────────────────────────────────
+    private static final String DECOR_OVERLAY_TAG = "ie_decor_overlay";
+    private static final int TAG_CACHED_MEDIA = "ie_dl_media".hashCode();
+    private static final int TAG_OVERLAY_ANCHOR = "ie_dl_overlay_anchor".hashCode();
+
+    private static final WeakHashMap<View, Boolean> injectedHosts = new WeakHashMap<>();
+    private static final WeakHashMap<View, OverlayBinding> activeOverlays = new WeakHashMap<>();
+    private static final WeakHashMap<Activity, View> bottomSheetContainers = new WeakHashMap<>();
+
+    private static volatile int sFeedShareId;
+    private static volatile int sFeedLikeId;
+    private static volatile int sFeedSaveId;
+    private static volatile int sFeedButtonsGroupId;
+    private static volatile int sReelLikeId;
+    private static volatile int sClipsUfiId;
+    private static volatile int sBottomSheetContainerId;
+
+    @SuppressLint("DiscouragedApi")
+    private static void ensureViewIdsCached(Context ctx) {
+        if (sFeedShareId != 0 && sFeedLikeId != 0 && sFeedSaveId != 0 && sFeedButtonsGroupId != 0
+                && sReelLikeId != 0 && sClipsUfiId != 0 && sBottomSheetContainerId != 0) return;
+        String pkg = ctx.getPackageName();
+        android.content.res.Resources res = ctx.getResources();
+        if (sFeedShareId == 0) sFeedShareId = res.getIdentifier("row_feed_button_share", "id", pkg);
+        if (sFeedLikeId == 0) sFeedLikeId = res.getIdentifier("row_feed_button_like", "id", pkg);
+        if (sFeedButtonsGroupId == 0) sFeedButtonsGroupId = res.getIdentifier("row_feed_view_group_buttons", "id", pkg);
+        if (sFeedSaveId == 0) sFeedSaveId = res.getIdentifier("row_feed_button_save", "id", pkg);
+        if (sReelLikeId == 0) sReelLikeId = res.getIdentifier("like_button", "id", pkg);
+        if (sClipsUfiId == 0) sClipsUfiId = res.getIdentifier("clips_ufi_component", "id", pkg);
+        if (sBottomSheetContainerId == 0) sBottomSheetContainerId = res.getIdentifier("layout_container_bottom_sheet", "id", pkg);
+    }
 
     // ── Class/method refs resolved once at hook install time ─────────────────
     private static Class<?> mediaExtKtClass;
@@ -98,6 +141,9 @@ public class FeedVideoDownloadHook {
     // VideoVersionIntf – stable public interface with getUrl()
     static Class<?> videoVersionIntfClass;
     static Method   videoVersionGetUrl;             // VideoVersionIntf.getUrl() -> String
+
+    static Class<?> imageUrlClass;
+    static Class<?> imageInfoClass;
 
     // All () -> List candidates from MutableMediaDictIntf + its superinterfaces
     static final List<Method> carouselCandidates = new ArrayList<>();
@@ -115,7 +161,6 @@ public class FeedVideoDownloadHook {
     private static final int MAX_URLS = 200;
     private static final Deque<UrlEntry> urlBuffer      = new ArrayDeque<>();
     private static final Deque<UrlEntry> videoUrlBuffer = new ArrayDeque<>(); // DexKit-captured video URLs
-    private static final WeakHashMap<View, List<String>> buttonUrls = new WeakHashMap<>();
     static final ExecutorService executor    = Executors.newCachedThreadPool();
     static final Handler         mainHandler = new Handler(Looper.getMainLooper());
 
@@ -144,49 +189,48 @@ public class FeedVideoDownloadHook {
             }
         } catch (Throwable ignored) {}
 
-        // Load VideoVersionIntf (stable public interface with getUrl())
+        // Load VideoVersionIntf (stable public interface with getUrl()).
+        // IG 444+ moved this from com.instagram.model.mediasize to com.instagram.api.schemas —
+        // try both so this keeps working across the package move either way.
+        for (String cn : VIDEO_VERSION_INTF_CLASSES) {
+            try {
+                videoVersionIntfClass = classLoader.loadClass(cn);
+                videoVersionGetUrl = videoVersionIntfClass.getMethod("getUrl");
+                break;
+            } catch (Throwable ignored) {}
+        }
+
         try {
-            videoVersionIntfClass = classLoader.loadClass("com.instagram.model.mediasize.VideoVersionIntf");
-            videoVersionGetUrl = videoVersionIntfClass.getMethod("getUrl");
+            imageUrlClass = classLoader.loadClass("com.instagram.common.typedurl.ImageUrl");
+        } catch (Throwable ignored) {}
+        try {
+            imageInfoClass = classLoader.loadClass("com.instagram.model.mediasize.ImageInfo");
+        } catch (Throwable ignored) {}
+        try {
+            userClass = classLoader.loadClass("com.instagram.user.model.User");
         } catch (Throwable ignored) {}
 
         // Load MutableMediaDictIntf and collect () -> List methods from it
         // AND its direct superinterfaces only (Instagram 423+ moved Cz7() to LX/IdM).
         // Do NOT recurse deeper — LX/IdM's own ancestors flood us with unrelated methods.
+        Set<String> seen = new HashSet<>();
         try {
             mutableMediaDictIntfClass = classLoader.loadClass("com.instagram.feed.media.MutableMediaDictIntf");
-            Set<String> seen = new HashSet<>();
-            // Declared methods on MutableMediaDictIntf itself (DIS, BJ4, CjW, ...)
-            for (Method m : mutableMediaDictIntfClass.getDeclaredMethods()) {
-                if (m.getParameterCount() == 0 && List.class.isAssignableFrom(m.getReturnType())) {
-                    if (seen.add(m.getName())) { m.setAccessible(true); carouselCandidates.add(m); }
-                }
-            }
-            // Direct superinterfaces only (captures Cz7() from LX/IdM without going deeper)
+            collectListGetters(mutableMediaDictIntfClass, seen);
             for (Class<?> superIface : mutableMediaDictIntfClass.getInterfaces()) {
                 String sn = superIface.getName();
                 if (!sn.startsWith("com.instagram.") && !sn.startsWith("com.facebook.") && !sn.startsWith("X.")) continue;
-                for (Method m : superIface.getDeclaredMethods()) {
-                    if (m.getParameterCount() == 0 && List.class.isAssignableFrom(m.getReturnType())) {
-                        if (seen.add(m.getName())) { m.setAccessible(true); carouselCandidates.add(m); }
-                    }
-                }
+                collectListGetters(superIface, seen);
             }
-            // Instagram 437+ moved nearly all Pando field accessors off the interface and onto
-            // the concrete backing class (com.instagram.feed.media.LiveTreeMediaDict, which
-            // implements MutableMediaDictIntf) — the interface itself now declares almost
-            // nothing. Scan the concrete class too so carouselCandidates isn't left empty.
-            try {
-                Class<?> liveTreeDictClass = classLoader.loadClass("com.instagram.feed.media.LiveTreeMediaDict");
-                for (Method m : liveTreeDictClass.getDeclaredMethods()) {
-                    if (m.getParameterCount() == 0 && List.class.isAssignableFrom(m.getReturnType())) {
-                        if (seen.add(m.getName())) { m.setAccessible(true); carouselCandidates.add(m); }
-                    }
-                }
-            } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {}
+        try {
+            Class<?> liveTreeDictClass = classLoader.loadClass("com.instagram.feed.media.LiveTreeMediaDict");
+            if (mutableMediaDictIntfClass == null) mutableMediaDictIntfClass = liveTreeDictClass;
+            collectListGetters(liveTreeDictClass, seen);
         } catch (Throwable ignored) {}
 
         installUriCaptureHook();
+        installViewHook();
     }
 
     // ── Hook 1: Uri.parse (fallback buffer) ──────────────────────────────────
@@ -197,7 +241,7 @@ public class FeedVideoDownloadHook {
                     new XC_MethodHook() {
                         @Override
                         protected void afterHookedMethod(MethodHookParam param) {
-                            if (!FeatureFlags.enablePostDownload) return;
+                            if (!FeatureFlags.enablePostDownload && !FeatureFlags.enableReelDownload) return;
                             String s = (String) param.args[0];
                             if (s == null || !isCdnMediaUrl(s)) return;
                             synchronized (urlBuffer) {
@@ -214,142 +258,636 @@ public class FeedVideoDownloadHook {
         }
     }
 
-    // ── Hook 2: View.onAttachedToWindow ──────────────────────────────────────
-
     private void installViewHook() {
+        XC_MethodHook attachHook = new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                if (!(param.thisObject instanceof View view)) return;
+                scheduleInjectionForView(view);
+            }
+        };
         try {
-            XposedHelpers.findAndHookMethod(View.class, "onAttachedToWindow",
-                    new XC_MethodHook() {
-                        @Override
-                        protected void afterHookedMethod(MethodHookParam param) {
-                            if (!FeatureFlags.enablePostDownload) return;
-                            View view = (View) param.thisObject;
-                            Context ctx = view.getContext();
-
-                            @SuppressLint("DiscouragedApi")
-                            int feedLikeId = ctx.getResources().getIdentifier(
-                                    "row_feed_button_like", "id", ctx.getPackageName());
-                            @SuppressLint("DiscouragedApi")
-                            int reelLikeId = ctx.getResources().getIdentifier(
-                                    "like_button", "id", ctx.getPackageName());
-                            @SuppressLint("DiscouragedApi")
-                            int clipsUfiId = ctx.getResources().getIdentifier(
-                                    "clips_ufi_component", "id", ctx.getPackageName());
-
-                            int viewId = view.getId();
-                            boolean isFeedLike = feedLikeId != 0 && viewId == feedLikeId;
-                            boolean isReelLike = reelLikeId != 0 && viewId == reelLikeId
-                                    && hasAncestorWithId(view, clipsUfiId);
-
-                            if (!isFeedLike && !isReelLike) return;
-                            if (!(view.getParent() instanceof ViewGroup parent)) return;
-
-                            long now = System.currentTimeMillis();
-                            List<String> snapshot = snapshotUrlsSince(now - 10_000);
-
-                            if (isFeedLike) {
-                                // Feed post: inject floating download button
-                                View existing = parent.findViewWithTag(DOWNLOAD_BTN_TAG);
-                                if (existing != null) {
-                                    synchronized (buttonUrls) { buttonUrls.put(existing, snapshot); }
-                                    return;
-                                }
-                                injectDownloadButton(view, parent, ctx, snapshot);
-                            } else {
-                                // Reel: long-press the like button to download.
-                                // ReelDownloadHook tags this view with the Media object via TAG_REEL_MEDIA.
-                                view.setOnLongClickListener(lv -> {
-                                    if (!FeatureFlags.enablePostDownload) return false;
-                                    Object media = lv.getTag(TAG_REEL_MEDIA);
-                                    if (media != null) {
-                                        String url = bestVideoUrlFromMedia(media);
-                                        if (url != null) {
-                                            ModuleLog.line("(IE|Reel) media tag hit, url=" + url);
-                                            onDownloadClicked(ctx, List.of(url), lv);
-                                            return true;
-                                        }
-                                        ModuleLog.line("(IE|Reel) media tag set but no video URL found in object");
-                                    }
-                                    // Fallback: filter buffer for m86 URLs only (combined stream, one per reel)
-                                    List<String> all = snapshotUrlsSince(System.currentTimeMillis() - 60_000);
-                                    List<String> m86 = new ArrayList<>();
-                                    for (String u : all) { if (u.contains("/m86/") || u.contains("%2Fm86%2F")) m86.add(u); }
-                                    List<String> pick = m86.isEmpty() ? all : m86;
-                                    if (pick.isEmpty()) {
-                                        Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_no_reel_url_scroll), Toast.LENGTH_SHORT).show();
-                                        return true;
-                                    }
-                                    ModuleLog.line("(IE|Reel) buffer fallback, m86=" + m86.size() + " total=" + all.size());
-                                    // Take only the most recent URL (first in deque = newest)
-                                    onDownloadClicked(ctx, List.of(pick.get(0)), lv);
-                                    return true;
-                                });
-                                ModuleLog.line("(IE|Reel) long-press hook set on like_button");
-                            }
-                        }
-                    });
+            XposedHelpers.findAndHookMethod(View.class, "onAttachedToWindow", attachHook);
+            FeatureStatusTracker.setHooked("PostDownload");
+            ModuleLog.line("(IE|DL) view injection hooks installed");
         } catch (Throwable t) {
             ModuleLog.line("(InstaEclipse | MediaDownload): ❌ View hook: " + t);
         }
     }
 
-    // ── Button injection ──────────────────────────────────────────────────────
+    private void scheduleInjectionForView(View view) {
+        if (!FeatureFlags.enablePostDownload && !FeatureFlags.enableReelDownload) return;
+        Context ctx = view.getContext();
+        if (ctx == null) return;
+        ensureViewIdsCached(ctx);
 
-    private void injectDownloadButton(View saveBtn, ViewGroup parent,
-                                       Context ctx, List<String> snapshot) {
-        ImageButton btn = new ImageButton(ctx);
-        btn.setTag(DOWNLOAD_BTN_TAG);
-        btn.setImageResource(android.R.drawable.stat_sys_download);
-        btn.setColorFilter(Color.WHITE);
-        btn.setBackground(null);
-        btn.setContentDescription("Download media");
+        int viewId = view.getId();
+        boolean feedShare = FeatureFlags.enablePostDownload && sFeedShareId != 0 && viewId == sFeedShareId;
+        boolean feedRow = FeatureFlags.enablePostDownload && sFeedButtonsGroupId != 0 && viewId == sFeedButtonsGroupId;
+        boolean reelLike = FeatureFlags.enableReelDownload && sReelLikeId != 0 && viewId == sReelLikeId
+                && hasAncestorWithId(view, sClipsUfiId);
+        boolean clipsUfi = FeatureFlags.enableReelDownload && sClipsUfiId != 0 && viewId == sClipsUfiId;
 
-        int size = dp(ctx, 34);
-        ViewGroup.LayoutParams lp;
-        if (parent instanceof LinearLayout) {
-            LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(size, size);
-            llp.gravity = Gravity.CENTER_VERTICAL;
-            llp.setMargins(dp(ctx, 4), 0, dp(ctx, 4), 0);
-            lp = llp;
-        } else {
-            FrameLayout.LayoutParams flp = new FrameLayout.LayoutParams(size, size);
-            flp.gravity = Gravity.CENTER_VERTICAL | Gravity.END;
-            flp.setMargins(0, 0, dp(ctx, 8), 0);
-            lp = flp;
+        if (!feedShare && !feedRow && !reelLike && !clipsUfi) return;
+
+        Runnable work = () -> {
+            try {
+                if (feedShare) {
+                    tryInjectFeedDownload(view, ctx);
+                } else if (feedRow) {
+                    View rowRoot = findFeedRowRoot(view);
+                    View shareBtn = rowRoot != null ? rowRoot.findViewById(sFeedShareId) : null;
+                    if (shareBtn == null && view instanceof ViewGroup vg) shareBtn = vg.findViewById(sFeedShareId);
+                    if (shareBtn != null) tryInjectFeedDownload(shareBtn, ctx);
+                }
+                if (reelLike) {
+                    tryInjectReelDownload(view, ctx);
+                } else if (clipsUfi && view instanceof ViewGroup vg) {
+                    View likeBtn = vg.findViewById(sReelLikeId);
+                    if (likeBtn != null) tryInjectReelDownload(likeBtn, ctx);
+                }
+            } catch (Throwable t) {
+                ModuleLog.line("(IE|DL) inject failed: " + t.getMessage());
+            }
+        };
+
+        postWhenLaidOut(view, work);
+    }
+
+    private enum OverlayPlacement { LEFT_OF, ABOVE, RIGHT_OF }
+
+    /**
+     * Binds a floating overlay button to its anchor view for as long as the anchor stays
+     * attached, continuously resyncing position (scroll/relayout) and disposing itself
+     * (removing the button + all listeners) the moment the anchor detaches — e.g. when the
+     * RecyclerView recycles the row. Without this, a button added directly into a recycled
+     * row can go stale or duplicate across scroll.
+     */
+    private static final class OverlayBinding {
+        private final View anchor;
+        private final ImageButton btn;
+        private final ViewGroup host;
+        private final View dedupeKey;
+        private final OverlayPlacement placement;
+        private final int gapPx;
+        private final View root;
+        private final View scrollParent;
+        private boolean disposed;
+        private final ViewTreeObserver.OnScrollChangedListener scrollListener;
+        private final View.OnLayoutChangeListener layoutListener;
+
+        OverlayBinding(View anchor, ImageButton btn, ViewGroup host, View dedupeKey,
+                       OverlayPlacement placement, int gapPx) {
+            this.anchor = anchor;
+            this.btn = btn;
+            this.host = host;
+            this.dedupeKey = dedupeKey;
+            this.placement = placement;
+            this.gapPx = gapPx;
+            this.root = host.getRootView();
+            this.scrollParent = findVerticalScrollParent(anchor);
+
+            layoutListener = (v, l, t, r, b, ol, ot, orr, ob) -> syncPosition();
+            scrollListener = this::syncPosition;
+
+            anchor.addOnLayoutChangeListener(layoutListener);
+            host.addOnLayoutChangeListener(layoutListener);
+            if (scrollParent != null) {
+                scrollParent.addOnLayoutChangeListener(layoutListener);
+                ViewTreeObserver svto = scrollParent.getViewTreeObserver();
+                if (svto.isAlive()) svto.addOnScrollChangedListener(scrollListener);
+            }
+            ViewTreeObserver rvto = root.getViewTreeObserver();
+            if (rvto.isAlive()) rvto.addOnScrollChangedListener(scrollListener);
+            anchor.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                @Override public void onViewAttachedToWindow(View v) { syncPosition(); }
+                @Override public void onViewDetachedFromWindow(View v) { dispose(); }
+            });
+
+            syncPosition();
+            anchor.postDelayed(this::syncPosition, 100);
+            anchor.postDelayed(this::syncPosition, 400);
         }
-        btn.setLayoutParams(lp);
-        synchronized (buttonUrls) { buttonUrls.put(btn, snapshot); }
 
-        btn.setOnClickListener(v -> {
-            List<String> urls = resolveUrls(saveBtn, v);
+        void syncPosition() {
+            if (disposed || btn.getParent() != host) return;
+            if (!isAnchorVisibleOnScreen(anchor) || isBottomSheetShowing(anchor)) {
+                btn.setVisibility(View.INVISIBLE);
+                return;
+            }
+            if (applyOverlayPosition(host, anchor, btn, placement, gapPx)) {
+                btn.setVisibility(View.VISIBLE);
+            }
+        }
+
+        void dispose() {
+            if (disposed) return;
+            disposed = true;
+            try { anchor.removeOnLayoutChangeListener(layoutListener); } catch (Throwable ignored) {}
+            try { host.removeOnLayoutChangeListener(layoutListener); } catch (Throwable ignored) {}
+            if (scrollParent != null) {
+                try { scrollParent.removeOnLayoutChangeListener(layoutListener); } catch (Throwable ignored) {}
+                try {
+                    ViewTreeObserver vto = scrollParent.getViewTreeObserver();
+                    if (vto.isAlive()) vto.removeOnScrollChangedListener(scrollListener);
+                } catch (Throwable ignored) {}
+            }
+            try {
+                ViewTreeObserver vto = root.getViewTreeObserver();
+                if (vto.isAlive()) vto.removeOnScrollChangedListener(scrollListener);
+            } catch (Throwable ignored) {}
+            if (btn.getParent() == host) host.removeView(btn);
+            synchronized (injectedHosts) { injectedHosts.remove(dedupeKey); }
+            synchronized (activeOverlays) { activeOverlays.remove(dedupeKey); }
+        }
+    }
+
+    private void tryInjectFeedDownload(View shareBtn, Context ctx) {
+        if (isInjected(shareBtn)) return;
+        if (isClipsContext(shareBtn)) return;
+
+        View rowRoot = findFeedRowRoot(shareBtn);
+        View mediaAnchor = shareBtn;
+        if (rowRoot != null && sFeedLikeId != 0) {
+            View like = rowRoot.findViewById(sFeedLikeId);
+            if (like != null) mediaAnchor = like;
+        }
+
+        View positionAnchor = shareBtn;
+        OverlayPlacement placement = OverlayPlacement.RIGHT_OF;
+        if (rowRoot != null && sFeedSaveId != 0) {
+            View save = rowRoot.findViewById(sFeedSaveId);
+            if (save != null) {
+                positionAnchor = save;
+                placement = OverlayPlacement.LEFT_OF;
+            }
+        }
+
+        View finalMediaAnchor = mediaAnchor;
+        ImageButton btn = buildDownloadButton(ctx, shareBtn, false);
+        btn.setOnClickListener(v -> triggerDownload(ctx, finalMediaAnchor, v));
+
+        View finalPositionAnchor = positionAnchor;
+        OverlayPlacement finalPlacement = placement;
+        postWhenLaidOut(shareBtn, () -> placeOverlayButton(finalPositionAnchor, btn, shareBtn, finalPlacement));
+    }
+
+    private void tryInjectReelDownload(View likeBtn, Context ctx) {
+        if (isInjected(likeBtn)) return;
+        if (!isClipsContext(likeBtn)) return;
+
+        ImageButton btn = buildDownloadButton(ctx, likeBtn, true);
+        btn.setOnClickListener(v -> triggerDownload(ctx, likeBtn, v));
+        postWhenLaidOut(likeBtn, () -> placeOverlayButton(likeBtn, btn, likeBtn, OverlayPlacement.ABOVE));
+    }
+
+    private void placeOverlayButton(View anchor, ImageButton btn, View dedupeKey, OverlayPlacement placement) {
+        Context ctx = anchor.getContext();
+        ViewGroup host = getDecorOverlayHost(ctx);
+        if (host == null) {
+            ModuleLog.line("(IE|DL) decor overlay host missing");
+            return;
+        }
+        purgeStaleOverlays(host);
+
+        int w = anchor.getWidth() > 0 ? anchor.getWidth() : dp(ctx, 40);
+        int h = anchor.getHeight() > 0 ? anchor.getHeight() : w;
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(w, h, Gravity.TOP | Gravity.START);
+
+        Object media = findMediaForView(dedupeKey);
+        if (media != null) btn.setTag(TAG_CACHED_MEDIA, media);
+
+        synchronized (activeOverlays) {
+            OverlayBinding existing = activeOverlays.get(dedupeKey);
+            if (existing != null) existing.dispose();
+        }
+
+        host.addView(btn, lp);
+        btn.bringToFront();
+        btn.setElevation(dp(ctx, 12));
+        btn.setVisibility(View.INVISIBLE);
+        btn.setTag(TAG_OVERLAY_ANCHOR, dedupeKey);
+
+        int gap = dp(ctx, placement == OverlayPlacement.ABOVE ? 10 : 4);
+        OverlayBinding binding = new OverlayBinding(anchor, btn, host, dedupeKey, placement, gap);
+        synchronized (activeOverlays) {
+            activeOverlays.put(dedupeKey, binding);
+        }
+        setInjected(dedupeKey);
+    }
+
+    private static boolean applyOverlayPosition(ViewGroup host, View anchor, View btn,
+                                                 OverlayPlacement placement, int gapPx) {
+        if (anchor.getWidth() <= 0 || anchor.getHeight() <= 0) return false;
+
+        int[] anchorLoc = new int[2];
+        int[] hostLoc = new int[2];
+        anchor.getLocationInWindow(anchorLoc);
+        host.getLocationInWindow(hostLoc);
+
+        float relX = anchorLoc[0] - hostLoc[0];
+        float relY = anchorLoc[1] - hostLoc[1];
+        int bw = btn.getWidth() > 0 ? btn.getWidth() : btn.getLayoutParams().width;
+        int bh = btn.getHeight() > 0 ? btn.getHeight() : btn.getLayoutParams().height;
+        if (bw <= 0) bw = anchor.getWidth();
+        if (bh <= 0) bh = anchor.getHeight();
+        if (bw <= 0 || bh <= 0) return false;
+
+        float x;
+        float y = relY + (anchor.getHeight() - bh) / 2f;
+        switch (placement) {
+            case ABOVE:
+                x = relX + (anchor.getWidth() - bw) / 2f;
+                y = relY - bh - gapPx;
+                break;
+            case RIGHT_OF:
+                x = relX + anchor.getWidth() + gapPx;
+                break;
+            case LEFT_OF:
+            default:
+                x = relX - bw - gapPx;
+                break;
+        }
+        if (placement == OverlayPlacement.LEFT_OF && x < 0) {
+            x = relX + anchor.getWidth() + gapPx;
+        }
+
+        btn.setTranslationX(x);
+        btn.setTranslationY(y);
+        return true;
+    }
+
+    private static View findVerticalScrollParent(View view) {
+        android.view.ViewParent p = view.getParent();
+        for (int i = 0; i < 20 && p instanceof View; i++) {
+            View v = (View) p;
+            if (v.canScrollVertically(1) || v.canScrollVertically(-1)) return v;
+            String name = v.getClass().getName();
+            if (name.contains("RecyclerView") || name.contains("ScrollView") || name.contains("NestedScrollView")) {
+                return v;
+            }
+            p = v.getParent();
+        }
+        return null;
+    }
+
+    private static boolean isInjected(View key) {
+        synchronized (injectedHosts) { return Boolean.TRUE.equals(injectedHosts.get(key)); }
+    }
+
+    private static void setInjected(View key) {
+        synchronized (injectedHosts) { injectedHosts.put(key, true); }
+    }
+
+    private static void postWhenLaidOut(View view, Runnable action) {
+        if (view.getWidth() > 0 && view.getHeight() > 0) view.post(action);
+        else view.postDelayed(action, 120);
+    }
+
+    private void triggerDownload(Context ctx, View anchor, View btnView) {
+        Object tagged = btnView != null ? btnView.getTag(TAG_CACHED_MEDIA) : null;
+
+        if (isClipsContext(anchor)) {
+            Object media = tagged != null ? tagged : findMediaForClipsView(anchor);
+            List<String> urls = new ArrayList<>();
+            if (media != null) {
+                urls = extractAllUrlsFromMedia(ctx, media);
+                if (urls.isEmpty()) {
+                    String videoUrl = bestVideoUrlFromMedia(media);
+                    if (videoUrl != null) urls = new ArrayList<>(List.of(videoUrl));
+                }
+            }
+            if (urls.isEmpty()) urls = resolveClipsUrls(ctx, anchor);
             if (urls.isEmpty()) {
                 Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_no_media_for_post), Toast.LENGTH_SHORT).show();
                 return;
             }
-            onDownloadClicked(ctx, urls, saveBtn);
-        });
+            onDownloadClicked(ctx, urls, anchor, media);
+            return;
+        }
 
-        // Long-press the like button as fallback download trigger.
-        // This is the primary path when LithoViews prevents button injection.
-        saveBtn.setOnLongClickListener(lv -> {
-            if (!FeatureFlags.enablePostDownload) return false;
-            List<String> urls = resolveUrls(saveBtn, btn);
-            if (urls.isEmpty()) {
-                Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_no_media), Toast.LENGTH_SHORT).show();
-                return true;
+        Object media = tagged != null ? tagged : findMediaForView(anchor);
+        if (media != null) {
+            List<String> urls = extractAllUrlsFromMedia(ctx, media);
+            if (!urls.isEmpty()) {
+                onDownloadClicked(ctx, urls, anchor, media);
+                return;
             }
-            onDownloadClicked(ctx, urls, saveBtn);
-            return true;
-        });
+        }
 
-        parent.post(() -> {
-            try {
-                parent.addView(btn);
-                btn.bringToFront();
-            } catch (Exception e) {
-                ModuleLog.line("(IE|DL) Cannot inject download button: " + e.getMessage());
+        List<String> urls = resolveUrls(anchor, btnView);
+        if (urls.isEmpty()) {
+            Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_no_media_for_post), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        onDownloadClicked(ctx, urls, anchor, media);
+    }
+
+    private Object findMediaForView(View anchor) {
+        if (mediaClass == null) return null;
+        if (isClipsContext(anchor)) return findMediaForClipsView(anchor);
+
+        View current = anchor;
+        for (int i = 0; i < 6 && current != null; i++) {
+            Object media = getMediaFromListener(getOnClickListener(current));
+            if (media != null) return media;
+            current = current.getParent() instanceof View ? (View) current.getParent() : null;
+        }
+
+        View scope = findFeedRowRoot(anchor);
+        if (scope == null) scope = findAncestorWithId(anchor, sClipsUfiId);
+        if (scope == null) scope = anchor.getRootView();
+        if (scope instanceof ViewGroup vg) {
+            Object media = findMediaInButtonTree(vg);
+            if (media != null) return media;
+        }
+        return null;
+    }
+
+    private View findClipsItemRoot(View anchor) {
+        View ufi = findAncestorWithId(anchor, sClipsUfiId);
+        if (ufi == null) return anchor;
+        return ufi.getParent() instanceof View ? (View) ufi.getParent() : ufi;
+    }
+
+    private View resolveClipsLikeButton(View anchor) {
+        View ufi = findAncestorWithId(anchor, sClipsUfiId);
+        if (ufi instanceof ViewGroup vg && sReelLikeId != 0) {
+            View like = vg.findViewById(sReelLikeId);
+            if (like != null) return like;
+        }
+        return anchor;
+    }
+
+    private Object findMediaForClipsView(View anchor) {
+        if (mediaClass == null) return null;
+
+        View likeBtn = resolveClipsLikeButton(anchor);
+        View current = likeBtn;
+        for (int i = 0; i < 16 && current != null; i++) {
+            Object media = getMediaFromListener(getOnClickListener(current));
+            if (media != null) return media;
+            if (current.getId() == sClipsUfiId) break;
+            current = current.getParent() instanceof View ? (View) current.getParent() : null;
+        }
+
+        View root = findClipsItemRoot(anchor);
+        if (root instanceof ViewGroup vg) {
+            Object media = findMediaInButtonTree(vg);
+            if (media != null) return media;
+            media = scanViewGroupForMedia(vg, 0);
+            if (media != null) return media;
+        }
+        return null;
+    }
+
+    private static int preferredClipsBufferIndex(int bufferSize) {
+        return bufferSize >= 2 ? 1 : 0;
+    }
+
+    private static String pickClipsVideoFromBuffer(List<String> videoUrls) {
+        if (videoUrls.isEmpty()) return null;
+        return videoUrls.get(preferredClipsBufferIndex(videoUrls.size()));
+    }
+
+    private List<String> resolveClipsUrls(Context ctx, View anchor) {
+        View likeBtn = resolveClipsLikeButton(anchor);
+        Object media = findMediaForClipsView(anchor);
+
+        if (media != null) {
+            List<String> urls = extractAllUrlsFromMedia(ctx, media);
+            if (!urls.isEmpty()) return urls;
+            String videoUrl = bestVideoUrlFromMedia(media);
+            if (videoUrl != null) return List.of(videoUrl);
+        }
+
+        List<String> listenerUrls = urlsFromSaveBtnListener(likeBtn);
+        if (!listenerUrls.isEmpty()) {
+            long since = System.currentTimeMillis() - 15_000;
+            List<String> recentVideos = snapshotVideoUrlsSince(since);
+            String buffered = pickClipsVideoFromBuffer(recentVideos);
+            if (buffered != null) {
+                for (String u : listenerUrls) {
+                    if (u.equals(buffered) || u.contains(buffered) || buffered.contains(u)) {
+                        return List.of(u);
+                    }
+                }
             }
-        });
+            if (listenerUrls.size() == 1) return listenerUrls;
+            List<String> videos = new ArrayList<>();
+            for (String u : listenerUrls) if (isVideoUrl(u)) videos.add(u);
+            if (videos.size() == 1) return videos;
+            String fromBuffer = pickClipsVideoFromBuffer(videos);
+            if (fromBuffer != null) return List.of(fromBuffer);
+            if (!videos.isEmpty()) return List.of(videos.get(videos.size() - 1));
+        }
+
+        long since = System.currentTimeMillis() - 15_000;
+        List<String> videoUrls = snapshotVideoUrlsSince(since);
+        String picked = pickClipsVideoFromBuffer(videoUrls);
+        if (picked != null) return List.of(picked);
+
+        List<String> buffered2 = snapshotUrlsSince(since);
+        List<String> reelVideos = new ArrayList<>();
+        for (String u : buffered2) if (isVideoUrl(u)) reelVideos.add(u);
+        String picked2 = pickClipsVideoFromBuffer(reelVideos);
+        if (picked2 != null) return List.of(picked2);
+
+        return new ArrayList<>();
+    }
+
+    private Object findMediaInButtonTree(ViewGroup root) {
+        int[] ids = {sFeedLikeId, sFeedShareId, sFeedSaveId, sReelLikeId};
+        for (int id : ids) {
+            if (id == 0) continue;
+            View button = root.findViewById(id);
+            if (button == null) continue;
+            Object media = getMediaFromListener(getOnClickListener(button));
+            if (media != null) return media;
+        }
+
+        Context ctx = root.getContext();
+        @SuppressLint("DiscouragedApi")
+        int directShareId = ctx.getResources().getIdentifier("direct_share_button", "id", ctx.getPackageName());
+        if (directShareId != 0) {
+            View shareBtn = root.findViewById(directShareId);
+            if (shareBtn != null) {
+                Object media = getMediaFromListener(getOnClickListener(shareBtn));
+                if (media != null) return media;
+            }
+        }
+        return scanViewGroupForMedia(root, 0);
+    }
+
+    private Object scanViewGroupForMedia(ViewGroup group, int depth) {
+        if (depth > 5) return null;
+        for (int i = 0; i < group.getChildCount(); i++) {
+            View child = group.getChildAt(i);
+            Object media = getMediaFromListener(getOnClickListener(child));
+            if (media != null) return media;
+            if (child instanceof ViewGroup vg) {
+                media = scanViewGroupForMedia(vg, depth + 1);
+                if (media != null) return media;
+            }
+        }
+        return null;
+    }
+
+    private static ViewGroup getDecorOverlayHost(Context ctx) {
+        Activity activity = getActivityFromContext(ctx);
+        if (activity == null) return null;
+        View decor = activity.getWindow().getDecorView();
+        if (!(decor instanceof ViewGroup decorRoot)) return null;
+
+        View existing = decorRoot.findViewWithTag(DECOR_OVERLAY_TAG);
+        if (existing instanceof ViewGroup) return (ViewGroup) existing;
+
+        FrameLayout overlay = new FrameLayout(ctx);
+        overlay.setTag(DECOR_OVERLAY_TAG);
+        overlay.setClipChildren(false);
+        overlay.setClipToPadding(false);
+        overlay.setClickable(false);
+        overlay.setFocusable(false);
+        overlay.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        decorRoot.addView(overlay, lp);
+        return overlay;
+    }
+
+    private static Activity getActivityFromContext(Context ctx) {
+        Context current = ctx;
+        while (current instanceof android.content.ContextWrapper wrapper) {
+            if (current instanceof Activity activity) return activity;
+            current = wrapper.getBaseContext();
+        }
+        return null;
+    }
+
+    private static ImageButton buildDownloadButton(Context ctx, View reference, boolean reelStyle) {
+        ImageButton btn = new ImageButton(ctx);
+        int icon = resolveDownloadIcon(ctx);
+        btn.setImageResource(icon != 0 ? icon : android.R.drawable.stat_sys_download);
+        btn.setBackground(null);
+        btn.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        btn.setContentDescription(I18n.t(ctx, R.string.ig_dl_title));
+        int pad = dp(ctx, reelStyle ? 8 : 10);
+        btn.setPadding(pad, pad, pad, pad);
+        if (reelStyle || isDarkMode(ctx)) {
+            btn.setColorFilter(Color.WHITE);
+        } else if (reference instanceof ImageView iv && iv.getColorFilter() != null) {
+            btn.setColorFilter(iv.getColorFilter());
+        }
+        return btn;
+    }
+
+    private static int resolveDownloadIcon(Context ctx) {
+        try {
+            Class<?> optionClass = ctx.getClassLoader()
+                    .loadClass("com.instagram.feed.media.mediaoption.MediaOption$Option");
+            for (Object v : (Object[]) optionClass.getMethod("values").invoke(null)) {
+                if (v.toString().contains("DOWNLOAD")) {
+                    Field f = v.getClass().getField("iconDrawable");
+                    return (int) f.get(v);
+                }
+            }
+        } catch (Throwable ignored) {}
+        return 0;
+    }
+
+    private static boolean isDarkMode(Context ctx) {
+        int nightMode = ctx.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        return nightMode == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    private static View findFeedRowRoot(View anchor) {
+        View current = anchor;
+        for (int i = 0; i < 16 && current != null; i++) {
+            if (sFeedLikeId != 0 && sFeedShareId != 0
+                    && current.findViewById(sFeedLikeId) != null
+                    && current.findViewById(sFeedShareId) != null) {
+                return current;
+            }
+            current = current.getParent() instanceof View ? (View) current.getParent() : null;
+        }
+        return null;
+    }
+
+    private static View findAncestorWithId(View view, int targetId) {
+        if (targetId == 0) return null;
+        android.view.ViewParent p = view.getParent();
+        for (int i = 0; i < 12 && p instanceof View; i++) {
+            View v = (View) p;
+            if (v.getId() == targetId) return v;
+            p = v.getParent();
+        }
+        return null;
+    }
+
+    private static boolean isClipsContext(View view) {
+        return sClipsUfiId != 0 && hasAncestorWithId(view, sClipsUfiId);
+    }
+
+    private static boolean isAnchorVisibleOnScreen(View anchor) {
+        if (!anchor.isAttachedToWindow()) return false;
+        if (anchor.getVisibility() != View.VISIBLE || anchor.getWidth() <= 0 || anchor.getHeight() <= 0) {
+            return false;
+        }
+        android.graphics.Rect visible = new android.graphics.Rect();
+        if (!anchor.getGlobalVisibleRect(visible)) return false;
+        if (visible.width() < anchor.getWidth() / 3 || visible.height() < anchor.getHeight() / 3) {
+            return false;
+        }
+        android.util.DisplayMetrics dm = anchor.getResources().getDisplayMetrics();
+        android.graphics.Rect screen = new android.graphics.Rect(0, 0, dm.widthPixels, dm.heightPixels);
+        return android.graphics.Rect.intersects(visible, screen);
+    }
+
+    private static boolean isBottomSheetShowing(View anchor) {
+        try {
+            Context ctx = anchor.getContext();
+            ensureViewIdsCached(ctx);
+            if (sBottomSheetContainerId != 0) {
+                Activity activity = getActivityFromContext(ctx);
+                if (activity == null) return false;
+
+                View bsView;
+                synchronized (bottomSheetContainers) {
+                    bsView = bottomSheetContainers.get(activity);
+                    if (bsView == null) {
+                        View decor = activity.getWindow().getDecorView();
+                        View found = decor.findViewById(sBottomSheetContainerId);
+                        if (found != null) bottomSheetContainers.put(activity, found);
+                        bsView = found;
+                    }
+                }
+
+                if (bsView instanceof ViewGroup vg && vg.getVisibility() == View.VISIBLE) {
+                    for (int i = 0; i < vg.getChildCount(); i++) {
+                        View child = vg.getChildAt(i);
+                        if (child != null && child.getVisibility() == View.VISIBLE) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    private static void purgeStaleOverlays(ViewGroup host) {
+        for (int i = host.getChildCount() - 1; i >= 0; i--) {
+            View child = host.getChildAt(i);
+            Object tag = child.getTag(TAG_OVERLAY_ANCHOR);
+            if (!(tag instanceof View anchor)) continue;
+            if (isAnchorVisibleOnScreen(anchor)) continue;
+            synchronized (activeOverlays) {
+                OverlayBinding binding = activeOverlays.get(anchor);
+                if (binding != null) binding.dispose();
+                else if (child.getParent() == host) host.removeView(child);
+            }
+        }
     }
 
     // ── URL resolution — three-tier ───────────────────────────────────────────
@@ -358,9 +896,7 @@ public class FeedVideoDownloadHook {
     //   object captured in its closure. Extract video URL via VideoVersionIntf.getUrl()
     //   or image URL via MediaExtKt helper. This is per-post with no timing ambiguity.
     //
-    // Tier 2: buttonUrls snapshot taken when row_feed_button_save attached.
-    //
-    // Tier 3: Last 30 s of the Uri.parse buffer (catches lazy-loaded carousels).
+    // Tier 2: Last 30 s of the Uri.parse buffer (catches lazy-loaded carousels).
 
     @SuppressLint("DiscouragedApi")
     private List<String> resolveUrls(View likeBtn, View downloadBtn) {
@@ -664,14 +1200,91 @@ public class FeedVideoDownloadHook {
         }
     }
 
-    /** Returns the best video URL from the media object: prefers m86 (combined stream). */
+    /** Returns the best video URL from the media object: prefers m86 (combined stream), then largest area. */
     static String bestVideoUrlFromMedia(Object media) {
         Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
         List<String> all = new ArrayList<>();
         collectAllVideoUrls(media, all, visited, 0);
+        collectVideoUrlsFromListGetters(media, all);
         if (all.isEmpty()) return null;
-        for (String u : all) { if (u.contains("/m86/") || u.contains("%2Fm86%2F")) return u; }
-        return all.get(0); // fallback: first found
+        return pickBestVideoUrl(all);
+    }
+
+    private static void collectVideoUrlsFromListGetters(Object media, List<String> out) {
+        if (media == null || videoVersionIntfClass == null || videoVersionGetUrl == null) return;
+        List<Object> hosts = new ArrayList<>();
+        hosts.add(media);
+        if (mutableMediaDictIntfClass != null) {
+            Object dict = findFieldAssignableTo(media, mutableMediaDictIntfClass);
+            if (dict != null) hosts.add(dict);
+        }
+        for (Object host : hosts) {
+            List<Method> methods = new ArrayList<>(carouselCandidates);
+            if (methods.isEmpty()) {
+                Class<?> cls = host.getClass();
+                while (cls != null && cls != Object.class) {
+                    for (Method m : cls.getDeclaredMethods()) {
+                        if (m.getParameterCount() == 0 && List.class.isAssignableFrom(m.getReturnType()))
+                            methods.add(m);
+                    }
+                    cls = cls.getSuperclass();
+                }
+            }
+            for (Method m : methods) {
+                try {
+                    m.setAccessible(true);
+                    Object listObj = m.invoke(host);
+                    if (!(listObj instanceof List<?> items) || items.isEmpty()) continue;
+                    if (!videoVersionIntfClass.isInstance(items.get(0))) continue;
+                    for (Object item : items) {
+                        if (!videoVersionIntfClass.isInstance(item)) continue;
+                        String u = (String) videoVersionGetUrl.invoke(item);
+                        if (u != null && isCdnMediaUrl(u) && !out.contains(u)) out.add(u);
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+    }
+
+    static String pickBestVideoUrl(List<String> urls) {
+        if (urls == null || urls.isEmpty()) return null;
+        String bestM86 = null;
+        int bestM86Area = -1;
+        String bestAny = urls.get(0);
+        int bestAnyArea = -1;
+        for (String u : urls) {
+            int area = parseUrlArea(u);
+            if (u.contains("/m86/") || u.contains("%2Fm86%2F")) {
+                if (area >= bestM86Area) { bestM86Area = area; bestM86 = u; }
+            }
+            if (area >= bestAnyArea) { bestAnyArea = area; bestAny = u; }
+        }
+        return bestM86 != null ? bestM86 : bestAny;
+    }
+
+    static int parseUrlArea(String url) {
+        if (url == null) return 0;
+        int maxArea = 0;
+        int i = 0;
+        while (i < url.length()) {
+            if (!Character.isDigit(url.charAt(i))) { i++; continue; }
+            int numStart = i;
+            while (i < url.length() && Character.isDigit(url.charAt(i))) i++;
+            if (i >= url.length() || url.charAt(i) != 'x') continue;
+            i++;
+            if (i >= url.length() || !Character.isDigit(url.charAt(i))) continue;
+            int numMid = i;
+            while (i < url.length() && Character.isDigit(url.charAt(i))) i++;
+            try {
+                int w = Integer.parseInt(url.substring(numStart, numMid - 1));
+                int h = Integer.parseInt(url.substring(numMid, i));
+                if (w >= 50 && w <= 20000 && h >= 50 && h <= 20000) {
+                    int area = w * h;
+                    if (area > maxArea) maxArea = area;
+                }
+            } catch (NumberFormatException ignored) {}
+        }
+        return maxArea;
     }
 
     /**
@@ -691,14 +1304,24 @@ public class FeedVideoDownloadHook {
 
     /** Among multiple resolutions of the same image, prefer the full-size original. */
     private static String pickBestImageUrl(List<String> images) {
+        if (images == null || images.isEmpty()) return null;
+        String best = images.get(0);
+        int bestArea = parseUrlArea(best);
         for (String url : images) {
-            if (!url.contains("/s150x") && !url.contains("/s240x") &&
-                !url.contains("/s320x") && !url.contains("/s480x") &&
-                !url.contains("/s640x") && !url.contains("_s.jpg")) {
-                return url;
+            if (isVideoUrl(url)) continue;
+            int area = parseUrlArea(url);
+            boolean notThumb = !url.contains("/s150x") && !url.contains("/s240x") &&
+                    !url.contains("/s320x") && !url.contains("/s480x") &&
+                    !url.contains("/s640x") && !url.contains("_s.jpg");
+            if (notThumb && area >= bestArea) {
+                bestArea = area;
+                best = url;
+            } else if (area > bestArea) {
+                bestArea = area;
+                best = url;
             }
         }
-        return images.get(0);
+        return best;
     }
 
     /** Reads View.mListenerInfo.mOnClickListener via reflection. */
@@ -798,6 +1421,18 @@ public class FeedVideoDownloadHook {
         return null;
     }
 
+    private static void collectListGetters(Class<?> cls, Set<String> seen) {
+        if (cls == null) return;
+        for (Method m : cls.getDeclaredMethods()) {
+            if (m.getParameterCount() == 0 && List.class.isAssignableFrom(m.getReturnType())) {
+                if (seen.add(m.getName())) {
+                    m.setAccessible(true);
+                    carouselCandidates.add(m);
+                }
+            }
+        }
+    }
+
     /**
      * Finds the first field on {@code obj} whose declared type is assignable to
      * {@code targetType}. Used to locate interface-typed fields.
@@ -807,13 +1442,11 @@ public class FeedVideoDownloadHook {
         Class<?> cls = obj.getClass();
         while (cls != null && cls != Object.class) {
             for (Field f : cls.getDeclaredFields()) {
-                if (targetType.isAssignableFrom(f.getType())) {
+                try {
                     f.setAccessible(true);
-                    try {
-                        Object v = f.get(obj);
-                        if (v != null) return v;
-                    } catch (Throwable ignored) {}
-                }
+                    Object v = f.get(obj);
+                    if (v != null && targetType.isInstance(v)) return v;
+                } catch (Throwable ignored) {}
             }
             cls = cls.getSuperclass();
         }
@@ -882,10 +1515,13 @@ public class FeedVideoDownloadHook {
         }
 
         try {
-            List<ClassData> classes = bridge.findClass(FindClass.create()
-                    .matcher(ClassMatcher.create()
-                            .addInterface("com.instagram.model.mediasize.VideoVersionIntf",
-                                    StringMatchType.Equals, false)));
+            List<ClassData> classes = new ArrayList<>();
+            for (String cn : VIDEO_VERSION_INTF_CLASSES) {
+                classes = bridge.findClass(FindClass.create()
+                        .matcher(ClassMatcher.create()
+                                .addInterface(cn, StringMatchType.Equals, false)));
+                if (!classes.isEmpty()) break;
+            }
 
             ModuleLog.line("(IE|DL|DexKit) VideoVersionIntf implementors found: " + classes.size());
 
@@ -1172,10 +1808,15 @@ public class FeedVideoDownloadHook {
     // ── Filename + directory helpers (package-accessible for StoryDownloadHook) ──
 
     static String buildFilename(String username, String type, String mediaId, boolean isVideo) {
+        return buildFilename(username, type, mediaId, isVideo, -1);
+    }
+
+    static String buildFilename(String username, String type, String mediaId, boolean isVideo, int slideIndex) {
         String u  = (username != null && !username.isEmpty()) ? username : "unknown";
         String id = (mediaId  != null && !mediaId.isEmpty())  ? mediaId  : String.valueOf(System.currentTimeMillis());
         String ext = isVideo ? ".mp4" : ".jpg";
         StringBuilder sb = new StringBuilder(u).append('_').append(type).append('_').append(id);
+        if (slideIndex >= 0) sb.append('_').append(slideIndex + 1);
         if (FeatureFlags.downloaderAddTimestamp) {
             sb.append('_').append(new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()));
         }
@@ -1326,6 +1967,292 @@ public class FeedVideoDownloadHook {
         return base;
     }
 
+    // ── Dedup: skip re-downloading a file that's already on disk ───────────────
+
+    static boolean isDownloaded(Context ctx, String filename, boolean isVideo, String username) {
+        try {
+            File raw = resolveRawPathFile(filename, username);
+            if (raw != null && raw.isFile() && raw.length() > 0) return true;
+            File legacy = resolveLegacyFile(filename, username);
+            if (legacy.isFile() && legacy.length() > 0) return true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                    && isInMediaStore(ctx, filename, username)) return true;
+            if (!FeatureFlags.downloaderCustomUri.isEmpty()
+                    && isInSaf(ctx, filename, username)) return true;
+            String[] stemAndExt = stemAndExtFromFilename(filename);
+            if (stemAndExt == null) return false;
+            String stem = stemAndExt[0], ext = stemAndExt[1];
+            if (hasTimestampVariantInDir(resolveRawPathDir(username), stem, ext)) return true;
+            if (hasTimestampVariantInDir(resolveLegacyDir(username), stem, ext)) return true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                    && isTimestampVariantInMediaStore(ctx, stem, ext, username)) return true;
+            if (!FeatureFlags.downloaderCustomUri.isEmpty()
+                    && isTimestampVariantInSaf(ctx, stem, ext, username)) return true;
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
+    private static File resolveRawPathFile(String filename, String username) {
+        String rawPath = FeatureFlags.downloaderCustomPath;
+        if (rawPath.isEmpty() || rawPath.startsWith("content://")) return null;
+        File dir = new File(rawPath);
+        if (FeatureFlags.downloaderUsernameFolder && username != null && !username.isEmpty()) {
+            dir = new File(dir, username);
+        }
+        return new File(dir, filename);
+    }
+
+    private static File resolveLegacyFile(String filename, String username) {
+        File dir = new File(Environment.getExternalStorageDirectory(), "InstaEclipse");
+        if (FeatureFlags.downloaderUsernameFolder && username != null && !username.isEmpty()) {
+            dir = new File(dir, username);
+        }
+        return new File(dir, filename);
+    }
+
+    private static File resolveRawPathDir(String username) {
+        String rawPath = FeatureFlags.downloaderCustomPath;
+        if (rawPath.isEmpty() || rawPath.startsWith("content://")) return null;
+        File dir = new File(rawPath);
+        if (FeatureFlags.downloaderUsernameFolder && username != null && !username.isEmpty()) {
+            dir = new File(dir, username);
+        }
+        return dir.isDirectory() ? dir : null;
+    }
+
+    private static File resolveLegacyDir(String username) {
+        File dir = new File(Environment.getExternalStorageDirectory(), "InstaEclipse");
+        if (FeatureFlags.downloaderUsernameFolder && username != null && !username.isEmpty()) {
+            dir = new File(dir, username);
+        }
+        return dir;
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private static boolean isInMediaStore(Context ctx, String filename, String username) {
+        String relPath = buildMediaStoreRelPath(username) + "%";
+        String[] projection = {MediaStore.MediaColumns._ID};
+        String selection = MediaStore.MediaColumns.DISPLAY_NAME + "=? AND "
+                + MediaStore.MediaColumns.RELATIVE_PATH + " LIKE ?";
+        String[] args = {filename, relPath};
+        try (Cursor c = ctx.getContentResolver().query(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection, selection, args, null)) {
+            return c != null && c.moveToFirst();
+        }
+    }
+
+    private static boolean isInSaf(Context ctx, String filename, String username) {
+        try {
+            Uri treeUri = Uri.parse(FeatureFlags.downloaderCustomUri);
+            String rootDocId = DocumentsContract.getTreeDocumentId(treeUri);
+            Uri dirUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, rootDocId);
+            if (FeatureFlags.downloaderUsernameFolder && username != null && !username.isEmpty()) {
+                dirUri = findSafDirUri(ctx, treeUri, rootDocId, username);
+                if (dirUri == null) return false;
+            }
+            Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+                    treeUri, DocumentsContract.getDocumentId(dirUri));
+            try (Cursor c = ctx.getContentResolver().query(childrenUri,
+                    new String[]{DocumentsContract.Document.COLUMN_DISPLAY_NAME}, null, null, null)) {
+                while (c != null && c.moveToNext()) {
+                    if (filename.equals(c.getString(0))) return true;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private static boolean isTimestampVariantInMediaStore(Context ctx, String stem, String ext, String username) {
+        String relPath = buildMediaStoreRelPath(username) + "%";
+        String like = stem + "_%" + ext;
+        String exact = stem + ext;
+        String[] projection = {MediaStore.MediaColumns._ID};
+        String selection = "(" + MediaStore.MediaColumns.DISPLAY_NAME + "=? OR "
+                + MediaStore.MediaColumns.DISPLAY_NAME + " LIKE ?) AND "
+                + MediaStore.MediaColumns.RELATIVE_PATH + " LIKE ?";
+        String[] args = {exact, like, relPath};
+        try (Cursor c = ctx.getContentResolver().query(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection, selection, args, null)) {
+            return c != null && c.moveToFirst();
+        }
+    }
+
+    private static boolean isTimestampVariantInSaf(Context ctx, String stem, String ext, String username) {
+        try {
+            Uri treeUri = Uri.parse(FeatureFlags.downloaderCustomUri);
+            String rootDocId = DocumentsContract.getTreeDocumentId(treeUri);
+            Uri dirUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, rootDocId);
+            if (FeatureFlags.downloaderUsernameFolder && username != null && !username.isEmpty()) {
+                dirUri = findSafDirUri(ctx, treeUri, rootDocId, username);
+                if (dirUri == null) return false;
+            }
+            Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+                    treeUri, DocumentsContract.getDocumentId(dirUri));
+            String exact = stem + ext;
+            try (Cursor c = ctx.getContentResolver().query(childrenUri,
+                    new String[]{DocumentsContract.Document.COLUMN_DISPLAY_NAME}, null, null, null)) {
+                while (c != null && c.moveToNext()) {
+                    String name = c.getString(0);
+                    if (name == null) continue;
+                    if (exact.equals(name) || isTimestampedVariantName(name, stem, ext)) return true;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
+    private static Uri findSafDirUri(Context ctx, Uri treeUri, String parentDocId, String dirName) {
+        try {
+            Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocId);
+            try (Cursor c = ctx.getContentResolver().query(childrenUri,
+                    new String[]{DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                                 DocumentsContract.Document.COLUMN_DISPLAY_NAME},
+                    null, null, null)) {
+                while (c != null && c.moveToNext()) {
+                    if (dirName.equals(c.getString(1))) {
+                        return DocumentsContract.buildDocumentUriUsingTree(treeUri, c.getString(0));
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private static String[] stemAndExtFromFilename(String filename) {
+        Matcher matcher = TIMESTAMPED_FILENAME_PATTERN.matcher(filename);
+        if (matcher.matches()) {
+            return new String[]{matcher.group(1), matcher.group(3)};
+        }
+        int dot = filename.lastIndexOf('.');
+        if (dot <= 0) return null;
+        String ext = filename.substring(dot);
+        String base = filename.substring(0, dot);
+        int lastUnderscore = base.lastIndexOf('_');
+        if (lastUnderscore > 0 && isTimestampToken(base.substring(lastUnderscore + 1))) {
+            return new String[]{base.substring(0, lastUnderscore), ext};
+        }
+        return new String[]{base, ext};
+    }
+
+    private static boolean isTimestampToken(String token) {
+        if (token.length() != 15) return false;
+        if (token.charAt(8) != '_') return false;
+        for (int i = 0; i < token.length(); i++) {
+            if (i == 8) continue;
+            char ch = token.charAt(i);
+            if (ch < '0' || ch > '9') return false;
+        }
+        return true;
+    }
+
+    private static boolean isTimestampedVariantName(String name, String stem, String ext) {
+        if (!name.endsWith(ext) || !name.startsWith(stem + "_")) return false;
+        int start = stem.length() + 1;
+        int end = name.length() - ext.length();
+        if (start >= end) return false;
+        return isTimestampToken(name.substring(start, end));
+    }
+
+    private static boolean hasTimestampVariantInDir(File dir, String stem, String ext) {
+        if (dir == null || !dir.isDirectory()) return false;
+        File[] files = dir.listFiles();
+        if (files == null) return false;
+        String exact = stem + ext;
+        for (File file : files) {
+            if (!file.isFile() || file.length() <= 0) continue;
+            String name = file.getName();
+            if (exact.equals(name) || isTimestampedVariantName(name, stem, ext)) return true;
+        }
+        return false;
+    }
+
+    // ── Dedup for profile pictures: no timestamp suffix, ambiguous extension ───
+
+    static String profileFilenameStem(String username, String mediaId) {
+        String u = (username != null && !username.isEmpty()) ? username : "unknown";
+        String id = (mediaId != null && !mediaId.isEmpty()) ? mediaId : u;
+        return u + "_profile_" + id;
+    }
+
+    static boolean isProfileDownloaded(Context ctx, String username, String mediaId) {
+        String filename = buildFilename(username, "profile", mediaId, false);
+        if (isDownloaded(ctx, filename, false, username)) return true;
+        String stem = profileFilenameStem(username, mediaId);
+        try {
+            File rawDir = resolveRawPathDir(username);
+            if (rawDir != null && profileStemExistsInDir(rawDir, stem)) return true;
+            File legacyDir = resolveLegacyDir(username);
+            if (profileStemExistsInDir(legacyDir, stem)) return true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                    && profileStemInMediaStore(ctx, stem, username)) return true;
+            if (!FeatureFlags.downloaderCustomUri.isEmpty()
+                    && profileStemInSaf(ctx, stem, username)) return true;
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
+    private static boolean profileStemExistsInDir(File dir, String stem) {
+        if (dir == null || !dir.isDirectory()) return false;
+        File[] files = dir.listFiles();
+        if (files == null) return false;
+        String stemLower = stem.toLowerCase(Locale.US);
+        for (File f : files) {
+            if (!f.isFile() || f.length() <= 0) continue;
+            String name = f.getName().toLowerCase(Locale.US);
+            if (name.startsWith(stemLower) && isProfileImageName(name)) return true;
+        }
+        return false;
+    }
+
+    private static boolean isProfileImageName(String lowerName) {
+        return lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg") || lowerName.endsWith(".png");
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private static boolean profileStemInMediaStore(Context ctx, String stem, String username) {
+        String relPath = buildMediaStoreRelPath(username) + "%";
+        String[] projection = {MediaStore.MediaColumns._ID};
+        String selection = MediaStore.MediaColumns.DISPLAY_NAME + " LIKE ? AND "
+                + MediaStore.MediaColumns.RELATIVE_PATH + " LIKE ?";
+        String[] args = {stem + "%", relPath};
+        try (Cursor c = ctx.getContentResolver().query(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection, selection, args, null)) {
+            return c != null && c.moveToFirst();
+        }
+    }
+
+    private static boolean profileStemInSaf(Context ctx, String stem, String username) {
+        try {
+            Uri treeUri = Uri.parse(FeatureFlags.downloaderCustomUri);
+            String rootDocId = DocumentsContract.getTreeDocumentId(treeUri);
+            Uri dirUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, rootDocId);
+            if (FeatureFlags.downloaderUsernameFolder && username != null && !username.isEmpty()) {
+                dirUri = findSafDirUri(ctx, treeUri, rootDocId, username);
+                if (dirUri == null) return false;
+            }
+            Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+                    treeUri, DocumentsContract.getDocumentId(dirUri));
+            String stemLower = stem.toLowerCase(Locale.US);
+            try (Cursor c = ctx.getContentResolver().query(childrenUri,
+                    new String[]{DocumentsContract.Document.COLUMN_DISPLAY_NAME}, null, null, null)) {
+                while (c != null && c.moveToNext()) {
+                    String name = c.getString(0);
+                    if (name == null) continue;
+                    String lower = name.toLowerCase(Locale.US);
+                    if (lower.startsWith(stemLower) && isProfileImageName(lower)) return true;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
     /** Copies tempFile to the download destination (only used when no custom SAF URI is set). */
     static void saveFileToDestination(Context ctx, File tempFile, String filename,
                                       boolean isVideo, String username) throws Exception {
@@ -1364,6 +2291,14 @@ public class FeedVideoDownloadHook {
      */
     static boolean downloadAndSave(Context ctx, String url, String filename,
                                    boolean isVideo, String username) throws Exception {
+        if (isDownloaded(ctx, filename, isVideo, username)) {
+            mainHandler.post(() -> Toast.makeText(ctx,
+                    I18n.t(ctx, R.string.ig_toast_already_downloaded), Toast.LENGTH_SHORT).show());
+            return true;
+        }
+
+        recordDownloadHistory(filename, username);
+
         // Prefer FeatureFlags (live value synced from companion via broadcast).
         // Fall back to reading companion cache directly (missed-broadcast / cold-start case).
         String uri = FeatureFlags.downloaderCustomUri.isEmpty()
@@ -1380,6 +2315,29 @@ public class FeedVideoDownloadHook {
             downloadToStream(url, out);
         }
         return false;
+    }
+
+    /**
+     * Derives the download "type" (post/story/profile) from the filename buildFilename()
+     * produced — "{username}_{type}_{id}[_timestamp].ext" — by stripping the known
+     * username prefix rather than splitting on '_' blindly, since usernames can contain
+     * underscores themselves.
+     */
+    private static void recordDownloadHistory(String filename, String username) {
+        try {
+            String uname = (username != null && !username.isEmpty()) ? username : "unknown";
+            String prefix = uname + "_";
+            String type;
+            if (filename.startsWith(prefix)) {
+                String rest = filename.substring(prefix.length());
+                int underscore = rest.indexOf('_');
+                type = underscore >= 0 ? rest.substring(0, underscore) : rest;
+            } else {
+                type = "post";
+            }
+            DownloadHistory.record(type, username, filename);
+        } catch (Throwable ignored) {
+        }
     }
 
     /**
@@ -1430,74 +2388,217 @@ public class FeedVideoDownloadHook {
         }
     }
 
-    /**
-     * Package-accessible: extracts all downloadable URLs from a Media object.
-     * Returns a single-entry list for plain photo/video posts, multi-entry for carousels.
-     * Steps: (A) video, (B) carousel via MutableMediaDictIntf, (C) single photo, (D) CDN scan.
-     */
     static List<String> extractAllUrlsFromMedia(Context ctx, Object media) {
         if (media == null) return new ArrayList<>();
 
-        // Step A: single video
-        String videoUrl = bestVideoUrlFromMedia(media);
-        if (videoUrl != null) return new ArrayList<>(List.of(videoUrl));
-
-        ModuleLog.line("(IE|Post|DEBUG) carousel check: mutableMediaDictIntfClass=" +
-                (mutableMediaDictIntfClass == null ? "null" : mutableMediaDictIntfClass.getName()) +
-                " carouselCandidates=" + carouselCandidates.size());
-
-        // Step B: carousel (MutableMediaDictIntf candidates)
-        if (mutableMediaDictIntfClass != null && !carouselCandidates.isEmpty()) {
-            Object dictIntf = findFieldAssignableTo(media, mutableMediaDictIntfClass);
-            ModuleLog.line("(IE|Post|DEBUG) dictIntf=" +
-                    (dictIntf == null ? "null" : dictIntf.getClass().getName()));
-            if (dictIntf != null) {
-                for (Method candidate : carouselCandidates) {
-                    try {
-                        Object listObj = candidate.invoke(dictIntf);
-                        int sz = (listObj instanceof List<?> l) ? l.size() : -1;
-                        ModuleLog.line("(IE|Post|DEBUG)   candidate=" + candidate.getName() +
-                                " resultType=" + (listObj == null ? "null" : listObj.getClass().getName()) +
-                                " size=" + sz);
-                        if (!(listObj instanceof List<?> items) || items.size() < 2) continue;
-                        if (videoVersionIntfClass != null && !items.isEmpty()
-                                && videoVersionIntfClass.isInstance(items.get(0))) continue;
-
-                        List<String> carouselUrls = new ArrayList<>();
-                        for (int idx = 0; idx < items.size(); idx++) {
-                            Object item = items.get(idx);
-                            if (item == null) continue;
-                            String itemVideo = bestVideoUrlFromMedia(item);
-                            if (itemVideo != null) { carouselUrls.add(itemVideo); continue; }
-                            if (methodImageUrl != null && ctx != null) {
-                                try {
-                                    Object r = methodImageUrl.invoke(null, ctx, item);
-                                    if (r instanceof String s && isCdnMediaUrl(s)) {
-                                        carouselUrls.add(s); continue;
-                                    }
-                                } catch (Throwable ignored) {}
-                            }
-                            String probed = probeCdnUrlViaStringMethods(item);
-                            if (probed != null) { carouselUrls.add(probed); continue; }
-                            List<String> scanned = new ArrayList<>();
-                            scanForCdnUrls(item, scanned, 0, Collections.newSetFromMap(new IdentityHashMap<>()));
-                            if (!scanned.isEmpty()) carouselUrls.add(pickBestImageUrl(scanned));
-                        }
-                        if (carouselUrls.size() >= 2) return carouselUrls;
-                    } catch (Throwable ignored) {}
-                }
+        List<?> carouselItems = findCarouselItemList(media);
+        if (carouselItems != null && carouselItems.size() >= 2) {
+            List<String> carouselUrls = new ArrayList<>();
+            for (Object item : carouselItems) {
+                String url = extractSingleUrlFromMedia(ctx, item);
+                if (url != null) carouselUrls.add(url);
             }
+            if (carouselUrls.size() >= 2) return carouselUrls;
         }
 
-        // Step C: single photo
-        String imageUrl = imageUrlFromMedia(ctx, media);
-        if (imageUrl != null) return new ArrayList<>(List.of(imageUrl));
+        String single = extractSingleUrlFromMedia(ctx, media);
+        if (single != null) return new ArrayList<>(List.of(single));
 
-        // Step D: CDN scan fallback
         List<String> cdnUrls = collectCdnUrls(media);
-        if (!cdnUrls.isEmpty()) return new ArrayList<>(List.of(cdnUrls.get(0)));
-
+        if (!cdnUrls.isEmpty()) {
+            String bestVid = pickBestVideoUrl(cdnUrls);
+            if (bestVid != null && isVideoUrl(bestVid)) return new ArrayList<>(List.of(bestVid));
+            return new ArrayList<>(List.of(pickBestImageUrl(cdnUrls)));
+        }
         return new ArrayList<>();
+    }
+
+    static String extractSingleUrlFromMedia(Context ctx, Object media) {
+        if (media == null) return null;
+        String videoUrl = bestVideoUrlFromMedia(media);
+        if (videoUrl != null) return videoUrl;
+        String imageUrl = bestImageUrlFromMedia(ctx, media);
+        if (imageUrl != null) return imageUrl;
+        String probed = probeCdnUrlViaStringMethods(media);
+        if (probed != null) return probed;
+        List<String> scanned = collectCdnUrls(media);
+        if (scanned.isEmpty()) return null;
+        return pickBestImageUrl(scanned);
+    }
+
+    static List<?> findCarouselItemList(Object media) {
+        if (media == null) return null;
+        List<Object> hosts = new ArrayList<>();
+        hosts.add(media);
+        if (mutableMediaDictIntfClass != null) {
+            Object dict = findFieldAssignableTo(media, mutableMediaDictIntfClass);
+            if (dict != null) hosts.add(dict);
+        }
+
+        for (Object host : hosts) {
+            List<?> fromMethods = firstCarouselListFromMethods(host);
+            if (fromMethods != null) return fromMethods;
+            List<?> fromFields = firstCarouselListFromFields(host);
+            if (fromFields != null) return fromFields;
+        }
+        return null;
+    }
+
+    private static List<?> firstCarouselListFromMethods(Object host) {
+        if (host == null) return null;
+        if (!carouselCandidates.isEmpty() && mutableMediaDictIntfClass != null
+                && mutableMediaDictIntfClass.isInstance(host)) {
+            for (Method candidate : carouselCandidates) {
+                List<?> list = invokeAsCarouselList(candidate, host);
+                if (list != null) return list;
+            }
+        }
+        Class<?> cls = host.getClass();
+        Set<String> seen = new HashSet<>();
+        while (cls != null && cls != Object.class) {
+            for (Method m : cls.getDeclaredMethods()) {
+                if (m.getParameterCount() != 0 || !List.class.isAssignableFrom(m.getReturnType())) continue;
+                if (!seen.add(m.getName())) continue;
+                try {
+                    m.setAccessible(true);
+                    List<?> list = invokeAsCarouselList(m, host);
+                    if (list != null) return list;
+                } catch (Throwable ignored) {}
+            }
+            cls = cls.getSuperclass();
+        }
+        return null;
+    }
+
+    private static List<?> firstCarouselListFromFields(Object host) {
+        Class<?> cls = host.getClass();
+        while (cls != null && cls != Object.class) {
+            for (Field f : cls.getDeclaredFields()) {
+                if (!List.class.isAssignableFrom(f.getType())) continue;
+                try {
+                    f.setAccessible(true);
+                    Object v = f.get(host);
+                    if (v instanceof List<?> list && isCarouselItemList(list)) return list;
+                } catch (Throwable ignored) {}
+            }
+            cls = cls.getSuperclass();
+        }
+        return null;
+    }
+
+    private static List<?> invokeAsCarouselList(Method m, Object host) {
+        try {
+            Object listObj = m.invoke(host);
+            if (listObj instanceof List<?> list && isCarouselItemList(list)) return list;
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private static boolean isCarouselItemList(List<?> items) {
+        if (items == null || items.size() < 2) return false;
+        Object first = null;
+        for (Object item : items) {
+            if (item != null) { first = item; break; }
+        }
+        if (first == null) return false;
+        if (videoVersionIntfClass != null && videoVersionIntfClass.isInstance(first)) return false;
+        if (imageUrlClass != null && imageUrlClass.isInstance(first)) return false;
+        String cn = first.getClass().getName();
+        return cn.startsWith("X.") || cn.startsWith("com.instagram.") || cn.startsWith("com.facebook.");
+    }
+
+    static String bestImageUrlFromMedia(Context ctx, Object media) {
+        if (media == null) return null;
+        List<String> urls = new ArrayList<>();
+        List<Integer> areas = new ArrayList<>();
+        collectImageUrlCandidates(media, urls, areas,
+                Collections.newSetFromMap(new IdentityHashMap<>()), 0);
+        String ext = imageUrlFromMedia(ctx, media);
+        if (ext != null) {
+            urls.add(ext);
+            areas.add(parseUrlArea(ext));
+        }
+        if (urls.isEmpty()) return null;
+        int best = 0;
+        for (int i = 1; i < urls.size(); i++) {
+            if (areas.get(i) > areas.get(best)) best = i;
+        }
+        return urls.get(best);
+    }
+
+    private static void collectImageUrlCandidates(Object obj, List<String> urls, List<Integer> areas,
+                                                   Set<Object> visited, int depth) {
+        if (obj == null || depth > 6 || urls.size() >= 40) return;
+        if (!visited.add(obj)) return;
+
+        if (imageUrlClass != null && imageUrlClass.isInstance(obj)) {
+            String url = tryGetUrl(obj);
+            if (url != null && isCdnMediaUrl(url) && !isVideoUrl(url)) {
+                urls.add(url);
+                areas.add(imageUrlArea(obj, url));
+            }
+            return;
+        }
+
+        if (imageInfoClass != null && imageInfoClass.isInstance(obj)) {
+            collectFromImageInfo(obj, urls, areas);
+        }
+
+        String cn = obj.getClass().getName();
+        if (cn.startsWith("android.") || cn.startsWith("java.lang.") || cn.startsWith("kotlin.")) return;
+        if (!cn.startsWith("X.") && !cn.startsWith("com.instagram.") && !cn.startsWith("com.facebook.")) return;
+
+        Class<?> cls = obj.getClass();
+        while (cls != null && cls != Object.class) {
+            for (Field f : cls.getDeclaredFields()) {
+                try {
+                    f.setAccessible(true);
+                    Object val = f.get(obj);
+                    if (val == null) continue;
+                    if (val instanceof List<?> list) {
+                        for (Object item : list)
+                            collectImageUrlCandidates(item, urls, areas, visited, depth + 1);
+                    } else {
+                        collectImageUrlCandidates(val, urls, areas, visited, depth + 1);
+                    }
+                } catch (Throwable ignored) {}
+            }
+            cls = cls.getSuperclass();
+        }
+    }
+
+    private static void collectFromImageInfo(Object imageInfo, List<String> urls, List<Integer> areas) {
+        Class<?> cls = imageInfo.getClass();
+        while (cls != null && cls != Object.class) {
+            for (Method m : cls.getDeclaredMethods()) {
+                if (m.getParameterCount() != 0 || !List.class.isAssignableFrom(m.getReturnType())) continue;
+                try {
+                    m.setAccessible(true);
+                    Object r = m.invoke(imageInfo);
+                    if (!(r instanceof List<?> list)) continue;
+                    for (Object item : list) {
+                        if (item == null) continue;
+                        if (imageUrlClass != null && imageUrlClass.isInstance(item)) {
+                            String url = tryGetUrl(item);
+                            if (url != null && isCdnMediaUrl(url) && !isVideoUrl(url)) {
+                                urls.add(url);
+                                areas.add(imageUrlArea(item, url));
+                            }
+                        }
+                    }
+                } catch (Throwable ignored) {}
+            }
+            cls = cls.getSuperclass();
+        }
+    }
+
+    private static int imageUrlArea(Object imageUrl, String url) {
+        try {
+            int w = (int) imageUrl.getClass().getMethod("getWidth").invoke(imageUrl);
+            int h = (int) imageUrl.getClass().getMethod("getHeight").invoke(imageUrl);
+            if (w >= 50 && h >= 50 && w <= 20000 && h <= 20000) return w * h;
+        } catch (Throwable ignored) {}
+        return parseUrlArea(url);
     }
 
     /**
@@ -1639,7 +2740,7 @@ public class FeedVideoDownloadHook {
                 dialog.dismiss();
                 String url = urls.get(safeIdx);
                 boolean isVid = isVideoUrl(url);
-                String fn = buildFilename(username, "post", mediaId, isVid);
+                String fn = buildFilename(username, "post", mediaId, isVid, safeIdx);
                 Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_downloading), Toast.LENGTH_SHORT).show();
                 executor.submit(() -> {
                     try {
@@ -1664,9 +2765,10 @@ public class FeedVideoDownloadHook {
                 Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_downloading_all_n_items, n), Toast.LENGTH_SHORT).show();
                 executor.submit(() -> {
                     int failed = 0;
+                    int i = 0;
                     for (String url : urls) {
                         boolean isVid = isVideoUrl(url);
-                        String fn = buildFilename(username, "post", mediaId, isVid);
+                        String fn = buildFilename(username, "post", mediaId, isVid, i++);
                         try {
                             downloadAndSave(ctx, url, fn, isVid, username);
                         } catch (Throwable e) {
@@ -1713,12 +2815,78 @@ public class FeedVideoDownloadHook {
      * using the DexKit-resolved dictUserGetter. Used by StoryDownloadHook.
      */
     static String extractUsernameFromMediaObject(Object media) {
-        if (media == null || dictUserGetter == null || mutableMediaDictIntfClass == null) return null;
+        if (media == null) return null;
+        ensureUserClass(media);
+
+        List<Object> hosts = new ArrayList<>();
+        hosts.add(media);
+        if (mutableMediaDictIntfClass != null && !mutableMediaDictIntfClass.isInstance(media)) {
+            Object dict = findFieldAssignableTo(media, mutableMediaDictIntfClass);
+            if (dict != null) hosts.add(dict);
+        }
+
+        if (dictUserGetter != null) {
+            for (Object host : hosts) {
+                try {
+                    Object user = dictUserGetter.invoke(host);
+                    String name = UserUtils.callUsernameGetter(user);
+                    if (name != null) return name;
+                } catch (Throwable ignored) {}
+            }
+        }
+
+        for (Object host : hosts) {
+            String fromGetter = usernameFromUserGetters(host);
+            if (fromGetter != null) return fromGetter;
+            if (userClass != null) {
+                Object userObj = findFieldOfType(host, userClass, 3);
+                if (userObj != null) {
+                    String name = UserUtils.callUsernameGetter(userObj);
+                    if (name != null) return name;
+                }
+            }
+        }
+        return scanObjectForUsername(media, 0, Collections.newSetFromMap(new IdentityHashMap<>()));
+    }
+
+    private static void ensureUserClass(Object media) {
+        if (userClass != null || media == null) return;
         try {
-            Object dictIntf = findFieldAssignableTo(media, mutableMediaDictIntfClass);
-            if (dictIntf == null) return null;
-            Object user = dictUserGetter.invoke(dictIntf);
-            return UserUtils.callUsernameGetter(user);
+            userClass = media.getClass().getClassLoader().loadClass("com.instagram.user.model.User");
+        } catch (Throwable ignored) {}
+    }
+
+    private static boolean isUserType(Class<?> type) {
+        if (type == null) return false;
+        if (userClass != null && (type == userClass || userClass.isAssignableFrom(type))) return true;
+        String n = type.getName();
+        return n.equals("com.instagram.user.model.User") || n.endsWith(".user.model.User");
+    }
+
+    private static String usernameFromUserGetters(Object host) {
+        if (host == null) return null;
+        Class<?> cls = host.getClass();
+        while (cls != null && cls != Object.class) {
+            for (Method m : cls.getDeclaredMethods()) {
+                if (m.getParameterCount() != 0) continue;
+                if (!isUserType(m.getReturnType())) continue;
+                try {
+                    m.setAccessible(true);
+                    Object user = m.invoke(host);
+                    String name = UserUtils.callUsernameGetter(user);
+                    if (name != null) return name;
+                } catch (Throwable ignored) {}
+            }
+            cls = cls.getSuperclass();
+        }
+        return null;
+    }
+
+    static String extractMediaIdFromMediaObject(Object media) {
+        if (media == null) return null;
+        try {
+            Object id = media.getClass().getMethod("getId").invoke(media);
+            if (id instanceof String s && !s.isEmpty()) return s.split("_")[0];
         } catch (Throwable ignored) {}
         return null;
     }
@@ -1771,8 +2939,19 @@ public class FeedVideoDownloadHook {
     }
 
     private void onDownloadClicked(Context ctx, List<String> urls, View saveBtn) {
-        currentDownloadUsername = getUsernameFromView(saveBtn);
-        currentDownloadMediaId  = getMediaIdFromView(saveBtn);
+        onDownloadClicked(ctx, urls, saveBtn, null);
+    }
+
+    private void onDownloadClicked(Context ctx, List<String> urls, View saveBtn, Object media) {
+        if (media == null && saveBtn != null) media = saveBtn.getTag(TAG_CACHED_MEDIA);
+        if (media == null && saveBtn != null) media = findMediaForView(saveBtn);
+
+        String username = extractUsernameFromMediaObject(media);
+        String mediaId = extractMediaIdFromMediaObject(media);
+        if (username == null) username = getUsernameFromView(saveBtn);
+        if (mediaId == null) mediaId = getMediaIdFromView(saveBtn);
+        currentDownloadUsername = username;
+        currentDownloadMediaId = mediaId;
         ModuleLog.line("(IE|DL) onDownloadClicked username=" + currentDownloadUsername + " mediaId=" + currentDownloadMediaId);
         List<String> videos = new ArrayList<>();
         List<String> images = new ArrayList<>();
@@ -2058,12 +3237,10 @@ public class FeedVideoDownloadHook {
      *   /o1/v/t2/ = background music track for Reels
      */
     static boolean isVideoUrl(String url) {
-        // All Instagram video CDN path segments begin with t50.
-        // Covers all variants: t50.2886-16, t50.29441-2, t50.16800-16, etc.
+        if (url == null) return false;
         if (url.contains("t50.")) return true;
-        // Reels/Clips CDN paths use /o1/ regardless of whether they carry a t50 segment.
-        // Note: /o1/v/t2/ is NOT audio-only — it is the standard Reels progressive MP4 path.
         if (url.contains("/o1/")) return true;
+        if (url.contains(".mp4")) return true;
         return false;
     }
 

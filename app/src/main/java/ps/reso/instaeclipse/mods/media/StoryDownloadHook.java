@@ -39,16 +39,31 @@ public class StoryDownloadHook {
 
     private static final Handler mainHandler = new Handler(Looper.getMainLooper());
 
-    // Username + media ID resolved at download trigger time
+    private static volatile Object lastReelItem;
+    private static Class<?> reelItemClass;
+    private static Class<?> mediaClass;
+
     private volatile String currentStoryUsername = null;
     private volatile String currentStoryMediaId  = null;
 
     // ── Entry point ──────────────────────────────────────────────────────────
 
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
+        // IG 444+ moved VideoVersionIntf from com.instagram.model.mediasize to
+        // com.instagram.api.schemas — try both so this keeps working either way.
+        for (String cn : FeedVideoDownloadHook.VIDEO_VERSION_INTF_CLASSES) {
+            try {
+                videoVersionIntfClass = classLoader.loadClass(cn);
+                videoVersionGetUrl = videoVersionIntfClass.getMethod("getUrl");
+                break;
+            } catch (Throwable ignored) {}
+        }
+
         try {
-            videoVersionIntfClass = classLoader.loadClass("com.instagram.model.mediasize.VideoVersionIntf");
-            videoVersionGetUrl    = videoVersionIntfClass.getMethod("getUrl");
+            reelItemClass = classLoader.loadClass("com.instagram.model.reels.ReelItem");
+        } catch (Throwable ignored) {}
+        try {
+            mediaClass = classLoader.loadClass("com.instagram.feed.media.Media");
         } catch (Throwable ignored) {}
 
         installButtonInjectorHook(bridge, classLoader);
@@ -62,7 +77,7 @@ public class StoryDownloadHook {
 
     private void installButtonInjectorHook(DexKitBridge bridge, ClassLoader classLoader) {
         Method method = DexKitCache.isCacheValid()
-                ? DexKitCache.loadMethod("StoryDownload_button", classLoader) : null;
+                ? DexKitCache.loadMethod("StoryDownload_button_v2", classLoader) : null;
 
         if (method == null) {
             try {
@@ -72,19 +87,35 @@ public class StoryDownloadHook {
                                 .paramCount(1)));
 
                 if (methods.isEmpty()) {
-                    ModuleLog.line("(IE|Story) ❌ Button builder method not found");
-                    return;
+                    methods = bridge.findMethod(FindMethod.create()
+                            .matcher(MethodMatcher.create()
+                                    .usingStrings("explore_viewer")
+                                    .paramCount(1)));
                 }
 
                 for (MethodData md : methods) {
                     try {
                         Method m = md.getMethodInstance(classLoader);
                         if (m.getReturnType().isArray() &&
-                                CharSequence.class.isAssignableFrom(m.getReturnType().getComponentType())) {
+                                CharSequence.class.isAssignableFrom(m.getReturnType().getComponentType())
+                                && classHasReelItemField(m.getDeclaringClass())) {
                             method = m;
                             break;
                         }
                     } catch (Throwable ignored) {}
+                }
+
+                if (method == null) {
+                    for (MethodData md : methods) {
+                        try {
+                            Method m = md.getMethodInstance(classLoader);
+                            if (m.getReturnType().isArray() &&
+                                    CharSequence.class.isAssignableFrom(m.getReturnType().getComponentType())) {
+                                method = m;
+                                break;
+                            }
+                        } catch (Throwable ignored) {}
+                    }
                 }
             } catch (Throwable t) {
                 ModuleLog.line("(IE|Story) ❌ Button builder DexKit: " + t);
@@ -96,7 +127,7 @@ public class StoryDownloadHook {
             ModuleLog.line("(IE|Story) ❌ No CharSequence[] return type candidate found");
             return;
         }
-        DexKitCache.saveMethod("StoryDownload_button", method);
+        DexKitCache.saveMethod("StoryDownload_button_v2", method);
 
         try {
             XposedBridge.hookMethod(method, new XC_MethodHook() {
@@ -118,6 +149,9 @@ public class StoryDownloadHook {
                     param.setResult(extended);
                 }
             });
+            FeatureStatusTracker.setHooked("StoryDownload");
+            ModuleLog.line("(IE|Story) ✅ button hook installed: "
+                    + method.getDeclaringClass().getName() + "." + method.getName());
 
         } catch (Throwable t) {
             ModuleLog.line("(IE|Story) ❌ Button builder hook: " + t);
@@ -133,7 +167,7 @@ public class StoryDownloadHook {
 
     private void installClickHandlerHook(DexKitBridge bridge, ClassLoader classLoader) {
         Method method = DexKitCache.isCacheValid()
-                ? DexKitCache.loadMethod("StoryDownload_click", classLoader) : null;
+                ? DexKitCache.loadMethod("StoryDownload_click_v2", classLoader) : null;
 
         if (method == null) {
             try {
@@ -145,11 +179,17 @@ public class StoryDownloadHook {
                                         "[INTERNAL] Pause Playback")));
 
                 if (methods.isEmpty()) {
+                    methods = bridge.findMethod(FindMethod.create()
+                            .matcher(MethodMatcher.create()
+                                    .returnType("void")
+                                    .usingStrings("explore_viewer")));
+                }
+                if (methods.isEmpty()) {
                     ModuleLog.line("(IE|Story) ❌ Click handler not found");
                     return;
                 }
                 method = methods.get(0).getMethodInstance(classLoader);
-                DexKitCache.saveMethod("StoryDownload_click", method);
+                DexKitCache.saveMethod("StoryDownload_click_v2", method);
             } catch (Throwable t) {
                 ModuleLog.line("(IE|Story) ❌ Click handler DexKit: " + t);
                 return;
@@ -177,25 +217,24 @@ public class StoryDownloadHook {
                     // 3. Locate the object that holds ReelItem — it is either 'this' or a
                     //    parameter of the same declaring class (piko's smali shows the latter).
                     Object holder = findReelItemHolder(param);
-                    ModuleLog.line("(IE|Story) holder=" + (holder != null ? holder.getClass().getName() : "null"));
 
-                    // 4. Extract the Context
                     Context ctx = findContext(holder != null ? holder : param.thisObject);
+                    if (ctx == null) {
+                        try { ctx = AndroidAppHelper.currentApplication(); } catch (Throwable ignored) {}
+                    }
                     if (ctx == null) {
                         ModuleLog.line("(IE|Story) ❌ Context not found");
                         return;
                     }
 
-                    // 5. Extract story URL via ReelItem → media object field graph
-                    String url = extractStoryUrl(holder != null ? holder : param.thisObject);
-                    ModuleLog.line("(IE|Story) url=" + url);
+                    Object effectiveHolder = holder != null ? holder : param.thisObject;
+                    String url = extractStoryUrl(ctx, effectiveHolder);
 
                     if (url == null || url.isEmpty()) {
                         Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_story_url_not_found), Toast.LENGTH_SHORT).show();
                         return;
                     }
 
-                    Object effectiveHolder = holder != null ? holder : param.thisObject;
                     currentStoryUsername = extractUsernameFromReelItemHolder(effectiveHolder);
                     currentStoryMediaId  = extractMediaIdFromReelItemHolder(effectiveHolder);
                     startDownload(ctx, url, isVideoUrl(url));
@@ -203,6 +242,8 @@ public class StoryDownloadHook {
             });
 
             FeatureStatusTracker.setHooked("StoryDownload");
+            ModuleLog.line("(IE|Story) ✅ click hook installed: "
+                    + method.getDeclaringClass().getName() + "." + method.getName());
 
         } catch (Throwable t) {
             ModuleLog.line("(IE|Story) ❌ Click handler hook: " + t);
@@ -218,19 +259,34 @@ public class StoryDownloadHook {
      */
     private static Object findReelItemHolder(XC_MethodHook.MethodHookParam param) {
         if (hasReelItemField(param.thisObject)) return param.thisObject;
-        // Check method parameters — the outer class is sometimes passed as an arg
         for (Object arg : param.args) {
             if (arg != null && hasReelItemField(arg)) return arg;
         }
-        return null;
+        return lastReelItem;
+    }
+
+    private static boolean classHasReelItemField(Class<?> cls) {
+        while (cls != null && cls != Object.class) {
+            for (Field f : cls.getDeclaredFields()) {
+                String tn = f.getType().getName();
+                if (tn.equals("com.instagram.model.reels.ReelItem")
+                        || tn.equals("com.instagram.feed.media.Media")) return true;
+            }
+            cls = cls.getSuperclass();
+        }
+        return false;
     }
 
     private static boolean hasReelItemField(Object obj) {
         if (obj == null) return false;
+        if (reelItemClass != null && reelItemClass.isInstance(obj)) return true;
+        if (mediaClass != null && mediaClass.isInstance(obj)) return true;
         Class<?> cls = obj.getClass();
         while (cls != null && cls != Object.class) {
             for (Field f : cls.getDeclaredFields()) {
-                if (f.getType().getName().equals("com.instagram.model.reels.ReelItem")) return true;
+                String tn = f.getType().getName();
+                if (tn.equals("com.instagram.model.reels.ReelItem")
+                        || tn.equals("com.instagram.feed.media.Media")) return true;
             }
             cls = cls.getSuperclass();
         }
@@ -245,38 +301,43 @@ public class StoryDownloadHook {
      *      picks the one with the largest pixel area (photos).
      *   4. Falls back to raw CDN string scan with area-based ranking.
      */
-    private static String extractStoryUrl(Object holder) {
+    private static String extractStoryUrl(Context ctx, Object holder) {
+        if (holder == null) holder = lastReelItem;
         if (holder == null) return null;
         try {
-            Object reelItem = readFieldByTypeName(holder, "com.instagram.model.reels.ReelItem");
+            Object reelItem = resolveReelItem(holder);
             ModuleLog.line("(IE|Story) reelItem=" +
                     (reelItem != null ? reelItem.getClass().getName() : "null"));
 
+            Object media = resolveMedia(reelItem != null ? reelItem : holder);
+            if (media != null) {
+                List<String> urls = FeedVideoDownloadHook.extractAllUrlsFromMedia(ctx, media);
+                if (!urls.isEmpty()) {
+                    String bestVid = null;
+                    for (String u : urls) {
+                        if (FeedVideoDownloadHook.isVideoUrl(u)) { bestVid = u; break; }
+                    }
+                    return bestVid != null ? bestVid : urls.get(0);
+                }
+            }
+
             Object target = reelItem != null ? reelItem : holder;
 
-            // Try video URL via VideoVersionIntf scan
             if (videoVersionIntfClass != null && videoVersionGetUrl != null) {
                 String videoUrl = findVideoUrl(target,
                         Collections.newSetFromMap(new IdentityHashMap<>()), 0);
                 if (videoUrl != null) return videoUrl;
             }
 
-            // For photo stories: walk the graph looking for image Candidate objects.
-            // A Candidate has a CDN URL string field + at least two int fields with
-            // plausible pixel dimensions. Field names are obfuscated so we match by type
-            // and value range. Pick the candidate with the largest width×height area.
             List<CandidateInfo> candidates = new ArrayList<>();
             collectImageCandidates(target, candidates,
                     Collections.newSetFromMap(new IdentityHashMap<>()), 0);
             ModuleLog.line("(IE|Story) imageCandidates=" + candidates.size());
             if (!candidates.isEmpty()) {
                 candidates.sort((a, b) -> Integer.compare(b.area, a.area));
-                ModuleLog.line("(IE|Story) bestCandidate area=" + candidates.get(0).area
-                        + " url=" + candidates.get(0).url.substring(0, Math.min(80, candidates.get(0).url.length())));
                 return candidates.get(0).url;
             }
 
-            // Last resort: raw CDN string scan
             List<String> cdnUrls = new ArrayList<>();
             scanCdnUrls(target, cdnUrls, 0, Collections.newSetFromMap(new IdentityHashMap<>()));
             if (!cdnUrls.isEmpty()) return pickBestUrl(cdnUrls);
@@ -285,6 +346,39 @@ public class StoryDownloadHook {
             ModuleLog.line("(IE|Story) extractStoryUrl error: " + t);
         }
         return null;
+    }
+
+    private static Object resolveReelItem(Object holder) {
+        Object found = null;
+        if (holder != null) {
+            if (reelItemClass != null && reelItemClass.isInstance(holder)) found = holder;
+            if (found == null) found = readFieldByTypeName(holder, "com.instagram.model.reels.ReelItem");
+        }
+        if (found == null) found = lastReelItem;
+        if (found != null) lastReelItem = found;
+        return found;
+    }
+
+    private static Object resolveMedia(Object host) {
+        if (host == null) return null;
+        if (mediaClass != null && mediaClass.isInstance(host)) return host;
+        Object media = readFieldByTypeName(host, "com.instagram.feed.media.Media");
+        if (media != null) return media;
+        Class<?> cls = host.getClass();
+        while (cls != null && cls != Object.class) {
+            for (Method m : cls.getDeclaredMethods()) {
+                if (m.getParameterCount() != 0) continue;
+                if (mediaClass != null && mediaClass.isAssignableFrom(m.getReturnType())) {
+                    try {
+                        m.setAccessible(true);
+                        Object r = m.invoke(host);
+                        if (r != null) return r;
+                    } catch (Throwable ignored) {}
+                }
+            }
+            cls = cls.getSuperclass();
+        }
+        return mediaClass != null ? FeedVideoDownloadHook.findFieldAssignableTo(host, mediaClass) : null;
     }
 
     /** Reads the first field whose declared type name equals {@code typeName}. */
@@ -567,45 +661,13 @@ public class StoryDownloadHook {
      * ReelItem is non-obfuscated so getUser() and getUsername() are stable method names.
      */
     private static String extractUsernameFromReelItemHolder(Object holder) {
-        if (holder == null) {
-            ModuleLog.line("(IE|Story|Username) holder is null");
+        Object reelItem = resolveReelItem(holder);
+        if (reelItem == null) {
+            ModuleLog.line("(IE|Story|Username) ❌ ReelItem not found in holder");
             return null;
         }
-        ModuleLog.line("(IE|Story|Username) searching in holder=" + holder.getClass().getName());
+        ModuleLog.line("(IE|Story|Username) searching in " + reelItem.getClass().getName());
         try {
-            // Step 1: find the ReelItem field on the holder
-            Object reelItem = null;
-            Class<?> cls = holder.getClass();
-            while (cls != null && cls != Object.class) {
-                for (Field f : cls.getDeclaredFields()) {
-                    f.setAccessible(true);
-                    try {
-                        Object val = f.get(holder);
-                        if (val != null && val.getClass().getName()
-                                .equals("com.instagram.model.reels.ReelItem")) {
-                            reelItem = val;
-                            ModuleLog.line("(IE|Story|Username) found ReelItem in field="
-                                    + f.getName() + " on " + cls.getName());
-                            break;
-                        }
-                    } catch (Throwable ignored) {}
-                }
-                if (reelItem != null) break;
-                cls = cls.getSuperclass();
-            }
-            if (reelItem == null && holder.getClass().getName()
-                    .equals("com.instagram.model.reels.ReelItem")) {
-                reelItem = holder;
-                ModuleLog.line("(IE|Story|Username) holder is itself a ReelItem");
-            }
-            if (reelItem == null) {
-                ModuleLog.line("(IE|Story|Username) ❌ ReelItem not found in holder");
-                return null;
-            }
-
-            // Step 2: probe all no-arg non-primitive methods on ReelItem.
-            // Priority: find a method returning com.instagram.user.model.User.
-            // Fallback: if a method returns com.instagram.feed.media.Media → delegate to feed extractor.
             for (Method m : reelItem.getClass().getDeclaredMethods()) {
                 if (m.getParameterCount() != 0) continue;
                 Class<?> ret = m.getReturnType();
@@ -617,7 +679,6 @@ public class StoryDownloadHook {
 
                     String candidateClass = candidate.getClass().getName();
 
-                    // Direct User object — use DexKit-resolved getter (stable int constant -265713450)
                     if (candidateClass.equals("com.instagram.user.model.User")) {
                         String username = UserUtils.callUsernameGetter(candidate);
                         if (username != null) {
@@ -627,7 +688,6 @@ public class StoryDownloadHook {
                         continue;
                     }
 
-                    // Media object — delegate to feed extractor (has LiveTreeMediaDict path)
                     if (candidateClass.equals("com.instagram.feed.media.Media")) {
                         String username = FeedVideoDownloadHook.extractUsernameFromMediaObject(candidate);
                         if (username != null) {
@@ -635,9 +695,14 @@ public class StoryDownloadHook {
                                     + "() [Media] → " + username);
                             return username;
                         }
-                        continue; // don't probe String methods on Media
                     }
                 } catch (Throwable ignored) {}
+            }
+
+            Object media = resolveMedia(reelItem);
+            if (media != null) {
+                String username = FeedVideoDownloadHook.extractUsernameFromMediaObject(media);
+                if (username != null) return username;
             }
 
             ModuleLog.line("(IE|Story|Username) ❌ username not found on ReelItem methods");
@@ -655,15 +720,16 @@ public class StoryDownloadHook {
 
     /** Extracts the short media ID from the ReelItem held by the holder (first segment of getId()). */
     private static String extractMediaIdFromReelItemHolder(Object holder) {
-        if (holder == null) return null;
         try {
-            Object reelItem = readFieldByTypeName(holder, "com.instagram.model.reels.ReelItem");
-            if (reelItem == null && holder.getClass().getName().equals("com.instagram.model.reels.ReelItem")) {
-                reelItem = holder;
-            }
+            Object reelItem = resolveReelItem(holder);
             if (reelItem == null) return null;
             Object id = reelItem.getClass().getMethod("getId").invoke(reelItem);
             if (id instanceof String s && !s.isEmpty()) return s.split("_")[0];
+            Object media = resolveMedia(reelItem);
+            if (media != null) {
+                Object mid = media.getClass().getMethod("getId").invoke(media);
+                if (mid instanceof String s && !s.isEmpty()) return s.split("_")[0];
+            }
         } catch (Throwable ignored) {}
         return null;
     }
@@ -674,6 +740,10 @@ public class StoryDownloadHook {
         String fn = FeedVideoDownloadHook.buildFilename(currentStoryUsername, "story", currentStoryMediaId, isVideo);
         ModuleLog.line("(IE|Story|DL) username=" + currentStoryUsername + " mediaId=" + currentStoryMediaId
                 + " file=" + fn);
+        if (FeedVideoDownloadHook.isDownloaded(ctx, fn, isVideo, currentStoryUsername)) {
+            Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_already_downloaded), Toast.LENGTH_SHORT).show();
+            return;
+        }
         Toast.makeText(ctx, isVideo ? I18n.t(ctx, R.string.ig_toast_downloading_story_video) : I18n.t(ctx, R.string.ig_toast_downloading_story_photo), Toast.LENGTH_SHORT).show();
         mainHandler.post(() -> new Thread(() -> {
             try {

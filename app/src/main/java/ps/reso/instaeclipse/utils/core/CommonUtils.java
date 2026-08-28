@@ -19,6 +19,14 @@ public class CommonUtils {
     public static final String EXTRA_LOG_SOURCE = "source_package";
     public static final String EXTRA_LOG_ERROR = "error";
 
+    // Download History viewer IPC
+    public static final String ACTION_REQUEST_DOWNLOAD_HISTORY = "ps.reso.instaeclipse.ACTION_REQUEST_DOWNLOAD_HISTORY";
+    public static final String ACTION_DOWNLOAD_HISTORY_REPLY = "ps.reso.instaeclipse.ACTION_DOWNLOAD_HISTORY_REPLY";
+    public static final String ACTION_CLEAR_DOWNLOAD_HISTORY = "ps.reso.instaeclipse.ACTION_CLEAR_DOWNLOAD_HISTORY";
+    public static final String EXTRA_DOWNLOAD_HISTORY_JSON = "download_history_json";
+    public static final String EXTRA_DOWNLOAD_HISTORY_ERROR = "download_history_error";
+    public static final String EXTRA_DOWNLOAD_HISTORY_SOURCE = "download_history_source";
+
     /** All Instagram packages this module hooks into. */
     public static final List<String> SUPPORTED_PACKAGES = Arrays.asList(
             "com.instagram.android",

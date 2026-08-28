@@ -47,6 +47,7 @@ import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import ps.reso.instaeclipse.R;
+import ps.reso.instaeclipse.mods.media.ReelDownloadHook;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
@@ -568,27 +569,27 @@ public class CaptionCopyContextMenuHook {
         };
 
         if (DexKitCache.isCacheValid()) {
-            Method cached = DexKitCache.loadMethod("ReelOptionsListBuilder", classLoader);
-            if (cached != null) {
-                XposedBridge.hookMethod(cached, hook);
+            List<Method> cached = DexKitCache.loadMethods("ReelOptionsListBuilder_v2", classLoader);
+            if (cached != null && !cached.isEmpty()) {
+                for (Method m : cached) XposedBridge.hookMethod(m, hook);
+                ModuleLog.line("(IE|Caption) ✅ reel options-list patch hooked (cached): " + cached.size());
                 return;
             }
         }
 
         try {
-            String optionDesc = "Lcom/instagram/feed/media/mediaoption/MediaOption$Option;";
-            List<MethodData> methods = bridge.findMethod(FindMethod.create()
-                    .matcher(MethodMatcher.create()
-                            .returnType("java.util.ArrayList")
-                            .addUsingField(optionDesc + "->PLAYBACK_CONTROLS:" + optionDesc)
-                            .addUsingField(optionDesc + "->UNSAVE:" + optionDesc)));
+            List<Method> methods = ReelDownloadHook.findReelOptionsListBuilders(bridge, classLoader);
+            if (methods.isEmpty()) {
+                ModuleLog.line("(IE|Caption) ⚠️ reel options-list builder not found");
+                return;
+            }
 
-            if (methods.isEmpty()) return; // reel menu may not be on this newer layout — fine
-
-            Method target = methods.get(0).getMethodInstance(classLoader);
-            target.setAccessible(true);
-            XposedBridge.hookMethod(target, hook);
-            DexKitCache.saveMethod("ReelOptionsListBuilder", target);
+            for (Method target : methods) {
+                target.setAccessible(true);
+                XposedBridge.hookMethod(target, hook);
+            }
+            DexKitCache.saveMethods("ReelOptionsListBuilder_v2", methods);
+            ModuleLog.line("(IE|Caption) ✅ reel options-list patch hooked: " + methods.size());
 
         } catch (Throwable t) {
             ModuleLog.line("(IE|Caption) ❌ installReelOptionsListPatch: " + t);

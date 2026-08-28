@@ -7,13 +7,19 @@ import android.view.ViewGroup;
 import android.widget.Toast;
 
 import org.luckypray.dexkit.DexKitBridge;
+import org.luckypray.dexkit.query.FindClass;
 import org.luckypray.dexkit.query.FindMethod;
+import org.luckypray.dexkit.query.matchers.ClassMatcher;
 import org.luckypray.dexkit.query.matchers.MethodMatcher;
+import org.luckypray.dexkit.result.ClassData;
+import org.luckypray.dexkit.result.MethodData;
 
-import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -26,11 +32,13 @@ import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 public class ReelDownloadHook {
 
-    private static Class<?> controllerClass;
-    private static Method   hookMethod;
+    private static Class<?> mediaClass;
+    private static Class<?> liveTreeMediaDictClass;
+    private static Object   downloadOptionValue;
 
     private static Method buttonAdderMethod;
     private static Field  activityField;
+    private static boolean loggedOptionsBuiltFailure;
 
     // Cached field path to the carousel position holder on the controller.
     // The position holder is identified structurally: a non-framework object field
@@ -39,74 +47,212 @@ public class ReelDownloadHook {
     private static Field cachedInnerField = null;
 
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
+        try {
+            mediaClass = classLoader.loadClass("com.instagram.feed.media.Media");
+        } catch (Throwable ignored) {}
+        try {
+            liveTreeMediaDictClass = classLoader.loadClass("com.instagram.feed.media.LiveTreeMediaDict");
+        } catch (Throwable ignored) {}
+
         installNativeDownloadGateUnlock(bridge, classLoader);
+        installStringDownloadGates(bridge, classLoader);
         installReduceOptionsListPatch(bridge, classLoader);
+        installControllerHook(bridge, classLoader);
+    }
+
+    private static XC_MethodHook controllerHook() {
+        return new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                if (!FeatureFlags.enableReelDownload) return;
+                Object result = param.getResult();
+                if (result instanceof List<?> list && downloadOptionValue != null) {
+                    try {
+                        if (!list.contains(downloadOptionValue)) {
+                            @SuppressWarnings("unchecked")
+                            List<Object> mutable = (List<Object>) list;
+                            mutable.add(downloadOptionValue);
+                        }
+                    } catch (Throwable t) {
+                        ModuleLog.line("(IE|Reel) ❌ controller list patch: " + t);
+                    }
+                    return;
+                }
+                onOptionsBuilt(param);
+            }
+        };
+    }
+
+    private static void installControllerHook(DexKitBridge bridge, ClassLoader classLoader) {
+        XC_MethodHook hook = controllerHook();
 
         if (DexKitCache.isCacheValid()) {
-            Method cached = DexKitCache.loadMethod("ReelDownload", classLoader);
-            if (cached != null) {
-                controllerClass = cached.getDeclaringClass();
-                hookMethod = cached;
-                cached.setAccessible(true);
+            List<Method> cached = DexKitCache.loadMethods("ReelDownload_v3", classLoader);
+            if (cached != null && !cached.isEmpty()) {
+                for (Method m : cached) {
+                    XposedBridge.hookMethod(m, hook);
+                }
                 FeatureStatusTracker.setHooked("ReelDownload");
-                XposedBridge.hookMethod(cached, new XC_MethodHook() {
-                    @Override
-                    protected void afterHookedMethod(MethodHookParam param) {
-                        if (!FeatureFlags.enableReelDownload) return;
-                        onOptionsBuilt(param);
-                    }
-                });
-                ModuleLog.line("(IE|Reel) ✅ hooked: " + hookMethod.getDeclaringClass().getName() + "." + hookMethod.getName());
+                ModuleLog.line("(IE|Reel) ✅ hooked (cached): " + describeMethods(cached));
                 return;
             }
         }
 
         try {
-            var methods = bridge.findMethod(FindMethod.create()
-                    .matcher(MethodMatcher.create()
-                            .usingStrings("ClipsOrganicMediaItemViewMoreOptionsController")));
-
-            if (methods.isEmpty()) {
-                ModuleLog.line("(IE|Reel) ❌ ClipsOrganicMediaItemViewMoreOptionsController not found");
+            List<Method> targets = discoverControllerMethods(bridge, classLoader);
+            if (targets.isEmpty()) {
+                ModuleLog.line("(IE|Reel) ❌ reel options builder not found");
                 return;
             }
 
-            controllerClass = methods.get(0).getMethodInstance(classLoader).getDeclaringClass();
-
-            // Find the options-builder method: void(com.instagram.feed.media.Media, <ButtonAdder>)
-            Method target = null;
-            for (Method m : controllerClass.getDeclaredMethods()) {
-                if (m.getReturnType() != void.class) continue;
-                Class<?>[] params = m.getParameterTypes();
-                if (params.length < 2) continue;
-                if (!params[0].getName().equals("com.instagram.feed.media.Media")) continue;
-                if (params[1].isPrimitive() || params[1] == String.class) continue;
-                target = m;
-                break;
+            for (Method m : targets) {
+                m.setAccessible(true);
+                XposedBridge.hookMethod(m, hook);
             }
-
-            if (target == null) {
-                ModuleLog.line("(IE|Reel) ❌ hook method (Media, ButtonAdder)V not found");
-                return;
-            }
-
-            target.setAccessible(true);
-            hookMethod = target;
-            DexKitCache.saveMethod("ReelDownload", target);
+            DexKitCache.saveMethods("ReelDownload_v3", targets);
             FeatureStatusTracker.setHooked("ReelDownload");
-
-            XposedBridge.hookMethod(target, new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) {
-                    if (!FeatureFlags.enableReelDownload) return;
-                    onOptionsBuilt(param);
-                }
-            });
-            ModuleLog.line("(IE|Reel) ✅ hooked: " + hookMethod.getDeclaringClass().getName() + "." + hookMethod.getName());
-
+            ModuleLog.line("(IE|Reel) ✅ hooked: " + describeMethods(targets));
         } catch (Throwable t) {
             ModuleLog.line("(IE|Reel) ❌ install: " + t);
         }
+    }
+
+    private static List<Method> discoverControllerMethods(DexKitBridge bridge, ClassLoader classLoader) {
+        Set<Class<?>> classes = new LinkedHashSet<>();
+        String[] markers = {
+                "ClipsOrganicMediaItemViewMoreOptionsController",
+                "ClipsOrganicMoreOptionsActionUtil"
+        };
+
+        for (String marker : markers) {
+            try {
+                List<ClassData> classHits = bridge.findClass(FindClass.create()
+                        .matcher(ClassMatcher.create().usingStrings(marker)));
+                for (ClassData cd : classHits) {
+                    Class<?> cls = loadNonFrameworkClass(classLoader, cd.getName());
+                    if (cls != null) classes.add(cls);
+                }
+            } catch (Throwable ignored) {}
+
+            try {
+                List<MethodData> methodHits = bridge.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create().usingStrings(marker)));
+                for (MethodData md : methodHits) {
+                    Class<?> cls = loadNonFrameworkClass(classLoader, md.getClassName());
+                    if (cls != null) classes.add(cls);
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        List<Method> targets = new ArrayList<>();
+        Class<?> bestClass = null;
+        for (Class<?> cls : classes) {
+            List<Method> found = findOptionsBuilderMethods(cls);
+            if (found.isEmpty() || found.size() > 8) continue;
+            if (bestClass == null || scoreControllerClass(cls) > scoreControllerClass(bestClass)) {
+                bestClass = cls;
+                targets = found;
+            }
+        }
+
+        if (targets.isEmpty() && !classes.isEmpty()) {
+            StringBuilder dump = new StringBuilder("(IE|Reel) no builder in ");
+            boolean first = true;
+            for (Class<?> cls : classes) {
+                if (!first) dump.append(", ");
+                first = false;
+                dump.append(cls.getName());
+            }
+            ModuleLog.line(dump.toString());
+        }
+
+        if (targets.isEmpty()) {
+            try {
+                String optionDesc = "Lcom/instagram/feed/media/mediaoption/MediaOption$Option;";
+                List<MethodData> downloadRefs = bridge.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create()
+                                .addUsingField(optionDesc + "->DOWNLOAD:" + optionDesc)));
+                for (MethodData md : downloadRefs) {
+                    Class<?> cls = loadNonFrameworkClass(classLoader, md.getClassName());
+                    if (cls == null) continue;
+                    List<Method> found = findOptionsBuilderMethods(cls);
+                    if (found.isEmpty() || found.size() > 8) continue;
+                    if (bestClass == null || scoreControllerClass(cls) > scoreControllerClass(bestClass)) {
+                        bestClass = cls;
+                        targets = found;
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+        return targets;
+    }
+
+    private static int scoreControllerClass(Class<?> cls) {
+        String n = cls.getName();
+        int score = 0;
+        if (n.contains("MoreOptions") || n.contains("Controller")) score += 4;
+        if (n.contains("Clips") || n.contains("clips")) score += 3;
+        if (n.startsWith("X.") || n.startsWith("p000X.")) score += 1;
+        return score;
+    }
+
+    private static Class<?> loadNonFrameworkClass(ClassLoader classLoader, String name) {
+        if (name == null) return null;
+        if (name.startsWith("java.") || name.startsWith("android.") || name.startsWith("androidx.")
+                || name.startsWith("kotlin.") || name.startsWith("dalvik.")) return null;
+        try {
+            return classLoader.loadClass(name);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static List<Method> findOptionsBuilderMethods(Class<?> cls) {
+        List<Method> out = new ArrayList<>();
+        Class<?> c = cls;
+        while (c != null && c != Object.class) {
+            for (Method m : c.getDeclaredMethods()) {
+                if (isOptionsBuilderCandidate(m)) out.add(m);
+            }
+            c = c.getSuperclass();
+        }
+        return out;
+    }
+
+    private static boolean isOptionsBuilderCandidate(Method m) {
+        if (!List.class.isAssignableFrom(m.getReturnType())) return false;
+        for (Class<?> p : m.getParameterTypes()) {
+            if (isMediaLike(p)) return true;
+        }
+        return false;
+    }
+
+    static boolean isMediaLike(Class<?> type) {
+        if (type == null) return false;
+        if (mediaClass != null && (type == mediaClass || mediaClass.isAssignableFrom(type))) return true;
+        if (liveTreeMediaDictClass != null && liveTreeMediaDictClass.isAssignableFrom(type)) return true;
+        String n = type.getName();
+        return n.equals("com.instagram.feed.media.Media")
+                || n.contains("LiveTreeMediaDict")
+                || n.contains("MutableMediaDict");
+    }
+
+    static boolean isMediaInstance(Object obj) {
+        if (obj == null) return false;
+        if (mediaClass != null && mediaClass.isInstance(obj)) return true;
+        if (liveTreeMediaDictClass != null && liveTreeMediaDictClass.isInstance(obj)) return true;
+        String n = obj.getClass().getName();
+        return n.equals("com.instagram.feed.media.Media") || n.contains("LiveTreeMediaDict");
+    }
+
+    private static String describeMethods(List<Method> methods) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < methods.size(); i++) {
+            if (i > 0) sb.append(", ");
+            Method m = methods.get(i);
+            sb.append(m.getDeclaringClass().getName()).append('.').append(m.getName());
+        }
+        return sb.toString();
     }
 
     // ── Reduced options-list patch ──────────────────────────────────────────────
@@ -124,16 +270,18 @@ public class ReelDownloadHook {
     // app-wide click-handler hook already covers whatever dispatches its click.
     private static void installReduceOptionsListPatch(DexKitBridge bridge, ClassLoader classLoader) {
         try {
-            Object downloadOption = null;
             Class<?> optionClass = classLoader.loadClass("com.instagram.feed.media.mediaoption.MediaOption$Option");
             for (Object v : (Object[]) optionClass.getMethod("values").invoke(null)) {
-                if (v.toString().equals("DOWNLOAD")) { downloadOption = v; break; }
+                if (v.toString().equals("DOWNLOAD")) {
+                    downloadOptionValue = v;
+                    break;
+                }
             }
-            if (downloadOption == null) {
+            if (downloadOptionValue == null) {
                 ModuleLog.line("(IE|Reel) ❌ DOWNLOAD enum value not found");
                 return;
             }
-            final Object download = downloadOption;
+            final Object download = downloadOptionValue;
 
             XC_MethodHook hook = new XC_MethodHook() {
                 @Override
@@ -153,36 +301,84 @@ public class ReelDownloadHook {
             };
 
             if (DexKitCache.isCacheValid()) {
-                Method cached = DexKitCache.loadMethod("ReelOptionsListBuilder", classLoader);
-                if (cached != null) {
-                    XposedBridge.hookMethod(cached, hook);
+                List<Method> cached = DexKitCache.loadMethods("ReelOptionsListBuilder_v2", classLoader);
+                if (cached != null && !cached.isEmpty()) {
+                    for (Method m : cached) XposedBridge.hookMethod(m, hook);
+                    FeatureStatusTracker.setHooked("ReelDownload");
+                    ModuleLog.line("(IE|Reel) ✅ Options-list patch hooked (cached): " + describeMethods(cached));
                     return;
                 }
             }
 
-            String optionDesc = "Lcom/instagram/feed/media/mediaoption/MediaOption$Option;";
-            var methods = bridge.findMethod(FindMethod.create()
-                    .matcher(MethodMatcher.create()
-                            .returnType("java.util.ArrayList")
-                            .addUsingField(optionDesc + "->PLAYBACK_CONTROLS:" + optionDesc)
-                            .addUsingField(optionDesc + "->UNSAVE:" + optionDesc)));
-
-            if (methods.isEmpty()) {
+            List<Method> targets = findReelOptionsListBuilders(bridge, classLoader);
+            if (targets.isEmpty()) {
                 ModuleLog.line("(IE|Reel) ⚠️ Reduced options-list builder not found");
                 return;
             }
 
-            Method target = methods.get(0).getMethodInstance(classLoader);
-            target.setAccessible(true);
-            XposedBridge.hookMethod(target, hook);
-            DexKitCache.saveMethod("ReelOptionsListBuilder", target);
+            for (Method target : targets) {
+                target.setAccessible(true);
+                XposedBridge.hookMethod(target, hook);
+            }
+            DexKitCache.saveMethods("ReelOptionsListBuilder_v2", targets);
             FeatureStatusTracker.setHooked("ReelDownload");
-            ModuleLog.line("(IE|Reel) ✅ Options-list patch hooked: " +
-                    target.getDeclaringClass().getName() + "." + target.getName());
+            ModuleLog.line("(IE|Reel) ✅ Options-list patch hooked: " + describeMethods(targets));
 
         } catch (Throwable t) {
             ModuleLog.line("(IE|Reel) ❌ installReduceOptionsListPatch: " + t);
         }
+    }
+
+    public static List<Method> findReelOptionsListBuilders(DexKitBridge bridge, ClassLoader classLoader) {
+        String optionDesc = "Lcom/instagram/feed/media/mediaoption/MediaOption$Option;";
+        String[][] combos = {
+                {"PLAYBACK_CONTROLS", "UNSAVE"},
+                {"PLAYBACK_CONTROLS", "SAVE"},
+                {"PLAYBACK_CONTROLS", "WHY_AM_I_SEEING_THIS"},
+                {"PLAYBACK_CONTROLS", "NOT_INTERESTED"},
+                {"PLAYBACK_CONTROLS", "INTERESTED"},
+                {"PLAYBACK_CONTROLS", "REPORT"},
+                {"PLAYBACK_CONTROLS", "PICTURE_IN_PICTURE"},
+                {"PLAYBACK_CONTROLS", "VIDEO_CAPTIONS"},
+                {"PLAYBACK_SPEED", "UNSAVE"},
+        };
+        String[] returnTypes = {"java.util.ArrayList", "java.util.List"};
+        LinkedHashSet<Method> found = new LinkedHashSet<>();
+
+        for (String[] combo : combos) {
+            for (String rt : returnTypes) {
+                try {
+                    MethodMatcher matcher = MethodMatcher.create().returnType(rt);
+                    for (String field : combo) {
+                        matcher.addUsingField(optionDesc + "->" + field + ":" + optionDesc);
+                    }
+                    List<MethodData> methods = bridge.findMethod(FindMethod.create().matcher(matcher));
+                    for (MethodData md : methods) {
+                        try {
+                            Method m = md.getMethodInstance(classLoader);
+                            if (List.class.isAssignableFrom(m.getReturnType())) found.add(m);
+                        } catch (Throwable ignored) {}
+                    }
+                } catch (Throwable ignored) {}
+            }
+            if (!found.isEmpty()) return new ArrayList<>(found);
+        }
+
+        for (String rt : returnTypes) {
+            try {
+                List<MethodData> methods = bridge.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create()
+                                .returnType(rt)
+                                .addUsingField(optionDesc + "->PLAYBACK_CONTROLS:" + optionDesc)));
+                for (MethodData md : methods) {
+                    try {
+                        Method m = md.getMethodInstance(classLoader);
+                        if (List.class.isAssignableFrom(m.getReturnType())) found.add(m);
+                    } catch (Throwable ignored) {}
+                }
+            } catch (Throwable ignored) {}
+        }
+        return new ArrayList<>(found);
     }
 
     // ── Native download-row unlock ──────────────────────────────────────────────
@@ -196,17 +392,76 @@ public class ReelDownloadHook {
     // far simpler and more robust than reconstructing that row/click machinery
     // ourselves. Found via each gate's distinct hardcoded MobileConfig param ID.
     private static void installNativeDownloadGateUnlock(DexKitBridge bridge, ClassLoader classLoader) {
-        // "Can this media be downloaded" — force true.
         installGateHook(bridge, classLoader, "ReelDownloadGate_eligible",
-                36313978552585585L, // 0x81035f00020d71
+                36313978552585585L,
                 "com.instagram.common.session.UserSession", "com.instagram.feed.media.Media",
                 true);
 
-        // "Is the viewer restricted from downloading" — force false.
         installGateHook(bridge, classLoader, "ReelDownloadGate_restricted",
-                36313978552847731L, // 0x81035f00060d73
+                36313978552847731L,
                 "com.instagram.common.session.UserSession", "boolean",
                 false);
+    }
+
+    private static void installStringDownloadGates(DexKitBridge bridge, ClassLoader classLoader) {
+        XC_MethodHook forceTrue = new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) {
+                if (FeatureFlags.enableReelDownload) param.setResult(true);
+            }
+        };
+
+        if (DexKitCache.isCacheValid()) {
+            List<Method> cached = DexKitCache.loadMethods("ReelDownloadGate_strings", classLoader);
+            if (cached != null && !cached.isEmpty()) {
+                for (Method m : cached) XposedBridge.hookMethod(m, forceTrue);
+                ModuleLog.line("(IE|Reel) ✅ string gates hooked (cached): " + describeMethods(cached));
+                return;
+            }
+        }
+
+        String[] markers = {
+                "third_party_downloads_enabled",
+                "ClipsDownloadUtil",
+                "android_purge_26_q3_ClipsDownloadUtil_shouldShowProducerDownloadControls"
+        };
+        LinkedHashSet<Method> hooked = new LinkedHashSet<>();
+        for (String marker : markers) {
+            try {
+                List<MethodData> methods = bridge.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create()
+                                .usingStrings(marker)
+                                .returnType("boolean")));
+                for (MethodData md : methods) {
+                    try {
+                        Method m = md.getMethodInstance(classLoader);
+                        if (!isLikelyDownloadGate(m)) continue;
+                        m.setAccessible(true);
+                        XposedBridge.hookMethod(m, forceTrue);
+                        hooked.add(m);
+                    } catch (Throwable ignored) {}
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        if (hooked.isEmpty()) {
+            ModuleLog.line("(IE|Reel) ⚠️ string download gates not found");
+            return;
+        }
+        List<Method> list = new ArrayList<>(hooked);
+        DexKitCache.saveMethods("ReelDownloadGate_strings", list);
+        FeatureStatusTracker.setHooked("ReelDownload");
+        ModuleLog.line("(IE|Reel) ✅ string gates hooked: " + describeMethods(list));
+    }
+
+    private static boolean isLikelyDownloadGate(Method m) {
+        boolean hasSession = false;
+        boolean hasMedia = false;
+        for (Class<?> p : m.getParameterTypes()) {
+            if (p.getName().equals("com.instagram.common.session.UserSession")) hasSession = true;
+            if (isMediaLike(p)) hasMedia = true;
+        }
+        return hasSession || hasMedia;
     }
 
     private static void installGateHook(DexKitBridge bridge, ClassLoader classLoader,
@@ -216,7 +471,6 @@ public class ReelDownloadHook {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
-                ModuleLog.line("(IE|Reel|DEBUG) gate fired: " + cacheKey + " enabled=" + FeatureFlags.enableReelDownload);
                 if (FeatureFlags.enableReelDownload) param.setResult(forcedResult);
             }
         };
@@ -225,16 +479,26 @@ public class ReelDownloadHook {
             Method cached = DexKitCache.loadMethod(cacheKey, classLoader);
             if (cached != null) {
                 XposedBridge.hookMethod(cached, hook);
+                ModuleLog.line("(IE|Reel) ✅ Gate unlocked (cached): " +
+                        cached.getDeclaringClass().getName() + "." + cached.getName() + " -> " + forcedResult);
                 return;
             }
         }
 
         try {
-            var methods = bridge.findMethod(FindMethod.create()
+            List<MethodData> methods = bridge.findMethod(FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .paramTypes(param1Type, param2Type)
                             .returnType("boolean")
                             .usingNumbers(configId)));
+
+            if (methods.isEmpty()) {
+                methods = bridge.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create()
+                                .paramTypes(param1Type, param2Type)
+                                .returnType("boolean")
+                                .usingNumbers(List.of(configId))));
+            }
 
             if (methods.isEmpty()) {
                 ModuleLog.line("(IE|Reel) ⚠️ Gate method not found for config " + configId);
@@ -429,21 +693,47 @@ public class ReelDownloadHook {
 
     private static void onOptionsBuilt(XC_MethodHook.MethodHookParam param) {
         try {
-            Object controller  = param.thisObject;
-            Object media       = param.args[0];
-            Object buttonAdder = param.args[1];
+            Object controller = param.thisObject;
+            Object media = null;
+            Object buttonAdder = null;
+            if (param.args != null) {
+                for (Object arg : param.args) {
+                    if (arg == null) continue;
+                    if (media == null && isMediaInstance(arg)) media = arg;
+                    else if (buttonAdder == null && looksLikeButtonAdder(arg)) buttonAdder = arg;
+                }
+            }
+            if (media == null) media = findMediaField(controller);
+            if (buttonAdder == null) buttonAdder = findButtonAdderField(controller);
 
-            if (activityField == null) {
-                for (Field f : controller.getClass().getDeclaredFields()) {
-                    if (Activity.class.isAssignableFrom(f.getType())) {
-                        f.setAccessible(true);
-                        activityField = f;
-                        break;
+            if (media == null || buttonAdder == null) {
+                if (!loggedOptionsBuiltFailure) {
+                    loggedOptionsBuiltFailure = true;
+                    ModuleLog.line("(IE|Reel) ⚠️ options-built skipped media=" +
+                            (media != null) + " adder=" + (buttonAdder != null)
+                            + (controller != null ? " cls=" + controller.getClass().getName() : ""));
+                }
+                return;
+            }
+
+            if (activityField == null && controller != null) {
+                Class<?> c = controller.getClass();
+                while (c != null && c != Object.class && activityField == null) {
+                    for (Field f : c.getDeclaredFields()) {
+                        if (Activity.class.isAssignableFrom(f.getType())) {
+                            f.setAccessible(true);
+                            activityField = f;
+                            break;
+                        }
                     }
+                    c = c.getSuperclass();
                 }
             }
             if (activityField == null) {
-                ModuleLog.line("(IE|Reel) ❌ no Activity field on controller");
+                if (!loggedOptionsBuiltFailure) {
+                    loggedOptionsBuiltFailure = true;
+                    ModuleLog.line("(IE|Reel) ❌ no Activity field on controller");
+                }
                 return;
             }
 
@@ -451,26 +741,19 @@ public class ReelDownloadHook {
             if (activity == null) return;
 
             if (buttonAdderMethod == null) {
-                for (Method m : buttonAdder.getClass().getDeclaredMethods()) {
-                    Class<?>[] p = m.getParameterTypes();
-                    if (p.length != 4) continue;
-                    if (!Context.class.isAssignableFrom(p[0])) continue;
-                    if (!View.OnClickListener.class.isAssignableFrom(p[1])) continue;
-                    if (p[2] != String.class) continue;
-                    if (p[3] != int.class) continue;
-                    m.setAccessible(true);
-                    buttonAdderMethod = m;
-                    break;
-                }
+                buttonAdderMethod = findButtonAdderMethod(buttonAdder.getClass());
             }
             if (buttonAdderMethod == null) {
-                ModuleLog.line("(IE|Reel) ❌ buttonAdderMethod not found");
+                if (!loggedOptionsBuiltFailure) {
+                    loggedOptionsBuiltFailure = true;
+                    ModuleLog.line("(IE|Reel) ❌ buttonAdderMethod not found");
+                }
                 return;
             }
 
             int icon = resolveDownloadIcon(activity);
-            final Activity actCopy      = activity;
-            final Object mediaCopy      = media;
+            final Activity actCopy = activity;
+            final Object mediaCopy = media;
             final Object controllerCopy = controller;
 
             buttonAdderMethod.invoke(buttonAdder, activity,
@@ -480,6 +763,65 @@ public class ReelDownloadHook {
         } catch (Throwable t) {
             ModuleLog.line("(IE|Reel) ❌ onOptionsBuilt: " + t);
         }
+    }
+
+    private static boolean looksLikeButtonAdder(Object obj) {
+        return findButtonAdderMethod(obj.getClass()) != null;
+    }
+
+    private static Method findButtonAdderMethod(Class<?> cls) {
+        Class<?> c = cls;
+        while (c != null && c != Object.class) {
+            for (Method m : c.getDeclaredMethods()) {
+                Class<?>[] p = m.getParameterTypes();
+                if (p.length != 4) continue;
+                if (!Context.class.isAssignableFrom(p[0])) continue;
+                if (!View.OnClickListener.class.isAssignableFrom(p[1])) continue;
+                if (p[2] != String.class) continue;
+                if (p[3] != int.class) continue;
+                m.setAccessible(true);
+                return m;
+            }
+            c = c.getSuperclass();
+        }
+        return null;
+    }
+
+    private static Object findMediaField(Object host) {
+        if (host == null) return null;
+        Class<?> c = host.getClass();
+        while (c != null && c != Object.class) {
+            for (Field f : c.getDeclaredFields()) {
+                if (!isMediaLike(f.getType())) continue;
+                f.setAccessible(true);
+                try {
+                    Object v = f.get(host);
+                    if (isMediaInstance(v)) return v;
+                } catch (Throwable ignored) {}
+            }
+            c = c.getSuperclass();
+        }
+        return null;
+    }
+
+    private static Object findButtonAdderField(Object host) {
+        if (host == null) return null;
+        Class<?> c = host.getClass();
+        while (c != null && c != Object.class) {
+            for (Field f : c.getDeclaredFields()) {
+                if (f.getType().isPrimitive()) continue;
+                String pkg = f.getType().getName();
+                if (pkg.startsWith("android.") || pkg.startsWith("java.")
+                        || pkg.startsWith("androidx.") || pkg.startsWith("kotlin.")) continue;
+                f.setAccessible(true);
+                try {
+                    Object v = f.get(host);
+                    if (v != null && looksLikeButtonAdder(v)) return v;
+                } catch (Throwable ignored) {}
+            }
+            c = c.getSuperclass();
+        }
+        return null;
     }
 
     private static void startReelDownload(Context ctx, Object media, Object controller) {
@@ -492,44 +834,42 @@ public class ReelDownloadHook {
             if (id instanceof String s && !s.isEmpty()) mediaId = s;
         } catch (Throwable ignored) {}
 
-        String videoUrl = FeedVideoDownloadHook.bestVideoUrlFromMedia(media);
+        List<String> allUrls = FeedVideoDownloadHook.extractAllUrlsFromMedia(ctx, media);
 
-        if (videoUrl != null) {
-            final String fn        = FeedVideoDownloadHook.buildFilename(username, "reel", mediaId, true);
-            final String finalUrl  = videoUrl;
-            final String finalUser = username;
-            Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_downloading_reel), Toast.LENGTH_SHORT).show();
-            FeedVideoDownloadHook.executor.submit(() -> {
-                try {
-                    boolean delegated = FeedVideoDownloadHook.downloadAndSave(ctx, finalUrl, fn, true, finalUser);
-                    if (!delegated) {
-                        FeedVideoDownloadHook.mainHandler.post(() ->
-                                Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_reel_saved), Toast.LENGTH_SHORT).show());
-                    }
-                } catch (Throwable e) {
-                    FeedVideoDownloadHook.mainHandler.post(() ->
-                            Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_reel_failed, e.getMessage()), Toast.LENGTH_SHORT).show());
-                }
-            });
+        if (allUrls.size() > 1) {
+            int viewIndex    = findCarouselIndexFromView(ctx, allUrls.size());
+            int currentIndex = viewIndex >= 0 ? viewIndex : findReelCarouselIndex(controller);
+            final String finalUsername = username;
+            final String finalMediaId  = mediaId;
+            final int    finalIndex    = currentIndex;
+            FeedVideoDownloadHook.mainHandler.post(() ->
+                    FeedVideoDownloadHook.showPostDownloadDialog(ctx, allUrls, finalUsername, finalMediaId, finalIndex));
             return;
         }
 
-        // No direct video — may be a photo carousel reel
-        List<String> allUrls = FeedVideoDownloadHook.extractAllUrlsFromMedia(ctx, media);
         if (allUrls.isEmpty()) {
             Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_reel_url_not_found), Toast.LENGTH_SHORT).show();
             return;
         }
 
-        // Primary: live view state (always correct). Fallback: data-layer field (stale at slide 0).
-        int viewIndex    = findCarouselIndexFromView(ctx, allUrls.size());
-        int currentIndex = viewIndex >= 0 ? viewIndex : findReelCarouselIndex(controller);
-
-        final String finalUsername = username;
-        final String finalMediaId  = mediaId;
-        final int    finalIndex    = currentIndex;
-        FeedVideoDownloadHook.mainHandler.post(() ->
-                FeedVideoDownloadHook.showPostDownloadDialog(ctx, allUrls, finalUsername, finalMediaId, finalIndex));
+        String url = allUrls.get(0);
+        boolean isVid = FeedVideoDownloadHook.isVideoUrl(url);
+        final String fn        = FeedVideoDownloadHook.buildFilename(username, "reel", mediaId, isVid);
+        final String finalUrl  = url;
+        final String finalUser = username;
+        Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_downloading_reel), Toast.LENGTH_SHORT).show();
+        FeedVideoDownloadHook.executor.submit(() -> {
+            try {
+                boolean delegated = FeedVideoDownloadHook.downloadAndSave(ctx, finalUrl, fn, isVid, finalUser);
+                if (!delegated) {
+                    FeedVideoDownloadHook.mainHandler.post(() ->
+                            Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_reel_saved), Toast.LENGTH_SHORT).show());
+                }
+            } catch (Throwable e) {
+                FeedVideoDownloadHook.mainHandler.post(() ->
+                        Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_reel_failed, e.getMessage()), Toast.LENGTH_SHORT).show());
+            }
+        });
     }
 
     /** Reads the icon drawable ID from MediaOption$Option.DOWNLOAD enum value. */

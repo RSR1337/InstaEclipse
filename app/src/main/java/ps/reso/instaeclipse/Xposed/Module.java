@@ -26,6 +26,7 @@ import ps.reso.instaeclipse.mods.ads.AdBlocker;
 import ps.reso.instaeclipse.mods.feed.FeedPhotoZoomHook;
 import ps.reso.instaeclipse.mods.location.LocationSpoofHook;
 import ps.reso.instaeclipse.utils.log.Logging;
+import ps.reso.instaeclipse.utils.history.DownloadHistory;
 import ps.reso.instaeclipse.mods.media.ForceReelQualityHook;
 import ps.reso.instaeclipse.mods.feed.HideSuggestedFeedItemsHook;
 import ps.reso.instaeclipse.mods.ads.TrackingLinkDisable;
@@ -166,6 +167,7 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     // In-app log viewer: every ModuleLog.line(...) call across the hook codebase
                     // appends to this buffer, which the companion app can read via IPC.
                     Logging.init(context, "instaeclipse_module.log");
+                    DownloadHistory.init(context);
 
                     // Pull downloader path from companion app's cache so it's available even
                     // when Instagram was started without ever receiving the sync broadcast.
@@ -496,6 +498,24 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                 } else if (CommonUtils.ACTION_CLEAR_LOGS.equals(action)) {
                     Logging.clear();
 
+                } else if (CommonUtils.ACTION_REQUEST_DOWNLOAD_HISTORY.equals(action)) {
+                    try {
+                        Intent reply = new Intent(CommonUtils.ACTION_DOWNLOAD_HISTORY_REPLY);
+                        reply.setPackage(CommonUtils.MY_PACKAGE_NAME);
+                        reply.putExtra(CommonUtils.EXTRA_DOWNLOAD_HISTORY_JSON, DownloadHistory.snapshotJson());
+                        reply.putExtra(CommonUtils.EXTRA_DOWNLOAD_HISTORY_SOURCE, ctx.getPackageName());
+                        ctx.sendBroadcast(reply);
+                    } catch (Throwable t) {
+                        Intent reply = new Intent(CommonUtils.ACTION_DOWNLOAD_HISTORY_REPLY);
+                        reply.setPackage(CommonUtils.MY_PACKAGE_NAME);
+                        reply.putExtra(CommonUtils.EXTRA_DOWNLOAD_HISTORY_ERROR, String.valueOf(t.getMessage()));
+                        reply.putExtra(CommonUtils.EXTRA_DOWNLOAD_HISTORY_SOURCE, ctx.getPackageName());
+                        ctx.sendBroadcast(reply);
+                    }
+
+                } else if (CommonUtils.ACTION_CLEAR_DOWNLOAD_HISTORY.equals(action)) {
+                    DownloadHistory.clear();
+
                 } else if ("ps.reso.instaeclipse.ACTION_REQUEST_PREFS".equals(action)) {
                     ModuleLog.line("(InstaEclipse) Sync: Companion app requested current preferences.");
 
@@ -565,6 +585,8 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
         filter.addAction("ps.reso.instaeclipse.ACTION_UPDATE_PREF_INT");
         filter.addAction(CommonUtils.ACTION_REQUEST_LOGS);
         filter.addAction(CommonUtils.ACTION_CLEAR_LOGS);
+        filter.addAction(CommonUtils.ACTION_REQUEST_DOWNLOAD_HISTORY);
+        filter.addAction(CommonUtils.ACTION_CLEAR_DOWNLOAD_HISTORY);
         filter.addAction("ps.reso.instaeclipse.ACTION_REQUEST_PREFS");
         filter.addAction("ps.reso.instaeclipse.ACTION_EXPORT_CONFIG");
         filter.addAction("ps.reso.instaeclipse.ACTION_BACKUP_SETTINGS");

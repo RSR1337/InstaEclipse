@@ -78,6 +78,18 @@
     <string name="feat_downloader_set_folder">Set Download Folder Location</string>
     <string name="feat_downloader_selected">Selected: %1$s</string>
     <string name="feat_downloader_reset_folder">Reset Download Folder</string>
+    <string name="feat_downloader_view_history">View Download History</string>
+
+    <!-- Download History screen -->
+    <string name="download_history_title">Download History</string>
+    <string name="download_history_clear">Clear</string>
+    <string name="download_history_clear_confirm">Delete the download history log? This does not delete the downloaded files themselves.</string>
+    <string name="download_history_loading">Loading download history…</string>
+    <string name="download_history_no_target">Install a supported Instagram app first.</string>
+    <string name="download_history_timeout">No reply from Instagram. Open IG with the module enabled, then try again.</string>
+    <string name="download_history_empty">No downloads yet.</string>
+    <string name="download_history_error_format">Instagram reported an error: %1$s</string>
+    <string name="download_history_subtitle_format">%1$s · %2$s · %3$s</string>
 
     <!-- features -->
     <string name="developer_options">Developer Options</string>
@@ -404,6 +416,7 @@
     <string name="ig_toast_photo_saved">Photo saved to InstaEclipse folder</string>
     <string name="ig_toast_saved">Saved to InstaEclipse folder</string>
     <string name="ig_toast_download_failed">Download failed: %1$s</string>
+    <string name="ig_toast_already_downloaded">Already downloaded</string>
     <string name="ig_toast_downloading_reel">Downloading reel…</string>
     <string name="ig_toast_reel_saved">Reel saved to InstaEclipse folder</string>
     <string name="ig_toast_reel_failed">Reel download failed: %1$s</string>
@@ -417,6 +430,8 @@
     <string name="ig_toast_story_url_not_found">Story URL not found</string>
     <string name="ig_toast_downloading_profile_pic">Downloading profile picture…</string>
     <string name="ig_toast_profile_pic_saved">Profile picture saved!</string>
+    <string name="ig_toast_profile_pic_already_saved">Profile picture already saved</string>
+    <string name="ig_profile_download_button">Download</string>
     <string name="ig_toast_profile_pic_url_not_found">Could not get profile picture URL</string>
     <string name="ig_toast_merging_video_audio">Merging video + audio…</string>
     <string name="ig_toast_downloading_n_items">Downloading %1$d items…</string>

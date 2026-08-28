@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout android:fitsSystemWindows="true" android:layout_width="match_parent" android:layout_height="match_parent"
+  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+    <com.google.android.material.appbar.AppBarLayout android:fitsSystemWindows="true" android:layout_width="match_parent" android:layout_height="wrap_content">
+        <com.google.android.material.appbar.MaterialToolbar android:id="@+id/toolbar" android:layout_width="match_parent" android:layout_height="?actionBarSize" app:navigationIcon="@drawable/ic_chevron_right" app:title="@string/download_history_title" app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge" />
+    </com.google.android.material.appbar.AppBarLayout>
+    <LinearLayout android:orientation="vertical" android:background="?colorSurface" android:layout_width="match_parent" android:layout_height="match_parent" app:layout_behavior="@string/appbar_scrolling_view_behavior">
+        <TextView android:textSize="13.0sp" android:textColor="?colorOnSurfaceVariant" android:id="@+id/download_history_status" android:padding="16.0dp" android:text="@string/download_history_loading" android:layout_width="match_parent" android:layout_height="wrap_content" android:visibility="gone" />
+        <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="0.0dp" android:layout_margin="16.0dp" android:layout_weight="1.0" style="@style/SubmenuCard">
+            <androidx.recyclerview.widget.RecyclerView android:id="@+id/download_history_list" android:layout_width="match_parent" android:layout_height="match_parent" android:clipToPadding="false" android:padding="4.0dp" />
+        </com.google.android.material.card.MaterialCardView>
+        <com.google.android.material.button.MaterialButton android:id="@+id/download_history_clear" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="16.0dp" android:layout_marginTop="0.0dp" android:text="@string/download_history_clear" app:cornerRadius="14.0dp" app:icon="@drawable/ic_delete" app:iconGravity="textStart" style="@style/Widget.Material3.Button.OutlinedButton.Icon" />
+    </LinearLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

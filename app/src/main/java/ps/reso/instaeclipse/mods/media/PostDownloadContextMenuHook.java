@@ -53,7 +53,8 @@ public class PostDownloadContextMenuHook {
 
     // com.instagram.feed.media.mediaoption.MediaOption$Option — stable public enum
     private static Class<?> mediaOptionEnumClass;
-    private static Object   downloadOptionValue;     // MediaOption$Option.DOWNLOAD
+    private static Object   downloadOptionValue;
+    private static Class<?> mediaClass;
 
     // Obfuscated creator class found via "MediaOptionsOverflowMenuCreator" string
     private static Class<?> menuCreatorClass;
@@ -80,6 +81,9 @@ public class PostDownloadContextMenuHook {
     // ── Entry point ──────────────────────────────────────────────────────────
 
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
+        try {
+            mediaClass = classLoader.loadClass("com.instagram.feed.media.Media");
+        } catch (Throwable ignored) {}
         loadMediaOptionEnum(classLoader);
         findCreatorClassAndAddButtonMethod(bridge, classLoader);
         installAddButtonHook();
@@ -259,14 +263,13 @@ public class PostDownloadContextMenuHook {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
                 if (Boolean.TRUE.equals(sAddingDownload.get())) return;
-                if (!FeatureFlags.enablePostDownload) return;
-                // Suppress Instagram's own native DOWNLOAD button — we add ours instead
+                if (!FeatureFlags.enablePostDownload && !FeatureFlags.enableReelDownload) return;
                 if (param.args[idxOption] == downloadOptionValue) param.setResult(null);
             }
 
             @Override
             protected void afterHookedMethod(MethodHookParam param) {
-                if (!FeatureFlags.enablePostDownload) return;
+                if (!FeatureFlags.enablePostDownload && !FeatureFlags.enableReelDownload) return;
                 if (Boolean.TRUE.equals(sAddingDownload.get())) return;
                 if (param.args[idxOption] == downloadOptionValue) return;
 
@@ -308,7 +311,7 @@ public class PostDownloadContextMenuHook {
         XC_MethodHook clickHook = new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
-                if (!FeatureFlags.enablePostDownload) return;
+                if (!FeatureFlags.enablePostDownload && !FeatureFlags.enableReelDownload) return;
                 onOptionClicked(param);
             }
         };
@@ -427,16 +430,50 @@ public class PostDownloadContextMenuHook {
                             .addUsingField(prefix + "GEN_AI_INFO:" + typeDesc)));
 
             if (results.isEmpty()) {
+                results = bridge.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create()
+                                .paramTypes("boolean")
+                                .returnType("java.util.List")
+                                .addUsingField(prefix + "REPORT:" + typeDesc)
+                                .addUsingField(prefix + "HIDE_OPTIONS:" + typeDesc)
+                                .addUsingField(prefix + "WHY_AM_I_SEEING_THIS:" + typeDesc)));
+            }
+
+            List<MethodData> filterMethods = bridge.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create()
+                            .paramCount(2)
+                            .returnType("java.util.List")
+                            .addUsingField(prefix + "REPORT:" + typeDesc)
+                            .addUsingField(prefix + "HIDE_OPTIONS:" + typeDesc)));
+
+            if (results.isEmpty() && filterMethods.isEmpty()) {
                 ModuleLog.line("(IE|Post) ⚠️ Allowlist method not found (menu may not be filtered on this build)");
                 return;
             }
 
-            Method target = results.get(0).getMethodInstance(classLoader);
-            target.setAccessible(true);
-            XposedBridge.hookMethod(target, allowlistHook);
-            DexKitCache.saveMethod("PostDownload_allowlist", target);
-            ModuleLog.line("(IE|Post) ✅ Allowlist patch hooked: " +
-                    target.getDeclaringClass().getName() + "." + target.getName());
+            List<Method> hooked = new ArrayList<>();
+            for (MethodData md : results) {
+                try {
+                    Method target = md.getMethodInstance(classLoader);
+                    target.setAccessible(true);
+                    XposedBridge.hookMethod(target, allowlistHook);
+                    hooked.add(target);
+                    ModuleLog.line("(IE|Post) ✅ Allowlist patch hooked: " +
+                            target.getDeclaringClass().getName() + "." + target.getName());
+                } catch (Throwable ignored) {}
+            }
+            for (MethodData md : filterMethods) {
+                try {
+                    Method target = md.getMethodInstance(classLoader);
+                    if (hooked.contains(target)) continue;
+                    target.setAccessible(true);
+                    XposedBridge.hookMethod(target, allowlistHook);
+                    hooked.add(target);
+                    ModuleLog.line("(IE|Post) ✅ Allowlist filter hooked: " +
+                            target.getDeclaringClass().getName() + "." + target.getName());
+                } catch (Throwable ignored) {}
+            }
+            if (!hooked.isEmpty()) DexKitCache.saveMethod("PostDownload_allowlist", hooked.get(0));
 
         } catch (Throwable t) {
             ModuleLog.line("(IE|Post) ❌ installAllowlistPatchHook: " + t);
@@ -599,7 +636,8 @@ public class PostDownloadContextMenuHook {
             Class<?> cCls = creator.getClass();
             while (cCls != null && cCls != Object.class) {
                 for (Field f : cCls.getDeclaredFields()) {
-                    if (f.getType().getName().equals("com.instagram.feed.media.Media")) {
+                    if (f.getType().getName().equals("com.instagram.feed.media.Media")
+                            || (mediaClass != null && mediaClass.isAssignableFrom(f.getType()))) {
                         f.setAccessible(true);
                         return f.get(creator);
                     }
@@ -629,8 +667,9 @@ public class PostDownloadContextMenuHook {
                 try {
                     Object v = f.get(obj);
                     if (v == null) continue;
+                    if (mediaClass != null && mediaClass.isInstance(v)) return v;
                     String name = v.getClass().getName();
-                    if (name.equals("com.instagram.feed.media.Media")) return v;
+                    if (name.equals("com.instagram.feed.media.Media") || name.contains("LiveTreeMediaDict")) return v;
                     if (nextLevel != null && !name.startsWith("java.") && !name.startsWith("android."))
                         nextLevel.add(v);
                 } catch (Throwable ignored) {}
