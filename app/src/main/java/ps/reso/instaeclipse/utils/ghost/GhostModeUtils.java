@@ -14,6 +14,7 @@ import ps.reso.instaeclipse.utils.i18n.I18n;
 public class GhostModeUtils {
     public static boolean isGhostModeActive() {
         if (FeatureFlags.quickToggleSeen && FeatureFlags.isGhostSeen) return true;
+        if (FeatureFlags.quickToggleVoiceSeen && FeatureFlags.isGhostVoiceSeen) return true;
         if (FeatureFlags.quickToggleTyping && FeatureFlags.isGhostTyping) return true;
         if (FeatureFlags.quickToggleScreenshot && FeatureFlags.isGhostScreenshot) return true;
         if (FeatureFlags.quickToggleViewOnce && FeatureFlags.isGhostViewOnce) return true;
@@ -33,6 +34,10 @@ public class GhostModeUtils {
         if (FeatureFlags.quickToggleSeen) {
             anySelected = true;
             if (FeatureFlags.isGhostSeen) shouldDisable = true;
+        }
+        if (FeatureFlags.quickToggleVoiceSeen) {
+            anySelected = true;
+            if (FeatureFlags.isGhostVoiceSeen) shouldDisable = true;
         }
         if (FeatureFlags.quickToggleTyping) {
             anySelected = true;
@@ -83,6 +88,7 @@ public class GhostModeUtils {
         boolean newState = !shouldDisable; // true = enable, false = disable
 
         if (FeatureFlags.quickToggleSeen) FeatureFlags.isGhostSeen = newState;
+        if (FeatureFlags.quickToggleVoiceSeen) FeatureFlags.isGhostVoiceSeen = newState;
         if (FeatureFlags.quickToggleTyping) FeatureFlags.isGhostTyping = newState;
         if (FeatureFlags.quickToggleScreenshot) FeatureFlags.isGhostScreenshot = newState;
         if (FeatureFlags.quickToggleViewOnce) FeatureFlags.isGhostViewOnce = newState;

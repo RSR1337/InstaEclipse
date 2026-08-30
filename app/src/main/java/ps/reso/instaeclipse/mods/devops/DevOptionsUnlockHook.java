@@ -235,11 +235,18 @@ public class DevOptionsUnlockHook {
                 }
 
                 if (paramTypes.size() == 1 && paramTypes.get(0).contains("com.instagram.common.session.UserSession")) {
-                    String targetClass = invokedMethod.getClassName();
-                    ModuleLog.line("(InstaEclipse | DevOptionsEnable): 📦 Hooking via String detection: " + targetClass);
-                    DexKitCache.saveString("DevOptionsClass", targetClass);
-                    hookAllBooleanMethodsInClass(bridge, targetClass);
-                    return true;
+                    try {
+                        Method targetMethod = invokedMethod.getMethodInstance(Module.hostClassLoader);
+                        DexKitCache.saveMethod("DevOptionsMethod", targetMethod);
+                        hookExactMethod(targetMethod);
+                        return true;
+                    } catch (Throwable e) {
+                        String targetClass = invokedMethod.getClassName();
+                        ModuleLog.line("(InstaEclipse | DevOptionsEnable): 📦 Hooking via String detection fallback: " + targetClass);
+                        DexKitCache.saveString("DevOptionsClass", targetClass);
+                        hookAllBooleanMethodsInClass(bridge, targetClass);
+                        return true;
+                    }
                 }
             }
         } catch (Exception e) {

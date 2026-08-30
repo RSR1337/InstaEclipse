@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingStart="24.0dp"
+    android:paddingEnd="24.0dp"
+    android:paddingTop="20.0dp"
+    android:paddingBottom="24.0dp">
+
+    <TextView
+        android:id="@+id/picker_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16.0dp">
+
+        <View
+            android:id="@+id/picker_preview_swatch"
+            android:layout_width="36.0dp"
+            android:layout_height="36.0dp"
+            android:layout_marginEnd="12.0dp" />
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/picker_hex_input"
+            android:layout_width="0.0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.0"
+            android:inputType="textCapCharacters"
+            android:singleLine="true"
+            android:fontFamily="monospace" />
+    </LinearLayout>
+
+    <ps.reso.instaeclipse.ui.theme.ColorWheelView
+        android:id="@+id/picker_wheel"
+        android:layout_width="match_parent"
+        android:layout_height="240.0dp"
+        android:layout_marginTop="20.0dp" />
+
+    <TextView
+        android:id="@+id/picker_brightness_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16.0dp"
+        android:textAppearance="@style/TextAppearance.Material3.LabelMedium" />
+    <ps.reso.instaeclipse.ui.theme.GradientSlider
+        android:id="@+id/picker_brightness_slider"
+        android:layout_width="match_parent"
+        android:layout_height="36.0dp" />
+
+    <TextView
+        android:id="@+id/picker_opacity_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8.0dp"
+        android:textAppearance="@style/TextAppearance.Material3.LabelMedium" />
+    <ps.reso.instaeclipse.ui.theme.GradientSlider
+        android:id="@+id/picker_opacity_slider"
+        android:layout_width="match_parent"
+        android:layout_height="36.0dp" />
+
+    <TextView
+        android:id="@+id/picker_recent_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16.0dp"
+        android:text="@string/theme_recent_colors"
+        android:textAppearance="@style/TextAppearance.Material3.LabelMedium" />
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8.0dp"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/picker_recent_container"
+            android:orientation="horizontal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+    </HorizontalScrollView>
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:gravity="end"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20.0dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/picker_cancel_button"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@android:string/cancel" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/picker_apply_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8.0dp"
+            android:text="@string/theme_apply_color" />
+
+    </LinearLayout>
+
+</LinearLayout>

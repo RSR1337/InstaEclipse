@@ -2,12 +2,11 @@ package ps.reso.instaeclipse.utils.feature;
 
 public class FeatureFlags {
 
-    // Dev Options
     public static boolean isDevEnabled = false;
 
-    // Ghost Mode
     public static boolean isGhostModeEnabled = false;
     public static boolean isGhostSeen = false;
+    public static boolean isGhostVoiceSeen = false;
     public static boolean isGhostTyping = false;
     public static boolean isGhostScreenshot = false;
     public static boolean isGhostViewOnce = false;
@@ -18,8 +17,8 @@ public class FeatureFlags {
     public static boolean keepEphemeralMessages = false;
     public static boolean permanentViewMode = false;
 
-    // Which ghost mode features the quick toggle will control
     public static boolean quickToggleSeen = false;
+    public static boolean quickToggleVoiceSeen = false;
     public static boolean quickToggleTyping = false;
     public static boolean quickToggleScreenshot = false;
     public static boolean quickToggleViewOnce = false;
@@ -30,9 +29,7 @@ public class FeatureFlags {
     public static boolean quickTogglePermanentView = false;
     public static boolean quickToggleAllowScreenshots = false;
 
-
-    // Distraction Free
-    public static boolean isExtremeMode = false; // Extreme Mode
+    public static boolean isExtremeMode = false;
     public static boolean isDistractionFree = false;
     public static boolean disableStories = false;
     public static boolean disableFeed = false;
@@ -41,12 +38,10 @@ public class FeatureFlags {
     public static boolean disableExplore = false;
     public static boolean disableComments = false;
 
-    // Ads and Analytics
     public static boolean isAdBlockEnabled = false;
     public static boolean isAnalyticsBlocked = false;
     public static boolean disableTrackingLinks = false;
 
-    // Misc Options
     public static boolean isMiscEnabled = false;
     public static boolean disableStoryFlipping = false;
     public static boolean disableVideoAutoPlay = false;
@@ -55,7 +50,6 @@ public class FeatureFlags {
     public static boolean showFeatureToasts = false;
     public static boolean disableRepost = false;
 
-
     public static boolean enableStoryMentions = false;
     public static boolean disableDiscoverPeople = false;
     public static boolean removeBuildExpiredPopup = false;
@@ -63,13 +57,12 @@ public class FeatureFlags {
     public static boolean enableCaptionCopy = false;
     public static boolean disableDoubleTapLike = false;
     public static boolean enablePhotoZoom = false;
+    public static boolean bypassChannelRestrictions = false;
 
-    // Location Spoof
     public static boolean spoofLocation = false;
     public static double spoofLat = 0.0;
     public static double spoofLng = 0.0;
 
-    // Video Quality (0 = auto/off, else desired height in px, or Integer.MAX_VALUE for max available)
     public static int forceReelQuality = 0;
 
     public static boolean customThemeEnabled = false;
@@ -77,18 +70,17 @@ public class FeatureFlags {
     public static String themePaletteJson = "";
     public static String themeCustomPresetsJson = "";
 
-    // Clean Feed
     public static boolean hideSuggestionsInFeed = false;
     public static boolean hideThreadsSuggestions = false;
 
-    // Downloader
     public static boolean enablePostDownload = false;
     public static boolean enableStoryDownload = false;
     public static boolean enableReelDownload = false;
     public static boolean enableProfileDownload = false;
+    public static boolean enableVoiceDownload = false;
     public static boolean enableBatchDownload = false;
     public static boolean downloaderUsernameFolder = false;
     public static boolean downloaderAddTimestamp = false;
-    public static String  downloaderCustomPath = "";   // human-readable display path
-    public static String  downloaderCustomUri  = "";   // SAF tree URI string for actual writes
+    public static String  downloaderCustomPath = "";
+    public static String  downloaderCustomUri  = "";
 }

@@ -40,9 +40,6 @@ public class ReelDownloadHook {
     private static Field  activityField;
     private static boolean loggedOptionsBuiltFailure;
 
-    // Cached field path to the carousel position holder on the controller.
-    // The position holder is identified structurally: a non-framework object field
-    // whose class has exactly ONE int field (survives obfuscation renames).
     private static Field cachedOuterField = null;
     private static Field cachedInnerField = null;
 
@@ -255,19 +252,6 @@ public class ReelDownloadHook {
         return sb.toString();
     }
 
-    // ── Reduced options-list patch ──────────────────────────────────────────────
-    //
-    // IG's newer, simplified reel overflow menu builds its option list via one
-    // method that returns a plain ArrayList<MediaOption$Option> (SAVE/UNSAVE,
-    // PLAYBACK_CONTROLS, WHY_AM_I_SEEING_THIS, INTERESTED, NOT_INTERESTED,
-    // TAG_OPTIONS, REPORT, REQUEST_COMMUNITY_NOTE, DEBUG_STICKER_TRANSLATION) —
-    // DOWNLOAD was dropped entirely from this list, unlike the older/fuller
-    // overflow-menu code path. Found via field-usage matching on two of its
-    // distinctive enum references. Appending DOWNLOAD to the returned (mutable)
-    // ArrayList lets it flow through the same generic per-option row builder
-    // (LX/5RY;->A0Q -> LX/QIy;->A04) used for every other option here — same
-    // shared row primitive the post menu uses, so PostDownloadContextMenuHook's
-    // app-wide click-handler hook already covers whatever dispatches its click.
     private static void installReduceOptionsListPatch(DexKitBridge bridge, ClassLoader classLoader) {
         try {
             Class<?> optionClass = classLoader.loadClass("com.instagram.feed.media.mediaoption.MediaOption$Option");
@@ -381,16 +365,6 @@ public class ReelDownloadHook {
         return new ArrayList<>(found);
     }
 
-    // ── Native download-row unlock ──────────────────────────────────────────────
-    //
-    // IG 437+ moved the reel overflow menu to the same shared row-builder (QIy) used
-    // by the post menu, and it already has a fully-working, native DOWNLOAD row —
-    // gated behind two eligibility checks (a "can this media be downloaded" gate and
-    // a "is the viewer restricted" gate). When both pass, native code adds the row
-    // via the same QIy.A04 primitive posts use, with a working click handler already
-    // wired to Instagram's own save-to-camera-roll flow. Bypassing the two gates is
-    // far simpler and more robust than reconstructing that row/click machinery
-    // ourselves. Found via each gate's distinct hardcoded MobileConfig param ID.
     private static void installNativeDownloadGateUnlock(DexKitBridge bridge, ClassLoader classLoader) {
         installGateHook(bridge, classLoader, "ReelDownloadGate_eligible",
                 36313978552585585L,
@@ -501,6 +475,7 @@ public class ReelDownloadHook {
             }
 
             if (methods.isEmpty()) {
+                ModuleLog.line("(IE|Reel) ⚠️ Gate method not found for config " + configId);
                 return;
             }
 
@@ -517,13 +492,6 @@ public class ReelDownloadHook {
         }
     }
 
-    /**
-     * Fallback index resolver: structurally locates the carousel position holder on the
-     * controller. The holder is the unique non-framework field whose class has exactly
-     * ONE int field — this property survives obfuscation renames across IG versions.
-     * Values outside [0, 200) are excluded to filter out config constants.
-     * Result is cached after first resolution.
-     */
     private static int findReelCarouselIndex(Object controller) {
         if (controller == null) return 0;
 
@@ -592,18 +560,6 @@ public class ReelDownloadHook {
         return 0;
     }
 
-    /**
-     * Primary index resolver: walks the activity's live view hierarchy for a
-     * ViewPager / ViewPager2 / ReboundViewPager / horizontal RecyclerView whose adapter
-     * item count equals {@code carouselSize} and returns its current data index.
-     * Multiple unrelated carousels can coincidentally share the same item count (e.g.
-     * two feed posts both showing 4 photos) — trusting the first DFS hit in that case
-     * previously misattributed the index to the wrong post. So every match is collected
-     * and the result is only trusted when exactly one candidate matches; otherwise the
-     * caller falls back to the data-layer field.
-     *
-     * @return current position [0, carouselSize), or -1 if not found / ambiguous
-     */
     static int findCarouselIndexFromView(Context ctx, int carouselSize) {
         if (!(ctx instanceof Activity)) return -1;
         try {
@@ -616,28 +572,19 @@ public class ReelDownloadHook {
         }
     }
 
-    /** Returns adapter item count, trying RecyclerView-style then PagerAdapter-style. */
     private static int adapterCount(Object adapter) {
         try { return (int) adapter.getClass().getMethod("getItemCount").invoke(adapter); } catch (Throwable ignored) {}
         try { return (int) adapter.getClass().getMethod("getCount").invoke(adapter); } catch (Throwable ignored) {}
         return -1;
     }
 
-    /**
-     * Recursive DFS over the view tree, collecting the resolved index of every carousel
-     * whose adapter size matches — does not stop at the first hit. ViewPager / ViewPager2 /
-     * ReboundViewPager are AndroidX / Instagram common-UI classes — stable names, no obfuscation.
-     */
     private static void collectCarouselMatches(View view, int carouselSize, List<Integer> out) {
         String cn = view.getClass().getName();
 
-        // ViewPager / ViewPager2 / ReboundViewPager and any subclass
         if (cn.contains("ViewPager")) {
             try {
                 Object adapter = view.getClass().getMethod("getAdapter").invoke(view);
                 if (adapter != null && adapterCount(adapter) == carouselSize) {
-                    // Standard pagers: getCurrentItem()
-                    // ReboundViewPager (Instagram looping carousel): getCurrentDataIndex()
                     for (String getter : new String[]{
                             "getCurrentItem", "getCurrentDataIndex",
                             "getCurrentWrappedDataIndex", "getCurrentRawDataIndex"}) {
@@ -650,7 +597,6 @@ public class ReelDownloadHook {
             } catch (Throwable ignored) {}
         }
 
-        // Horizontal RecyclerView (carousel, not the vertical feed list)
         if (cn.contains("RecyclerView")) {
             try {
                 Object adapter = view.getClass().getMethod("getAdapter").invoke(view);
@@ -659,7 +605,7 @@ public class ReelDownloadHook {
                     if (lm != null) {
                         try {
                             int orientation = (int) lm.getClass().getMethod("getOrientation").invoke(lm);
-                            if (orientation != 0 /* HORIZONTAL */) lm = null;
+                            if (orientation != 0 ) lm = null;
                         } catch (Throwable ignored) {}
                         if (lm != null) {
                             Integer pos = null;
@@ -871,7 +817,6 @@ public class ReelDownloadHook {
         });
     }
 
-    /** Reads the icon drawable ID from MediaOption$Option.DOWNLOAD enum value. */
     private static int resolveDownloadIcon(Context ctx) {
         try {
             Class<?> optionClass = ctx.getClassLoader()

@@ -66,6 +66,10 @@ public class IGNetworkInterceptor {
                                     if (FeatureFlags.isGhostSeen) {
                                         shouldDrop |= uri.getPath().contains("/threads/") && uri.getPath().contains("/opened");
                                     }
+                                    if (FeatureFlags.isGhostVoiceSeen) {
+                                        shouldDrop |= uri.getPath().contains("audio_played") || uri.getPath().contains("voice_played");
+                                        FeatureStatusTracker.setHooked("GhostVoiceSeen");
+                                    }
                                     if (FeatureFlags.keepEphemeralMessages) {
                                         shouldDrop |= uri.getPath().contains("/mark_ephemeral_item_ranges_viewed");
                                     }

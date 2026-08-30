@@ -18,10 +18,12 @@ public class FeatureStatusTracker {
 
     private static final Map<String, State> features = Collections.synchronizedMap(new HashMap<>());
     private static final Map<String, Integer> labels = Collections.synchronizedMap(new HashMap<>());
+    private static final java.util.Set<String> everHooked = Collections.synchronizedSet(new java.util.HashSet<>());
 
     public static void setEnabled(String name, int labelResId) {
         State previous = features.get(name);
-        features.put(name, previous == State.HOOKED ? State.HOOKED : State.PENDING);
+        boolean wasHooked = previous == State.HOOKED || everHooked.contains(name);
+        features.put(name, wasHooked ? State.HOOKED : State.PENDING);
         labels.put(name, labelResId);
     }
 
@@ -35,6 +37,7 @@ public class FeatureStatusTracker {
     }
 
     public static void setHooked(String name) {
+        everHooked.add(name);
         if (features.containsKey(name) && features.get(name) != State.OFF) {
             features.put(name, State.HOOKED);
         }

@@ -26,6 +26,8 @@ import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.RequiresApi;
@@ -81,8 +83,6 @@ import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 public class FeedVideoDownloadHook {
 
-    // Matches "{stem}_{yyyyMMdd}_{HHmmss}{.ext}" — the timestamp suffix buildFilename()
-    // appends when FeatureFlags.downloaderAddTimestamp is on.
     private static final Pattern TIMESTAMPED_FILENAME_PATTERN =
             Pattern.compile("^(.*)_([0-9]{8}_[0-9]{6})(\\.[^.]+)$");
 
@@ -91,7 +91,6 @@ public class FeedVideoDownloadHook {
             "com.instagram.model.mediasize.VideoVersionIntf"
     };
 
-    // ── Floating download button overlay state ────────────────────────────────
     private static final String DECOR_OVERLAY_TAG = "ie_decor_overlay";
     private static final int TAG_CACHED_MEDIA = "ie_dl_media".hashCode();
     private static final int TAG_OVERLAY_ANCHOR = "ie_dl_overlay_anchor".hashCode();
@@ -123,28 +122,22 @@ public class FeedVideoDownloadHook {
         if (sBottomSheetContainerId == 0) sBottomSheetContainerId = res.getIdentifier("layout_container_bottom_sheet", "id", pkg);
     }
 
-    // ── Class/method refs resolved once at hook install time ─────────────────
     private static Class<?> mediaExtKtClass;
     private static Class<?> mediaClass;
     static Class<?> mutableMediaDictIntfClass;
-    private static Method   methodImageUrl;         // MediaExtKt: static (Context, Media) -> String
+    private static Method   methodImageUrl;
 
-    // VideoVersionIntf – stable public interface with getUrl()
     static Class<?> videoVersionIntfClass;
-    static Method   videoVersionGetUrl;             // VideoVersionIntf.getUrl() -> String
+    static Method   videoVersionGetUrl;
 
     static Class<?> imageUrlClass;
     static Class<?> imageInfoClass;
 
-    // All () -> List candidates from MutableMediaDictIntf + its superinterfaces
     static final List<Method> carouselCandidates = new ArrayList<>();
 
-    // User class + the method on MutableMediaDictIntf that returns it — resolved via DexKit
     private static Class<?> userClass;
-    private static Method   dictUserGetter;    // () -> UserClass on MutableMediaDictIntf
-    // userUsernameGetter lives in UserUtils — resolved here and stored there
+    private static Method   dictUserGetter;
 
-    // ── Uri.parse fallback buffer ─────────────────────────────────────────────
     private static final class UrlEntry {
         final String url; final long time;
         UrlEntry(String u) { url = u; time = System.currentTimeMillis(); }
@@ -152,22 +145,17 @@ public class FeedVideoDownloadHook {
     private static final int MAX_URLS = 200;
     private static final int CAROUSEL_MAX_ITEMS = 20;
     private static final Deque<UrlEntry> urlBuffer      = new ArrayDeque<>();
-    private static final Deque<UrlEntry> videoUrlBuffer = new ArrayDeque<>(); // DexKit-captured video URLs
+    private static final Deque<UrlEntry> videoUrlBuffer = new ArrayDeque<>();
     static final ExecutorService executor    = Executors.newCachedThreadPool();
     static final Handler         mainHandler = new Handler(Looper.getMainLooper());
 
-    // Username + media ID resolved at download trigger time
     private volatile String currentDownloadUsername = null;
     private volatile String currentDownloadMediaId  = null;
 
-    // ── Entry point ──────────────────────────────────────────────────────────
-
     public void install(ClassLoader classLoader) {
-        // Load Media and MediaExtKt
         try {
             mediaClass      = classLoader.loadClass("com.instagram.feed.media.Media");
             mediaExtKtClass = classLoader.loadClass("com.instagram.feed.media.MediaExtKt");
-            // Find static (Context, Media) -> String method (name changes every version)
             for (Method m : mediaExtKtClass.getDeclaredMethods()) {
                 Class<?>[] p = m.getParameterTypes();
                 if (p.length == 2
@@ -181,9 +169,6 @@ public class FeedVideoDownloadHook {
             }
         } catch (Throwable ignored) {}
 
-        // Load VideoVersionIntf (stable public interface with getUrl()).
-        // IG 444+ moved this from com.instagram.model.mediasize to com.instagram.api.schemas —
-        // try both so this keeps working across the package move either way.
         for (String cn : VIDEO_VERSION_INTF_CLASSES) {
             try {
                 videoVersionIntfClass = classLoader.loadClass(cn);
@@ -202,9 +187,6 @@ public class FeedVideoDownloadHook {
             userClass = classLoader.loadClass("com.instagram.user.model.User");
         } catch (Throwable ignored) {}
 
-        // Load MutableMediaDictIntf and collect () -> List methods from it
-        // AND its direct superinterfaces only (Instagram 423+ moved Cz7() to LX/IdM).
-        // Do NOT recurse deeper — LX/IdM's own ancestors flood us with unrelated methods.
         Set<String> seen = new HashSet<>();
         try {
             mutableMediaDictIntfClass = classLoader.loadClass("com.instagram.feed.media.MutableMediaDictIntf");
@@ -224,8 +206,6 @@ public class FeedVideoDownloadHook {
         installUriCaptureHook();
         installViewHook();
     }
-
-    // ── Hook 1: Uri.parse (fallback buffer) ──────────────────────────────────
 
     private void installUriCaptureHook() {
         try {
@@ -308,13 +288,6 @@ public class FeedVideoDownloadHook {
 
     private enum OverlayPlacement { LEFT_OF, ABOVE, RIGHT_OF }
 
-    /**
-     * Binds a floating overlay button to its anchor view for as long as the anchor stays
-     * attached, continuously resyncing position (scroll/relayout) and disposing itself
-     * (removing the button + all listeners) the moment the anchor detaches — e.g. when the
-     * RecyclerView recycles the row. Without this, a button added directly into a recycled
-     * row can go stale or duplicate across scroll.
-     */
     private static final class OverlayBinding {
         private final View anchor;
         private final ImageButton btn;
@@ -882,26 +855,12 @@ public class FeedVideoDownloadHook {
         }
     }
 
-    // ── URL resolution — three-tier ───────────────────────────────────────────
-    //
-    // Tier 1: Reflect on the save button's click listener to find the exact Media
-    //   object captured in its closure. Extract video URL via VideoVersionIntf.getUrl()
-    //   or image URL via MediaExtKt helper. This is per-post with no timing ambiguity.
-    //
-    // Tier 2: Last 30 s of the Uri.parse buffer (catches lazy-loaded carousels).
-
     @SuppressLint("DiscouragedApi")
     private List<String> resolveUrls(View likeBtn, View downloadBtn) {
-        // Tier-1a: like button's listener (works for standard feed posts)
         List<String> urls = urlsFromSaveBtnListener(likeBtn);
         ModuleLog.line("(IE|DL) Tier-1a urls=" + urls.size());
         if (!urls.isEmpty()) return urls;
 
-        // Tier-1b: bookmark/save button's listener.
-        // The save button always captures the Media object (it needs it for save-to-collection).
-        // IMPORTANT: row_feed_button_save is NOT a sibling of the like button — it sits in
-        // the action bar parent (one level above the left-buttons group). Walk up up to 4
-        // parent levels so we reach the action bar container and find it there.
         Context ctx = likeBtn.getContext();
         int saveResId = ctx.getResources().getIdentifier(
                 "row_feed_button_save", "id", ctx.getPackageName());
@@ -914,25 +873,13 @@ public class FeedVideoDownloadHook {
                     urls = urlsFromSaveBtnListener(realSaveBtn);
                     ModuleLog.line("(IE|DL) Tier-1b urls=" + urls.size());
                     if (!urls.isEmpty()) return urls;
-                    break; // found the button but listener had no URLs — no point going wider
+                    break;
                 }
             }
         }
 
         return new ArrayList<>();
     }
-
-    // ── Tier 1: Save-button listener search ───────────────────────────────────
-    //
-    // Strategy:
-    //   1. Get the OnClickListener set by Instagram on the save button.
-    //   2. Find the captured Media object in its closure (depth-limited field scan).
-    //   3. From the MutableMediaDictIntf on the Media object:
-    //      a. Check if any () -> List candidate returns VideoVersionIntf items
-    //         → single video post: extract URL via getUrl(), return it.
-    //      b. Check if any () -> List candidate returns >= 2 non-video items
-    //         → carousel: try to extract per-item URLs.
-    //      c. Fall back to MediaExtKt image URL helper for single photo posts.
 
     private static List<String> urlsFromSaveBtnListener(View saveBtn) {
         try {
@@ -962,13 +909,6 @@ public class FeedVideoDownloadHook {
         }
     }
 
-    /**
-     * Probes all no-parameter String-returning methods on {@code obj} (including superclass
-     * declared methods) and returns the first one that yields an Instagram CDN URL.
-     *
-     * This is needed for Pando/LiveTree JNI nodes (LX/VPC carousel items, LX/5q9) whose
-     * image URLs are only accessible via obfuscated JNI-backed methods, not via fields.
-     */
     private static String probeCdnUrlViaStringMethods(Object obj) {
         if (obj == null) return null;
         Class<?> cls = obj.getClass();
@@ -988,19 +928,10 @@ public class FeedVideoDownloadHook {
         return null;
     }
 
-    /**
-     * Depth-limited field-graph scan for any VideoVersionIntf instance inside {@code obj}.
-     * Returns the first CDN URL found via {@code VideoVersionIntf.getUrl()}, or null.
-     *
-     * This is the primary video-detection path. It is version-independent: it does not
-     * depend on knowing the obfuscated name of the method that returns the video-version
-     * list (DIS(), or whatever it is renamed to in newer Instagram builds).
-     */
     static String findVideoUrlInObject(Object obj, Set<Object> visited, int depth) {
         if (obj == null || depth > 5 || !visited.add(obj)) return null;
         if (videoVersionIntfClass == null || videoVersionGetUrl == null) return null;
 
-        // Direct hit: obj itself implements VideoVersionIntf
         if (videoVersionIntfClass.isInstance(obj)) {
             try {
                 String url = (String) videoVersionGetUrl.invoke(obj);
@@ -1020,7 +951,6 @@ public class FeedVideoDownloadHook {
                     if (val == null) continue;
 
                     if (val instanceof List<?> list) {
-                        // List field — check if any element is a VideoVersionIntf
                         for (Object elem : list) {
                             if (elem != null && videoVersionIntfClass.isInstance(elem)) {
                                 try {
@@ -1030,7 +960,6 @@ public class FeedVideoDownloadHook {
                             }
                         }
                     } else {
-                        // Recurse into Instagram/Facebook objects only
                         String vcn = val.getClass().getName();
                         if (vcn.startsWith("X.") || vcn.startsWith("com.instagram.")
                                 || vcn.startsWith("com.facebook.")) {
@@ -1045,10 +974,6 @@ public class FeedVideoDownloadHook {
         return null;
     }
 
-    /**
-     * Collects ALL CDN video URLs found by walking the VideoVersionIntf graph inside {@code obj}.
-     * Prefers m86 URLs (combined audio+video stream) — those are sorted to the front of the list.
-     */
     static void collectAllVideoUrls(Object obj, List<String> out, Set<Object> visited, int depth) {
         if (obj == null || depth > 5 || !visited.add(obj)) return;
         if (videoVersionIntfClass == null || videoVersionGetUrl == null) return;
@@ -1058,7 +983,7 @@ public class FeedVideoDownloadHook {
                 String url = (String) videoVersionGetUrl.invoke(obj);
                 if (url != null && isCdnMediaUrl(url) && !out.contains(url)) out.add(url);
             } catch (Throwable ignored) {}
-            return; // don't recurse into VideoVersionIntf objects
+            return;
         }
 
         Class<?> cls = obj.getClass();
@@ -1089,7 +1014,6 @@ public class FeedVideoDownloadHook {
         }
     }
 
-    /** Returns the best video URL from the media object: prefers m86 (combined stream), then largest area. */
     static String bestVideoUrlFromMedia(Object media) {
         Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
         List<String> all = new ArrayList<>();
@@ -1182,10 +1106,6 @@ public class FeedVideoDownloadHook {
         return maxArea;
     }
 
-    /**
-     * Tries to call getUrl() on an object if it's available (handles VideoVersionIntf
-     * and any other object that exposes a stable getUrl() method).
-     */
     private static String tryGetUrl(Object obj) {
         if (obj == null) return null;
         try {
@@ -1197,7 +1117,6 @@ public class FeedVideoDownloadHook {
         }
     }
 
-    /** Among multiple resolutions of the same image, prefer the full-size original. */
     private static String pickBestImageUrl(List<String> images) {
         if (images == null || images.isEmpty()) return null;
         String best = images.get(0);
@@ -1219,7 +1138,6 @@ public class FeedVideoDownloadHook {
         return best;
     }
 
-    /** Reads View.mListenerInfo.mOnClickListener via reflection. */
     private static Object getOnClickListener(View view) {
         try {
             Field liField = View.class.getDeclaredField("mListenerInfo");
@@ -1234,10 +1152,6 @@ public class FeedVideoDownloadHook {
         }
     }
 
-    /**
-     * Recursively scans an object's fields for Instagram CDN URL strings.
-     * Only descends into X.* / com.instagram.* / com.facebook.* objects.
-     */
     private static final int MAX_SCAN_DEPTH = 6;
     private static final int MAX_SCAN_URLS  = 20;
 
@@ -1251,7 +1165,6 @@ public class FeedVideoDownloadHook {
         if (cn.startsWith("android.") || cn.startsWith("java.lang.")  ||
             cn.startsWith("java.util.concurrent.") || cn.startsWith("kotlin.")) return;
 
-        // Also try getUrl() for Pando tree nodes that expose it via method (not field)
         String directUrl = tryGetUrl(obj);
         if (directUrl != null && isCdnMediaUrl(directUrl) && !out.contains(directUrl))
             out.add(directUrl);
@@ -1328,10 +1241,6 @@ public class FeedVideoDownloadHook {
         }
     }
 
-    /**
-     * Finds the first field on {@code obj} whose declared type is assignable to
-     * {@code targetType}. Used to locate interface-typed fields.
-     */
     static Object findFieldAssignableTo(Object obj, Class<?> targetType) {
         if (obj == null || targetType == null) return null;
         Class<?> cls = obj.getClass();
@@ -1347,8 +1256,6 @@ public class FeedVideoDownloadHook {
         }
         return null;
     }
-
-    // ── Buffer helpers ────────────────────────────────────────────────────────
 
     private static List<String> snapshotUrlsSince(long from) {
         List<String> r = new ArrayList<>();
@@ -1372,16 +1279,6 @@ public class FeedVideoDownloadHook {
         return r;
     }
 
-    /**
-     * DexKit-based hook on {@code VideoVersionIntf.getUrl()} — installed once at startup.
-     *
-     * Finds all concrete classes implementing VideoVersionIntf at runtime using DexKit,
-     * hooks their {@code getUrl()} method, and passively captures returned CDN URLs into
-     * {@code videoUrlBuffer}. This is version-proof: it doesn't depend on knowing the
-     * obfuscated method name that returns the video-versions list (DIS(), etc.).
-     *
-     * Used as a supplement to the Uri.parse buffer (Tier 3) when Tiers 1 and 2 fail.
-     */
     public static void installVideoUrlCaptureHook(DexKitBridge bridge, ClassLoader classLoader) {
         XC_MethodHook urlHook = new XC_MethodHook() {
             @Override
@@ -1398,7 +1295,6 @@ public class FeedVideoDownloadHook {
             }
         };
 
-        // Cache hit: hook all previously-found getUrl() implementations directly
         if (DexKitCache.isCacheValid()) {
             List<Method> cached = DexKitCache.loadMethods("VideoUrlCapture", classLoader);
             if (cached != null && !cached.isEmpty()) {
@@ -1455,14 +1351,7 @@ public class FeedVideoDownloadHook {
         resolveUsernameGetter(bridge, classLoader);
     }
 
-    /**
-     * Uses DexKit to find the user class (via "username_missing_during_update") and then
-     * locates the no-arg method on MutableMediaDictIntf (or its superinterfaces) that
-     * returns an instance of that class. This gives us a stable way to get the post author
-     * from the LiveTreeMediaDict without guessing obfuscated method names.
-     */
     private static void resolveUsernameGetter(DexKitBridge bridge, ClassLoader classLoader) {
-        // Cache hit: restore userClass and userUsernameGetter without DexKit
         if (DexKitCache.isCacheValid()) {
             String cachedClassName = DexKitCache.loadString("UserClass");
             Method cachedGetter    = DexKitCache.loadMethod("UsernameGetter", classLoader);
@@ -1479,7 +1368,6 @@ public class FeedVideoDownloadHook {
         }
 
         try {
-            // Step 1: find the user class via the stable validation string
             List<MethodData> userMethods = bridge.findMethod(FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .usingStrings("username_missing_during_update")));
@@ -1493,7 +1381,6 @@ public class FeedVideoDownloadHook {
             DexKitCache.saveString("UserClass", userClass.getName());
             ModuleLog.line("(IE|DL|Username) userClass=" + userClass.getName());
 
-            // Resolve the username getter on User via the stable GraphQL field ID -265713450.
             try {
                 List<MethodData> ugMethods = bridge.findMethod(FindMethod.create()
                         .matcher(MethodMatcher.create()
@@ -1531,8 +1418,6 @@ public class FeedVideoDownloadHook {
             }
         }
 
-        // Use a Breadth-First Search to find the getter in the interface hierarchy
-        // Instagram 423+ often hides this in a parent interface like X.IdM
         Deque<Class<?>> queue = new ArrayDeque<>();
         Set<Class<?>> visited = new HashSet<>();
         queue.add(mutableMediaDictIntfClass);
@@ -1542,8 +1427,6 @@ public class FeedVideoDownloadHook {
             if (curr == null || !visited.add(curr)) continue;
 
             for (Method m : curr.getDeclaredMethods()) {
-                // We are looking for the method that returns the User class
-                // we found via "username_missing_during_update"
                 if (m.getParameterCount() == 0 && m.getReturnType().equals(userClass)) {
                     m.setAccessible(true);
                     dictUserGetter = m;
@@ -1552,19 +1435,9 @@ public class FeedVideoDownloadHook {
                     return;
                 }
             }
-            // Add parent interfaces to the queue
             Collections.addAll(queue, curr.getInterfaces());
         }
 
-        // Instagram 437+ moved nearly all Pando field accessors off the interface and
-        // onto the concrete backing class (LiveTreeMediaDict, which implements
-        // MutableMediaDictIntf) — same as the carousel-candidate accessors. That class
-        // has SEVERAL zero-arg User-returning methods though (owner, group creator,
-        // reshared-story author, previous submitter, ...) — a plain reflection scan
-        // picks whichever comes first in declaration order, which isn't reliably the
-        // post's actual author. Use DexKit to find the specific one that checks the
-        // generic Pando "user" field (the one Instagram's own code uses for post
-        // authorship, e.g. QpF's own-post check) rather than "owner"/"group"/etc.
         try {
             List<MethodData> results = bridge.findMethod(FindMethod.create()
                     .matcher(MethodMatcher.create()
@@ -1609,21 +1482,12 @@ public class FeedVideoDownloadHook {
         ModuleLog.line("(IE|DL|Username) ❌ Failed to resolve dictUserGetter in hierarchy");
     }
 
-    // ── Download dispatch ─────────────────────────────────────────────────────
-
-    /**
-     * Resolves the post author's username by scanning the media object already captured
-     * in the save/like button's click listener closure.
-     * Strategy: like button listener → if no media, walk up to save button → then scan
-     * the media object graph (depth ≤ 2) for an object with getUsername().
-     */
     @SuppressLint("DiscouragedApi")
     private String getUsernameFromView(View likeBtn) {
         if (likeBtn == null || mediaClass == null) return null;
 
         Object media = getMediaFromListener(getOnClickListener(likeBtn));
 
-        // Fallback to save button if like button listener is empty
         if (media == null) {
             Context ctx = likeBtn.getContext();
             int saveResId = ctx.getResources().getIdentifier("row_feed_button_save", "id", ctx.getPackageName());
@@ -1641,7 +1505,6 @@ public class FeedVideoDownloadHook {
 
         if (media == null) return null;
 
-        // TIER 1: Use the resolved Dictionary Getter
         if (dictUserGetter != null && mutableMediaDictIntfClass != null) {
             try {
                 Object dictIntf = findFieldAssignableTo(media, mutableMediaDictIntfClass);
@@ -1655,16 +1518,12 @@ public class FeedVideoDownloadHook {
             } catch (Throwable ignored) {}
         }
 
-        // TIER 2: Direct Class Bridge (Best for newer LiveTree versions)
-        // If we can't find the dictionary, search the Media object for ANY field
-        // that matches the User class directly.
         Object userObj = findFieldOfType(media, userClass, 3);
         if (userObj != null) {
             String name = UserUtils.callUsernameGetter(userObj);
             if (name != null) return name;
         }
 
-        // TIER 3: Last resort recursive scan
         return scanObjectForUsername(media, 0, Collections.newSetFromMap(new IdentityHashMap<>()));
     }
 
@@ -1673,7 +1532,6 @@ public class FeedVideoDownloadHook {
         return findFieldOfType(listener, mediaClass, 4);
     }
 
-    /** Extracts the short media ID (first segment of the Instagram ID) from the view's media object. */
     @SuppressLint("DiscouragedApi")
     private String getMediaIdFromView(View likeBtn) {
         if (likeBtn == null || mediaClass == null) return null;
@@ -1700,8 +1558,6 @@ public class FeedVideoDownloadHook {
         return null;
     }
 
-    // ── Filename + directory helpers (package-accessible for StoryDownloadHook) ──
-
     static String buildFilename(String username, String type, String mediaId, boolean isVideo) {
         return buildFilename(username, type, mediaId, isVideo, -1);
     }
@@ -1718,18 +1574,10 @@ public class FeedVideoDownloadHook {
         return sb.append(ext).toString();
     }
 
-    /**
-     * Opens a writable OutputStream for the download destination, handling all storage strategies:
-     *   1. Raw file path (custom folder, avoids SAF authority issues when URI was granted to companion app)
-     *   2. SAF tree URI (works when folder was picked from inside Instagram's own dialog)
-     *   3. MediaStore Downloads (API 29+, default scoped-storage path)
-     *   4. Legacy direct file (API < 29)
-     */
     static OutputStream openOutputStream(Context ctx, String filename, boolean isVideo, String username)
             throws Exception {
         String mimeType = isVideo ? "video/mp4" : "image/jpeg";
 
-        // 1. Raw path — preferred when set; bypasses SAF authority entirely
         if (!FeatureFlags.downloaderCustomPath.isEmpty()) {
             try {
                 return openRawPathOutputStream(filename, username);
@@ -1738,8 +1586,6 @@ public class FeedVideoDownloadHook {
             }
         }
 
-        // 2. SAF — only works when the folder was picked inside Instagram's process
-        //    (so Instagram holds the persistable URI permission, not the companion app)
         if (!FeatureFlags.downloaderCustomUri.isEmpty()) {
             try {
                 return openSafOutputStream(ctx, filename, mimeType, username);
@@ -1748,24 +1594,20 @@ public class FeedVideoDownloadHook {
             }
         }
 
-        // 3. MediaStore (API 29+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             return openMediaStoreOutputStream(ctx, filename, mimeType, username);
         }
 
-        // 4. Legacy API < 29: direct file write
         File dir = new File(Environment.getExternalStorageDirectory(), "InstaEclipse");
         if (FeatureFlags.downloaderUsernameFolder && username != null && !username.isEmpty()) {
             dir = new File(dir, username);
         }
-        //noinspection ResultOfMethodCallIgnored
         dir.mkdirs();
         return new FileOutputStream(new File(dir, filename));
     }
 
     private static OutputStream openRawPathOutputStream(String filename, String username) throws Exception {
         String rawPath = FeatureFlags.downloaderCustomPath;
-        // Reject if path conversion failed and we got a content URI string as fallback
         if (rawPath.startsWith("content://")) {
             throw new Exception("Not a raw file path: " + rawPath);
         }
@@ -1831,26 +1673,18 @@ public class FeedVideoDownloadHook {
         return out;
     }
 
-    // Standard top-level directories that MediaStore.Downloads accepts as RELATIVE_PATH roots
     private static final java.util.Set<String> MS_ROOTS = new java.util.HashSet<>(java.util.Arrays.asList(
             "Download", "Downloads", "Pictures", "DCIM", "Movies", "Music",
             "Ringtones", "Alarms", "Notifications", "Podcasts", "Audiobooks"));
 
-    /**
-     * Derives the MediaStore RELATIVE_PATH for the download.
-     * - If the custom path falls under a known MediaStore root (Download, Pictures, …),
-     *   it is used directly (e.g. Pictures/IG).
-     * - Otherwise the path is nested under Download/ (e.g. /sdcard/Test55 → Download/Test55).
-     * - Falls back to Download/InstaEclipse when no custom path is set.
-     */
     private static String buildMediaStoreRelPath(String username) {
         String customPath = FeatureFlags.downloaderCustomPath;
-        String base = "Download/InstaEclipse"; // default
+        String base = "Download/InstaEclipse";
 
         if (!customPath.isEmpty() && !customPath.startsWith("content://")) {
             String extBase = Environment.getExternalStorageDirectory().getAbsolutePath();
             if (customPath.startsWith(extBase + "/")) {
-                String relative = customPath.substring(extBase.length() + 1); // e.g. "Test55" or "Pictures/IG"
+                String relative = customPath.substring(extBase.length() + 1);
                 String topLevel = relative.split("/")[0];
                 base = MS_ROOTS.contains(topLevel) ? relative : ("Download/" + relative);
             }
@@ -1861,8 +1695,6 @@ public class FeedVideoDownloadHook {
         }
         return base;
     }
-
-    // ── Dedup: skip re-downloading a file that's already on disk ───────────────
 
     static boolean isDownloaded(Context ctx, String filename, boolean isVideo, String username) {
         try {
@@ -2066,8 +1898,6 @@ public class FeedVideoDownloadHook {
         return false;
     }
 
-    // ── Dedup for profile pictures: no timestamp suffix, ambiguous extension ───
-
     static String profileFilenameStem(String username, String mediaId) {
         String u = (username != null && !username.isEmpty()) ? username : "unknown";
         String id = (mediaId != null && !mediaId.isEmpty()) ? mediaId : u;
@@ -2148,7 +1978,6 @@ public class FeedVideoDownloadHook {
         return false;
     }
 
-    /** Copies tempFile to the download destination (only used when no custom SAF URI is set). */
     static void saveFileToDestination(Context ctx, File tempFile, String filename,
                                       boolean isVideo, String username) throws Exception {
         try (FileInputStream in = new FileInputStream(tempFile);
@@ -2158,10 +1987,6 @@ public class FeedVideoDownloadHook {
         }
     }
 
-    /**
-     * Reads the companion app's latest SAF URI from its shared prefs WITHOUT overwriting
-     * FeatureFlags — callers decide what to do with the value.
-     */
     private static String readCompanionUri() {
         try {
             de.robv.android.xposed.XSharedPreferences cp =
@@ -2174,16 +1999,6 @@ public class FeedVideoDownloadHook {
         }
     }
 
-    /**
-     * Downloads {@code url} and saves it with the configured destination.
-     *
-     * When a custom SAF URI is configured, the CDN URL is forwarded to
-     * {@link DownloadSaveService} in the companion-app process — it holds the SAF
-     * permission (granted when the user picked the folder in FeaturesFragment) and writes
-     * the file directly.  No file-descriptor passing across UIDs is required.
-     *
-     * @return {@code true} when delegated (async — service shows its own toast).
-     */
     static boolean downloadAndSave(Context ctx, String url, String filename,
                                    boolean isVideo, String username) throws Exception {
         if (isDownloaded(ctx, filename, isVideo, username)) {
@@ -2192,32 +2007,23 @@ public class FeedVideoDownloadHook {
             return true;
         }
 
-        recordDownloadHistory(filename, username);
-
-        // Prefer FeatureFlags (live value synced from companion via broadcast).
-        // Fall back to reading companion cache directly (missed-broadcast / cold-start case).
         String uri = FeatureFlags.downloaderCustomUri.isEmpty()
                 ? readCompanionUri()
                 : FeatureFlags.downloaderCustomUri;
 
         if (!uri.isEmpty()) {
             delegateUrlToCompanionApp(ctx, url, null, filename, isVideo, username);
+            recordDownloadHistory(filename, username);
             return true;
         }
 
-        // No custom folder configured → MediaStore / raw path.
         try (OutputStream out = openOutputStream(ctx, filename, isVideo, username)) {
             downloadToStream(url, out);
         }
+        recordDownloadHistory(filename, username);
         return false;
     }
 
-    /**
-     * Derives the download "type" (post/story/profile) from the filename buildFilename()
-     * produced — "{username}_{type}_{id}[_timestamp].ext" — by stripping the known
-     * username prefix rather than splitting on '_' blindly, since usernames can contain
-     * underscores themselves.
-     */
     private static void recordDownloadHistory(String filename, String username) {
         try {
             String uname = (username != null && !username.isEmpty()) ? username : "unknown";
@@ -2235,13 +2041,6 @@ public class FeedVideoDownloadHook {
         }
     }
 
-    /**
-     * Starts {@link DownloadSaveService} in the companion-app process, passing the CDN
-     * URL(s) as plain string extras — no file descriptors cross the process boundary.
-     * The service downloads the media itself and writes to the SAF folder it already owns.
-     *
-     * @param audioUrl non-null to request a video+audio merge inside the service
-     */
     private static void delegateUrlToCompanionApp(Context ctx,
                                                    String url,
                                                    String audioUrl,
@@ -2259,20 +2058,12 @@ public class FeedVideoDownloadHook {
         ModuleLog.line("(IE|DL) Delegated to DownloadSaveService: " + filename);
     }
 
-    /**
-     * Package-accessible: collects Instagram CDN media URLs from the given object graph.
-     * Used by PostDownloadContextMenuHook as a fallback URL source.
-     */
     static List<String> collectCdnUrls(Object obj) {
         List<String> out = new ArrayList<>();
         scanForCdnUrls(obj, out, 0, Collections.newSetFromMap(new IdentityHashMap<>()));
         return out;
     }
 
-    /**
-     * Package-accessible: extracts the image URL from a Media object using MediaExtKt helper.
-     * Returns null if not available (e.g. MediaExtKt not resolved or media is a video-only post).
-     */
     static String imageUrlFromMedia(Context ctx, Object media) {
         if (methodImageUrl == null || ctx == null || media == null) return null;
         try {
@@ -2623,33 +2414,77 @@ public class FeedVideoDownloadHook {
     private static void showCarouselChoiceDialog(Context ctx, List<String> urls,
                                                  String username, String mediaId, int currentIndex) {
         int n = urls.size();
-        StringBuilder message = new StringBuilder(I18n.t(ctx, R.string.ig_dl_carousel_subtitle, n));
-        for (int i = 0; i < n; i++) {
-            String type = isVideoUrl(urls.get(i))
-                    ? I18n.t(ctx, R.string.ig_dl_type_video)
-                    : I18n.t(ctx, R.string.ig_dl_type_photo);
-            message.append('\n').append(i + 1).append(". ").append(type);
-        }
+        int videoCount = 0;
+        for (String url : urls) if (isVideoUrl(url)) videoCount++;
+        String message = I18n.t(ctx, R.string.ig_dl_carousel_subtitle, n)
+                + '\n' + I18n.t(ctx, R.string.ig_dl_carousel_summary, n - videoCount, videoCount);
 
         Context dialogCtx = resolveDialogContext(ctx);
         try {
-            new AlertDialog.Builder(dialogCtx)
-                    .setTitle(I18n.t(ctx, R.string.ig_dl_title))
-                    .setMessage(message.toString())
-                    .setPositiveButton(I18n.t(ctx, R.string.ig_dl_carousel_all, n),
-                            (d, w) -> downloadAllPostUrls(ctx, urls, username, mediaId))
-                    .setNeutralButton(I18n.t(ctx, R.string.ig_dl_carousel_current, currentIndex + 1, n),
-                            (d, w) -> downloadSinglePostUrl(ctx, urls.get(currentIndex), username, mediaId, currentIndex))
-                    .setNegativeButton(I18n.t(ctx, R.string.ig_dialog_cancel), null)
+            boolean dark = BulkDownloadDialogStyle.isDarkMode(dialogCtx);
+
+            LinearLayout content = new LinearLayout(dialogCtx);
+            content.setOrientation(LinearLayout.VERTICAL);
+            int padH = BulkDownloadDialogStyle.dp(dialogCtx, 20f);
+            content.setPadding(padH, 0, padH, BulkDownloadDialogStyle.dp(dialogCtx, 20f));
+
+            TextView messageView = new TextView(dialogCtx);
+            messageView.setText(message);
+            messageView.setTextColor(BulkDownloadDialogStyle.secondaryTextColor(dark));
+            messageView.setTextSize(15f);
+            messageView.setLineSpacing(BulkDownloadDialogStyle.dp(dialogCtx, 4f), 1f);
+            LinearLayout.LayoutParams msgLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            msgLp.bottomMargin = BulkDownloadDialogStyle.dp(dialogCtx, 20f);
+            content.addView(messageView, msgLp);
+
+            AlertDialog[] holder = new AlertDialog[1];
+
+            View allBtn = BulkDownloadDialogStyle.buildFilledButton(dialogCtx,
+                    I18n.t(ctx, R.string.ig_dl_carousel_all, n),
+                    () -> {
+                        downloadAllPostUrls(ctx, urls, username, mediaId);
+                        if (holder[0] != null) holder[0].dismiss();
+                    });
+            content.addView(allBtn, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+            View currentBtn = BulkDownloadDialogStyle.buildOutlinedButton(dialogCtx,
+                    I18n.t(ctx, R.string.ig_dl_carousel_current, currentIndex + 1, n),
+                    () -> {
+                        downloadSinglePostUrl(ctx, urls.get(currentIndex), username, mediaId, currentIndex);
+                        if (holder[0] != null) holder[0].dismiss();
+                    });
+            LinearLayout.LayoutParams currentLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            currentLp.topMargin = BulkDownloadDialogStyle.dp(dialogCtx, 10f);
+            content.addView(currentBtn, currentLp);
+
+            View cancelBtn = BulkDownloadDialogStyle.buildTextButton(dialogCtx,
+                    I18n.t(ctx, R.string.ig_dialog_cancel), dark,
+                    () -> {
+                        if (holder[0] != null) holder[0].dismiss();
+                    });
+            LinearLayout.LayoutParams cancelLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            cancelLp.topMargin = BulkDownloadDialogStyle.dp(dialogCtx, 4f);
+            content.addView(cancelBtn, cancelLp);
+
+            AlertDialog dialog = new AlertDialog.Builder(dialogCtx)
+                    .setCustomTitle(BulkDownloadDialogStyle.buildTitleView(dialogCtx, I18n.t(ctx, R.string.ig_dl_title)))
+                    .setView(content)
                     .setCancelable(true)
-                    .show();
+                    .create();
+            holder[0] = dialog;
+            BulkDownloadDialogStyle.applyCardWindow(dialog, dialogCtx);
+            dialog.show();
         } catch (Throwable t) {
             ModuleLog.line("(IE|Post|DL) dialog failed: " + t);
             downloadSinglePostUrl(ctx, urls.get(currentIndex), username, mediaId, currentIndex);
         }
     }
 
-    private static Context resolveDialogContext(Context ctx) {
+    static Context resolveDialogContext(Context ctx) {
         Activity a = getActivityFromContext(ctx);
         if (a != null && !a.isFinishing()) return a;
         a = UIHookManager.getCurrentActivity();
@@ -2679,37 +2514,37 @@ public class FeedVideoDownloadHook {
 
     private static void downloadAllPostUrls(Context ctx, List<String> urls, String username, String mediaId) {
         int n = urls.size();
-        Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_downloading_all_n_items, n), Toast.LENGTH_SHORT).show();
+        BulkDownloadProgressDialog progress = BulkDownloadProgressDialog.show(ctx, mainHandler, n);
         executor.submit(() -> {
+            int saved = 0;
             int failed = 0;
             int i = 0;
             for (String url : urls) {
+                if (progress.isCancelled()) break;
                 boolean isVid = isVideoUrl(url);
                 String fn = buildFilename(username, "post", mediaId, isVid, i++);
                 try {
                     downloadAndSave(ctx, url, fn, isVid, username);
+                    saved++;
                 } catch (Throwable e) {
                     failed++;
                     ModuleLog.line("(IE|Post|DL) item failed: " + e);
                 }
+                progress.updateProgress(saved + failed, saved, failed);
             }
-            final int finalFailed = failed;
-            mainHandler.post(() -> {
-                if (finalFailed == 0) {
-                    Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_all_items_saved, n),
-                            Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_items_partial_saved,
-                            n - finalFailed, n, finalFailed), Toast.LENGTH_SHORT).show();
-                }
-            });
+            if (progress.isCancelled()) {
+                progress.dismissIfShowing();
+                final int finalSaved = saved;
+                final int finalFailed = failed;
+                mainHandler.post(() -> Toast.makeText(ctx,
+                        I18n.t(ctx, R.string.ig_toast_download_cancelled, finalSaved, finalFailed),
+                        Toast.LENGTH_SHORT).show());
+            } else {
+                progress.finish(saved, failed);
+            }
         });
     }
 
-    /**
-     * Package-accessible: extracts username from a com.instagram.feed.media.Media object
-     * using the DexKit-resolved dictUserGetter. Used by StoryDownloadHook.
-     */
     static String extractUsernameFromMediaObject(Object media) {
         if (media == null) return null;
         ensureUserClass(media);
@@ -2787,24 +2622,16 @@ public class FeedVideoDownloadHook {
         return null;
     }
 
-    /** @deprecated Use {@link UserUtils#callUsernameGetter(Object)} directly. */
     @Deprecated
     public static String callUsernameGetter(Object user) {
         return UserUtils.callUsernameGetter(user);
     }
 
-    /**
-     * Walks the object graph up to depth 3 looking for any object that has a
-     * no-arg getUsername() method returning a valid Instagram username string.
-     * At depth 0 (the Media object itself), logs all field names + types to
-     * help diagnose where the user object is nested.
-     */
     private static String scanObjectForUsername(Object obj, int depth,
                                                  Set<Object> visited) {
         if (obj == null || depth > 3 || visited.contains(obj)) return null;
         visited.add(obj);
 
-        // Try getUsername() on this object directly
         try {
             Object result = obj.getClass().getMethod("getUsername").invoke(obj);
             if (result instanceof String s && !s.isEmpty() && s.matches("[a-zA-Z0-9._]{1,30}")) {
@@ -2814,8 +2641,6 @@ public class FeedVideoDownloadHook {
 
         if (depth >= 3) return null;
 
-        // Scan all non-primitive, non-String, non-array fields — no class filter,
-        // rely on depth limit + visited set to prevent runaway recursion
         Class<?> cls = obj.getClass();
         while (cls != null && cls != Object.class) {
             for (Field f : cls.getDeclaredFields()) {
@@ -2882,10 +2707,8 @@ public class FeedVideoDownloadHook {
                     + " hasVideo=" + t.hasVideo + " hasAudio=" + t.hasAudio);
             mainHandler.post(() -> {
                 if (!t.hasVideo && t.hasAudio) {
-                    // Audio-only background track — download the image instead
                     startDirectDownload(ctx, images.get(0), false);
                 } else {
-                    // Real video mixed with images — show carousel dialog for all items
                     showCarouselDialog(ctx, allUrls, saveBtn);
                 }
             });
@@ -2897,9 +2720,6 @@ public class FeedVideoDownloadHook {
             startDirectDownload(ctx, videos.get(0), true);
             return;
         }
-        // Multiple video URLs → video carousel, show selection dialog immediately.
-        // (DASH streams only ever produce a single URL via our Step-A resolver;
-        //  multiple URLs always come from Step-B carousel item extraction.)
         showCarouselDialog(ctx, videos, saveBtn);
     }
 
@@ -2965,7 +2785,6 @@ public class FeedVideoDownloadHook {
     private void downloadAndMerge(Context ctx, String videoUrl, String audioUrl) {
         Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_merging_video_audio), Toast.LENGTH_SHORT).show();
         executor.submit(() -> {
-            // Companion always holds the SAF permission — delegate whenever a URI is set.
             String uri = FeatureFlags.downloaderCustomUri.isEmpty()
                     ? readCompanionUri()
                     : FeatureFlags.downloaderCustomUri;
@@ -2981,7 +2800,6 @@ public class FeedVideoDownloadHook {
                 return;
             }
 
-            // No custom folder — merge locally and save via openOutputStream.
             File tv = null, ta = null, merged = null;
             try {
                 File cache = ctx.getCacheDir();
@@ -2999,11 +2817,11 @@ public class FeedVideoDownloadHook {
             } catch (Throwable e) {
                 mainHandler.post(() -> startDirectDownload(ctx, videoUrl, true));
             } finally {
-                if (tv     != null) //noinspection ResultOfMethodCallIgnored
+                if (tv     != null)
                     tv.delete();
-                if (ta     != null) //noinspection ResultOfMethodCallIgnored
+                if (ta     != null)
                     ta.delete();
-                if (merged != null) //noinspection ResultOfMethodCallIgnored
+                if (merged != null)
                     merged.delete();
             }
         });
@@ -3088,39 +2906,14 @@ public class FeedVideoDownloadHook {
         TrackInfo(boolean v, boolean a) { hasVideo = v; hasAudio = a; }
     }
 
-    /**
-     * Returns true if this CDN URL points to an Instagram feed media item
-     * (photo or video) — not a profile picture, UI asset, or other non-media content.
-     *
-     * Key CDN path segments:
-     *   t51.2885-15  = feed photo (INCLUDE)
-     *   t51.2885-19  = profile picture (EXCLUDE)
-     *   t50.2886-16  = feed video (INCLUDE)
-     *   t51.39750    = exclude (story thumbnails / non-feed content)
-     */
     static boolean isCdnMediaUrl(String url) {
         if (!url.startsWith("http://") && !url.startsWith("https://")) return false;
         if (!url.contains("cdninstagram.com") && !url.contains("fbcdn.net")) return false;
-        // Exclude profile pictures: the t51 CDN path always uses suffix -19 for avatars
-        // regardless of the bucket number (t51.2885-19, t51.82787-19, etc.)
-        // Pattern: /t51.<digits>-19/
         if (url.contains("/t51.") && url.contains("-19/")) return false;
-        // Exclude other known non-feed content
         if (url.contains("t51.39750")) return false;
         return true;
     }
 
-    /**
-     * Returns true if this CDN URL is a video (not a still image or audio-only track).
-     *
-     * Instagram CDN naming convention:
-     *   t50.xxxx = all video CDN path segments (t50.2886-16, t50.29441-2, t50.16800-16, etc.)
-     *   t51.xxxx = image content
-     *   /o1/     = Reels/Clips video (path may omit t50 segment)
-     *
-     * Known audio-only (exclude):
-     *   /o1/v/t2/ = background music track for Reels
-     */
     static boolean isVideoUrl(String url) {
         if (url == null) return false;
         if (url.contains("t50.")) return true;

@@ -37,9 +37,9 @@ public class SettingsManager {
 
         editor.putBoolean("isDevEnabled", FeatureFlags.isDevEnabled);
 
-        // Ghost Mode
         editor.putBoolean("isGhostModeEnabled", FeatureFlags.isGhostModeEnabled);
         editor.putBoolean("isGhostSeen", FeatureFlags.isGhostSeen);
+        editor.putBoolean("isGhostVoiceSeen", FeatureFlags.isGhostVoiceSeen);
         editor.putBoolean("isGhostTyping", FeatureFlags.isGhostTyping);
         editor.putBoolean("isGhostScreenshot", FeatureFlags.isGhostScreenshot);
         editor.putBoolean("isGhostViewOnce", FeatureFlags.isGhostViewOnce);
@@ -50,8 +50,8 @@ public class SettingsManager {
         editor.putBoolean("keepEphemeralMessages", FeatureFlags.keepEphemeralMessages);
         editor.putBoolean("permanentViewMode", FeatureFlags.permanentViewMode);
 
-        // Quick Toggles
         editor.putBoolean("quickToggleSeen", FeatureFlags.quickToggleSeen);
+        editor.putBoolean("quickToggleVoiceSeen", FeatureFlags.quickToggleVoiceSeen);
         editor.putBoolean("quickToggleTyping", FeatureFlags.quickToggleTyping);
         editor.putBoolean("quickToggleScreenshot", FeatureFlags.quickToggleScreenshot);
         editor.putBoolean("quickToggleViewOnce", FeatureFlags.quickToggleViewOnce);
@@ -62,7 +62,6 @@ public class SettingsManager {
         editor.putBoolean("quickTogglePermanentView", FeatureFlags.quickTogglePermanentView);
         editor.putBoolean("quickToggleAllowScreenshots", FeatureFlags.quickToggleAllowScreenshots);
 
-        // Distraction Free
         editor.putBoolean("isExtremeMode", FeatureFlags.isExtremeMode);
         editor.putBoolean("isDistractionFree", FeatureFlags.isDistractionFree);
         editor.putBoolean("disableStories", FeatureFlags.disableStories);
@@ -72,16 +71,13 @@ public class SettingsManager {
         editor.putBoolean("disableExplore", FeatureFlags.disableExplore);
         editor.putBoolean("disableComments", FeatureFlags.disableComments);
 
-        // Clean Feed
         editor.putBoolean("hideSuggestionsInFeed", FeatureFlags.hideSuggestionsInFeed);
         editor.putBoolean("hideThreadsSuggestions", FeatureFlags.hideThreadsSuggestions);
 
-        // Ads
         editor.putBoolean("isAdBlockEnabled", FeatureFlags.isAdBlockEnabled);
         editor.putBoolean("isAnalyticsBlocked", FeatureFlags.isAnalyticsBlocked);
         editor.putBoolean("disableTrackingLinks", FeatureFlags.disableTrackingLinks);
 
-        // Misc
         editor.putBoolean("isMiscEnabled", FeatureFlags.isMiscEnabled);
         editor.putBoolean("disableStoryFlipping", FeatureFlags.disableStoryFlipping);
         editor.putBoolean("disableVideoAutoPlay", FeatureFlags.disableVideoAutoPlay);
@@ -163,9 +159,9 @@ public class SettingsManager {
 
         FeatureFlags.isDevEnabled = prefs.getBoolean("isDevEnabled", false);
 
-        // Ghost Mode
         FeatureFlags.isGhostModeEnabled = prefs.getBoolean("isGhostModeEnabled", false);
         FeatureFlags.isGhostSeen = prefs.getBoolean("isGhostSeen", false);
+        FeatureFlags.isGhostVoiceSeen = prefs.getBoolean("isGhostVoiceSeen", false);
         FeatureFlags.isGhostTyping = prefs.getBoolean("isGhostTyping", false);
         FeatureFlags.isGhostScreenshot = prefs.getBoolean("isGhostScreenshot", false);
         FeatureFlags.isGhostViewOnce = prefs.getBoolean("isGhostViewOnce", false);
@@ -176,8 +172,8 @@ public class SettingsManager {
         FeatureFlags.keepEphemeralMessages = prefs.getBoolean("keepEphemeralMessages", false);
         FeatureFlags.permanentViewMode = prefs.getBoolean("permanentViewMode", false);
 
-        // Quick Toggles
         FeatureFlags.quickToggleSeen = prefs.getBoolean("quickToggleSeen", false);
+        FeatureFlags.quickToggleVoiceSeen = prefs.getBoolean("quickToggleVoiceSeen", false);
         FeatureFlags.quickToggleTyping = prefs.getBoolean("quickToggleTyping", false);
         FeatureFlags.quickToggleScreenshot = prefs.getBoolean("quickToggleScreenshot", false);
         FeatureFlags.quickToggleViewOnce = prefs.getBoolean("quickToggleViewOnce", false);
@@ -188,7 +184,6 @@ public class SettingsManager {
         FeatureFlags.quickTogglePermanentView = prefs.getBoolean("quickTogglePermanentView", false);
         FeatureFlags.quickToggleAllowScreenshots = prefs.getBoolean("quickToggleAllowScreenshots", false);
 
-        // Distraction Free
         FeatureFlags.isExtremeMode = prefs.getBoolean("isExtremeMode", false);
         FeatureFlags.isDistractionFree = prefs.getBoolean("isDistractionFree", false);
         FeatureFlags.disableStories = prefs.getBoolean("disableStories", false);
@@ -198,16 +193,13 @@ public class SettingsManager {
         FeatureFlags.disableExplore = prefs.getBoolean("disableExplore", false);
         FeatureFlags.disableComments = prefs.getBoolean("disableComments", false);
 
-        // Clean Feed
         FeatureFlags.hideSuggestionsInFeed = prefs.getBoolean("hideSuggestionsInFeed", false);
         FeatureFlags.hideThreadsSuggestions = prefs.getBoolean("hideThreadsSuggestions", false);
 
-        // Ads
         FeatureFlags.isAdBlockEnabled = prefs.getBoolean("isAdBlockEnabled", false);
         FeatureFlags.isAnalyticsBlocked = prefs.getBoolean("isAnalyticsBlocked", false);
         FeatureFlags.disableTrackingLinks = prefs.getBoolean("disableTrackingLinks", false);
 
-        // Misc
         FeatureFlags.isMiscEnabled = prefs.getBoolean("isMiscEnabled", false);
         FeatureFlags.disableStoryFlipping = prefs.getBoolean("disableStoryFlipping", false);
         FeatureFlags.disableVideoAutoPlay = prefs.getBoolean("disableVideoAutoPlay", false);
@@ -226,10 +218,12 @@ public class SettingsManager {
         FeatureFlags.enableCaptionCopy = prefs.getBoolean("enableCaptionCopy", false);
         FeatureFlags.disableDoubleTapLike = prefs.getBoolean("disableDoubleTapLike", false);
         FeatureFlags.enablePhotoZoom = prefs.getBoolean("enablePhotoZoom", false);
+        FeatureFlags.bypassChannelRestrictions = prefs.getBoolean("bypassChannelRestrictions", false);
         FeatureFlags.enablePostDownload = prefs.getBoolean("enablePostDownload", false);
         FeatureFlags.enableStoryDownload = prefs.getBoolean("enableStoryDownload", false);
         FeatureFlags.enableReelDownload = prefs.getBoolean("enableReelDownload", false);
         FeatureFlags.enableProfileDownload = prefs.getBoolean("enableProfileDownload", false);
+        FeatureFlags.enableVoiceDownload = prefs.getBoolean("enableVoiceDownload", false);
         FeatureFlags.enableBatchDownload = prefs.getBoolean("enableBatchDownload", false);
         FeatureFlags.downloaderUsernameFolder = prefs.getBoolean("downloaderUsernameFolder", false);
         FeatureFlags.downloaderAddTimestamp   = prefs.getBoolean("downloaderAddTimestamp", false);

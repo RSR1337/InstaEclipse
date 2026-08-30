@@ -9,16 +9,14 @@ public class SettingsBackupManager {
 
     private static final int VERSION = 1;
 
-    /** Serialises every known FeatureFlag into a versioned JSON string. */
     public static String toJson() throws JSONException {
         JSONObject s = new JSONObject();
 
-        // Developer
         s.put("isDevEnabled",            FeatureFlags.isDevEnabled);
         s.put("removeBuildExpiredPopup", FeatureFlags.removeBuildExpiredPopup);
 
-        // Ghost Mode
         s.put("isGhostSeen",             FeatureFlags.isGhostSeen);
+        s.put("isGhostVoiceSeen",        FeatureFlags.isGhostVoiceSeen);
         s.put("isGhostTyping",           FeatureFlags.isGhostTyping);
         s.put("isGhostScreenshot",       FeatureFlags.isGhostScreenshot);
         s.put("isGhostViewOnce",         FeatureFlags.isGhostViewOnce);
@@ -27,11 +25,10 @@ public class SettingsBackupManager {
         s.put("isGhostLive",             FeatureFlags.isGhostLive);
         s.put("allowScreenshots",        FeatureFlags.allowScreenshots);
         s.put("keepEphemeralMessages",   FeatureFlags.keepEphemeralMessages);
-
         s.put("permanentViewMode",       FeatureFlags.permanentViewMode);
 
-        // Quick Toggles
         s.put("quickToggleSeen",         FeatureFlags.quickToggleSeen);
+        s.put("quickToggleVoiceSeen",    FeatureFlags.quickToggleVoiceSeen);
         s.put("quickToggleTyping",       FeatureFlags.quickToggleTyping);
         s.put("quickToggleScreenshot",   FeatureFlags.quickToggleScreenshot);
         s.put("quickToggleViewOnce",     FeatureFlags.quickToggleViewOnce);
@@ -42,16 +39,13 @@ public class SettingsBackupManager {
         s.put("quickTogglePermanentView",FeatureFlags.quickTogglePermanentView);
         s.put("quickToggleAllowScreenshots", FeatureFlags.quickToggleAllowScreenshots);
 
-        // Clean Feed
         s.put("hideSuggestionsInFeed",      FeatureFlags.hideSuggestionsInFeed);
         s.put("hideThreadsSuggestions",     FeatureFlags.hideThreadsSuggestions);
 
-        // Ads
         s.put("isAdBlockEnabled",        FeatureFlags.isAdBlockEnabled);
         s.put("isAnalyticsBlocked",      FeatureFlags.isAnalyticsBlocked);
         s.put("disableTrackingLinks",    FeatureFlags.disableTrackingLinks);
 
-        // Distraction Free
         s.put("isExtremeMode",           FeatureFlags.isExtremeMode);
         s.put("disableStories",          FeatureFlags.disableStories);
         s.put("disableFeed",             FeatureFlags.disableFeed);
@@ -61,7 +55,6 @@ public class SettingsBackupManager {
         s.put("disableComments",         FeatureFlags.disableComments);
         s.put("disableDiscoverPeople",   FeatureFlags.disableDiscoverPeople);
 
-        // Miscellaneous
         s.put("disableStoryFlipping",    FeatureFlags.disableStoryFlipping);
         s.put("disableVideoAutoPlay",    FeatureFlags.disableVideoAutoPlay);
         s.put("spoofLastSeen",           FeatureFlags.spoofLastSeen);
@@ -73,12 +66,14 @@ public class SettingsBackupManager {
         s.put("showFollowerToast",       FeatureFlags.showFollowerToast);
         s.put("showFeatureToasts",       FeatureFlags.showFeatureToasts);
         s.put("enableStoryMentions",     FeatureFlags.enableStoryMentions);
+        s.put("enablePhotoZoom",         FeatureFlags.enablePhotoZoom);
+        s.put("bypassChannelRestrictions", FeatureFlags.bypassChannelRestrictions);
 
-        // Downloader
         s.put("enablePostDownload",      FeatureFlags.enablePostDownload);
         s.put("enableStoryDownload",     FeatureFlags.enableStoryDownload);
         s.put("enableReelDownload",      FeatureFlags.enableReelDownload);
         s.put("enableProfileDownload",   FeatureFlags.enableProfileDownload);
+        s.put("enableVoiceDownload",     FeatureFlags.enableVoiceDownload);
         s.put("enableBatchDownload",     FeatureFlags.enableBatchDownload);
         s.put("downloaderUsernameFolder",FeatureFlags.downloaderUsernameFolder);
         s.put("downloaderAddTimestamp",  FeatureFlags.downloaderAddTimestamp);
@@ -94,12 +89,6 @@ public class SettingsBackupManager {
         return root.toString(2);
     }
 
-    /**
-     * Applies a backup JSON string to the in-memory FeatureFlags.
-     * Supports both the versioned {"version":1,"settings":{...}} format
-     * and a flat {key:value} format for forward-compatibility.
-     * Unknown keys are silently ignored so older backups work on newer builds.
-     */
     public static void fromJson(String json) throws JSONException {
         JSONObject root = new JSONObject(json);
         JSONObject s = root.has("settings") ? root.getJSONObject("settings") : root;
@@ -108,6 +97,7 @@ public class SettingsBackupManager {
         if (s.has("removeBuildExpiredPopup")) FeatureFlags.removeBuildExpiredPopup = s.getBoolean("removeBuildExpiredPopup");
 
         if (s.has("isGhostSeen"))            FeatureFlags.isGhostSeen            = s.getBoolean("isGhostSeen");
+        if (s.has("isGhostVoiceSeen"))       FeatureFlags.isGhostVoiceSeen       = s.getBoolean("isGhostVoiceSeen");
         if (s.has("isGhostTyping"))          FeatureFlags.isGhostTyping          = s.getBoolean("isGhostTyping");
         if (s.has("isGhostScreenshot"))      FeatureFlags.isGhostScreenshot      = s.getBoolean("isGhostScreenshot");
         if (s.has("isGhostViewOnce"))        FeatureFlags.isGhostViewOnce        = s.getBoolean("isGhostViewOnce");
@@ -119,6 +109,7 @@ public class SettingsBackupManager {
         if (s.has("permanentViewMode"))        FeatureFlags.permanentViewMode        = s.getBoolean("permanentViewMode");
 
         if (s.has("quickToggleSeen"))        FeatureFlags.quickToggleSeen        = s.getBoolean("quickToggleSeen");
+        if (s.has("quickToggleVoiceSeen"))   FeatureFlags.quickToggleVoiceSeen   = s.getBoolean("quickToggleVoiceSeen");
         if (s.has("quickToggleTyping"))      FeatureFlags.quickToggleTyping      = s.getBoolean("quickToggleTyping");
         if (s.has("quickToggleScreenshot"))  FeatureFlags.quickToggleScreenshot  = s.getBoolean("quickToggleScreenshot");
         if (s.has("quickToggleViewOnce"))    FeatureFlags.quickToggleViewOnce    = s.getBoolean("quickToggleViewOnce");
@@ -156,11 +147,14 @@ public class SettingsBackupManager {
         if (s.has("showFollowerToast"))      FeatureFlags.showFollowerToast      = s.getBoolean("showFollowerToast");
         if (s.has("showFeatureToasts"))      FeatureFlags.showFeatureToasts      = s.getBoolean("showFeatureToasts");
         if (s.has("enableStoryMentions"))    FeatureFlags.enableStoryMentions    = s.getBoolean("enableStoryMentions");
+        if (s.has("enablePhotoZoom"))        FeatureFlags.enablePhotoZoom        = s.getBoolean("enablePhotoZoom");
+        if (s.has("bypassChannelRestrictions")) FeatureFlags.bypassChannelRestrictions = s.getBoolean("bypassChannelRestrictions");
 
         if (s.has("enablePostDownload"))     FeatureFlags.enablePostDownload     = s.getBoolean("enablePostDownload");
         if (s.has("enableStoryDownload"))    FeatureFlags.enableStoryDownload    = s.getBoolean("enableStoryDownload");
         if (s.has("enableReelDownload"))     FeatureFlags.enableReelDownload     = s.getBoolean("enableReelDownload");
         if (s.has("enableProfileDownload"))  FeatureFlags.enableProfileDownload  = s.getBoolean("enableProfileDownload");
+        if (s.has("enableVoiceDownload"))    FeatureFlags.enableVoiceDownload    = s.getBoolean("enableVoiceDownload");
         if (s.has("enableBatchDownload"))    FeatureFlags.enableBatchDownload    = s.getBoolean("enableBatchDownload");
         if (s.has("downloaderUsernameFolder")) FeatureFlags.downloaderUsernameFolder = s.getBoolean("downloaderUsernameFolder");
         if (s.has("downloaderAddTimestamp")) FeatureFlags.downloaderAddTimestamp  = s.getBoolean("downloaderAddTimestamp");

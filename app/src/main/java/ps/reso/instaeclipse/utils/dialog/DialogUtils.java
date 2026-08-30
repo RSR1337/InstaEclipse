@@ -63,7 +63,6 @@ public class DialogUtils {
         background.setCornerRadii(new float[]{40, 40, 40, 40, 0, 0, 0, 0});
         outer.setBackground(background);
 
-        // Pinned header: drag handle + title (stays visible while the list below scrolls)
         outer.addView(createDragHandle(context));
         TextView title = new TextView(context);
         title.setText(I18n.t(context, R.string.ig_dialog_title));
@@ -75,12 +74,10 @@ public class DialogUtils {
         outer.addView(title);
         outer.addView(createDivider(context));
 
-        // Scrollable middle: the feature category list + footer credit
         LinearLayout mainLayout = buildMainMenuLayout(context);
         ScrollView scrollView = createScrollableContainer(context, mainLayout, 0.62f);
         outer.addView(scrollView);
 
-        // Pinned footer: Close button (always reachable without scrolling)
         TextView closeButton = new TextView(context);
         closeButton.setText(I18n.t(context, R.string.ig_dialog_close));
         closeButton.setTextColor(Color.parseColor("#FF453A"));
@@ -160,7 +157,6 @@ public class DialogUtils {
         toolsGroup.addView(createMenuRow(context, R.drawable.ic_delete, I18n.t(context, R.string.ig_dialog_clear_cache), "#FF453A", () -> showClearCacheSection(context)));
         mainLayout.addView(toolsGroup);
 
-        // Footer Credit
         TextView footer = new TextView(context);
         footer.setText("@reso7200");
         footer.setTextColor(Color.parseColor("#8E8E93"));
@@ -193,11 +189,6 @@ public class DialogUtils {
         return group;
     }
 
-    /** labelWithEmoji carries an emoji since it's shared with the companion app's plain-text
-     *  menu (which still wants it) — but here a real vector icon renders in the chip instead,
-     *  so the emoji is stripped. Translators place it on either side of the text (leading in
-     *  most locales, trailing in Arabic), so this strips from whichever end it's on rather than
-     *  assuming a fixed position. */
     private static View createMenuRow(Context context, int iconRes, String labelWithEmoji, String accentHex, Runnable onClick) {
         String label = stripEdgeEmoji(labelWithEmoji);
 
@@ -238,10 +229,6 @@ public class DialogUtils {
         return d;
     }
 
-    // Matches a run of emoji-ish codepoints (Unicode "Symbol, Other"/"Symbol, Modifier" plus
-    // variation selectors and ZWJ) anchored to either end of the string, with any adjoining
-    // whitespace. \p{So} covers the vast majority of emoji; the rest are combining marks used
-    // alongside them (skin tone modifiers, VS16, ZWJ for multi-part emoji).
     private static final java.util.regex.Pattern LEADING_EMOJI =
             java.util.regex.Pattern.compile("^[\\p{So}\\p{Sk}\\u200D\\uFE0F]+\\s*");
     private static final java.util.regex.Pattern TRAILING_EMOJI =
@@ -253,13 +240,12 @@ public class DialogUtils {
         return stripped.trim();
     }
 
-
     private static void showGhostQuickToggleOptions(Context context) {
         LinearLayout layout = createSwitchLayout(context);
 
-        // Create switches for customizing what gets toggled
         ToggleRow[] toggleSwitches = new ToggleRow[]{
                 createSwitch(context, R.drawable.ic_eye_off, "#5E5CE6", I18n.t(context, R.string.ig_dialog_quick_hide_seen),           FeatureFlags.quickToggleSeen),
+                createSwitch(context, R.drawable.ic_eye_off, "#5E5CE6", I18n.t(context, R.string.ig_dialog_quick_hide_voice_seen),     FeatureFlags.quickToggleVoiceSeen),
                 createSwitch(context, R.drawable.ic_chat, "#5E5CE6", I18n.t(context, R.string.ig_dialog_quick_hide_typing),         FeatureFlags.quickToggleTyping),
                 createSwitch(context, R.drawable.ic_camera, "#5E5CE6", I18n.t(context, R.string.ig_dialog_quick_disable_screenshot),  FeatureFlags.quickToggleScreenshot),
                 createSwitch(context, R.drawable.ic_eye_off, "#5E5CE6", I18n.t(context, R.string.ig_dialog_quick_hide_view_once),      FeatureFlags.quickToggleViewOnce),
@@ -270,17 +256,14 @@ public class DialogUtils {
                 createSwitch(context, R.drawable.ic_eye, "#5E5CE6", I18n.t(context, R.string.ig_dialog_quick_permanent_view),      FeatureFlags.quickTogglePermanentView),
                 createSwitch(context, R.drawable.ic_camera, "#5E5CE6", I18n.t(context, R.string.ig_dialog_quick_allow_screenshots),   FeatureFlags.quickToggleAllowScreenshots)};
 
-        // Create Enable/Disable All switch
         ToggleRow enableAllSwitch = createSwitch(context, I18n.t(context, R.string.ig_dialog_enable_disable_all), areAllEnabled(toggleSwitches));
 
-        // Master listener
         enableAllSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             for (ToggleRow s :toggleSwitches) {
                 s.setChecked(isChecked);
             }
         });
 
-        // Individual switch listeners (update master switch automatically)
         for (int i = 0; i < toggleSwitches.length; i++) {
             final int index = i;
             toggleSwitches[i].setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -292,44 +275,44 @@ public class DialogUtils {
                     }
                 });
 
-                // Update corresponding FeatureFlag instantly
                 switch (index) {
                     case 0:
                         FeatureFlags.quickToggleSeen = isChecked;
                         break;
                     case 1:
-                        FeatureFlags.quickToggleTyping = isChecked;
+                        FeatureFlags.quickToggleVoiceSeen = isChecked;
                         break;
                     case 2:
-                        FeatureFlags.quickToggleScreenshot = isChecked;
+                        FeatureFlags.quickToggleTyping = isChecked;
                         break;
                     case 3:
-                        FeatureFlags.quickToggleViewOnce = isChecked;
+                        FeatureFlags.quickToggleScreenshot = isChecked;
                         break;
                     case 4:
-                        FeatureFlags.quickToggleStory = isChecked;
+                        FeatureFlags.quickToggleViewOnce = isChecked;
                         break;
                     case 5:
-                        FeatureFlags.quickToggleLive = isChecked;
+                        FeatureFlags.quickToggleStory = isChecked;
                         break;
                     case 6:
-                        FeatureFlags.quickToggleEphemeral = isChecked;
+                        FeatureFlags.quickToggleLive = isChecked;
                         break;
                     case 7:
-                        FeatureFlags.quickToggleReplays = isChecked;
+                        FeatureFlags.quickToggleEphemeral = isChecked;
                         break;
                     case 8:
-                        FeatureFlags.quickTogglePermanentView = isChecked;
+                        FeatureFlags.quickToggleReplays = isChecked;
                         break;
                     case 9:
+                        FeatureFlags.quickTogglePermanentView = isChecked;
+                        break;
+                    case 10:
                         FeatureFlags.quickToggleAllowScreenshots = isChecked;
                         break;
                 }
 
-                // Save immediately
                 SettingsManager.saveAllFlags();
 
-                // Update ghost emoji immediately
                 Activity activity = UIHookManager.getCurrentActivity();
                 if (activity != null) {
                     GhostEmojiManager.addGhostEmojiNextToInbox(activity, GhostModeUtils.isGhostModeActive());
@@ -337,22 +320,18 @@ public class DialogUtils {
             });
         }
 
-
-        // Add views to layout
-        layout.addView(createDivider(context)); // Divider above
-        layout.addView(createEnableAllSwitch(context, enableAllSwitch)); // Styled enable all switch
-        layout.addView(createDivider(context)); // Divider below
+        layout.addView(createDivider(context));
+        layout.addView(createEnableAllSwitch(context, enableAllSwitch));
+        layout.addView(createDivider(context));
 
         for (ToggleRow s :toggleSwitches) {
             layout.addView(s);
         }
 
-        // Show dialog
         showSectionDialog(context, I18n.t(context, R.string.ig_dialog_section_quick_toggle), layout, () -> {
         });
 
     }
-
 
     private static View createDivider(Context context) {
         View divider = new View(context);
@@ -363,12 +342,6 @@ public class DialogUtils {
         return divider;
     }
 
-    /**
-     * Clears the application's cache and restarts it.
-     * Works for any package name this module is running in.
-     *
-     * @param context The application context.
-     */
     private static void restartApp(Context context) {
         try {
             String packageName = context.getPackageName();
@@ -389,11 +362,6 @@ public class DialogUtils {
         }
     }
 
-    /**
-     * Clears the cache directory for the current application.
-     *
-     * @param context The application context.
-     */
     private static void clearAppCache(Context context) {
         try {
             File cacheDir = context.getCacheDir();
@@ -408,11 +376,6 @@ public class DialogUtils {
         }
     }
 
-    /**
-     * Recursively deletes a file or directory.
-     *
-     * @param fileOrDirectory The file or directory to delete.
-     */
     private static void deleteRecursive(File fileOrDirectory) {
         if (fileOrDirectory.isDirectory()) {
             File[] children = fileOrDirectory.listFiles();
@@ -422,18 +385,13 @@ public class DialogUtils {
                 }
             }
         }
-        // A direct result for a file or an empty directory
         fileOrDirectory.delete();
     }
-
-
-    // ==== SECTIONS ====
 
     @SuppressLint("SetTextI18n")
     private static void showDevOptions(Context context) {
         LinearLayout layout = createSwitchLayout(context);
 
-        // Developer Mode Switch
         ToggleRow devModeSwitch = createSwitch(context, R.drawable.ic_tune, "#0A84FF", I18n.t(context, R.string.ig_dialog_dev_enable), FeatureFlags.isDevEnabled);
         devModeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             FeatureFlags.isDevEnabled = isChecked;
@@ -510,7 +468,6 @@ public class DialogUtils {
         });
         layout.addView(buildExpiredSwitch);
 
-        // Save current dev mode flag when dialog is closed
         showSectionDialog(context, I18n.t(context, R.string.ig_dialog_section_dev_options), layout, SettingsManager::saveAllFlags);
     }
 
@@ -519,6 +476,7 @@ public class DialogUtils {
 
         ToggleRow[] switches = new ToggleRow[]{
                 createSwitch(context, R.drawable.ic_eye_off, "#5E5CE6", I18n.t(context, R.string.ig_dialog_ghost_hide_dm_seen),         FeatureFlags.isGhostSeen),
+                createSwitch(context, R.drawable.ic_eye_off, "#5E5CE6", I18n.t(context, R.string.ig_dialog_ghost_hide_voice_seen),      FeatureFlags.isGhostVoiceSeen),
                 createSwitch(context, R.drawable.ic_chat, "#5E5CE6", I18n.t(context, R.string.ig_dialog_ghost_hide_typing),          FeatureFlags.isGhostTyping),
                 createSwitch(context, R.drawable.ic_story_ring, "#5E5CE6", I18n.t(context, R.string.ig_dialog_ghost_hide_story_views),     FeatureFlags.isGhostStory),
                 createSwitch(context, R.drawable.ic_live, "#5E5CE6", I18n.t(context, R.string.ig_dialog_ghost_hide_live_presence),   FeatureFlags.isGhostLive),
@@ -550,44 +508,44 @@ public class DialogUtils {
                     }
                 });
 
-                // Set FeatureFlag immediately
                 switch (index) {
                     case 0:
                         FeatureFlags.isGhostSeen = isChecked;
                         break;
                     case 1:
-                        FeatureFlags.isGhostTyping = isChecked;
+                        FeatureFlags.isGhostVoiceSeen = isChecked;
                         break;
                     case 2:
-                        FeatureFlags.isGhostStory = isChecked;
+                        FeatureFlags.isGhostTyping = isChecked;
                         break;
                     case 3:
-                        FeatureFlags.isGhostLive = isChecked;
+                        FeatureFlags.isGhostStory = isChecked;
                         break;
                     case 4:
-                        FeatureFlags.allowScreenshots = isChecked;
+                        FeatureFlags.isGhostLive = isChecked;
                         break;
                     case 5:
-                        FeatureFlags.isGhostScreenshot = isChecked;
+                        FeatureFlags.allowScreenshots = isChecked;
                         break;
                     case 6:
-                        FeatureFlags.isGhostViewOnce = isChecked;
+                        FeatureFlags.isGhostScreenshot = isChecked;
                         break;
                     case 7:
-                        FeatureFlags.enableUnlimitedReplays = isChecked;
+                        FeatureFlags.isGhostViewOnce = isChecked;
                         break;
                     case 8:
-                        FeatureFlags.permanentViewMode = isChecked;
+                        FeatureFlags.enableUnlimitedReplays = isChecked;
                         break;
                     case 9:
+                        FeatureFlags.permanentViewMode = isChecked;
+                        break;
+                    case 10:
                         FeatureFlags.keepEphemeralMessages = isChecked;
                         break;
                 }
 
-                // Save immediately
                 SettingsManager.saveAllFlags();
 
-                // Update ghost emoji immediately
                 Activity activity = UIHookManager.getCurrentActivity();
                 if (activity != null) {
                     GhostEmojiManager.addGhostEmojiNextToInbox(activity, GhostModeUtils.isGhostModeActive());
@@ -604,15 +562,12 @@ public class DialogUtils {
         }
 
         showSectionDialog(context, I18n.t(context, R.string.ig_dialog_section_ghost_mode), layout, () -> {
-            // No need to set FeatureFlags here anymore because handled instantly
         });
     }
-
 
     private static void showAdOptions(Context context) {
         LinearLayout layout = createSwitchLayout(context);
 
-        // Create switches
         ToggleRow adBlock = createSwitch(context, R.drawable.ic_shield, "#FF453A", I18n.t(context, R.string.ig_dialog_ad_block_ads), FeatureFlags.isAdBlockEnabled);
 
         ToggleRow analytics = createSwitch(context, R.drawable.ic_shield, "#FF453A", I18n.t(context, R.string.ig_dialog_ad_block_analytics), FeatureFlags.isAnalyticsBlocked);
@@ -621,17 +576,14 @@ public class DialogUtils {
 
         ToggleRow[] switches = new ToggleRow[]{adBlock, analytics, trackingLinks};
 
-        // Create Enable/Disable All switch
         ToggleRow enableAllSwitch = createSwitch(context, I18n.t(context, R.string.ig_dialog_enable_disable_all), areAllEnabled(switches));
 
-        // Master listener
         enableAllSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             for (ToggleRow s :switches) {
                 s.setChecked(isChecked);
             }
         });
 
-        // Individual switch listeners
         for (int i = 0; i < switches.length; i++) {
             final int index = i;
             switches[i].setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -643,18 +595,14 @@ public class DialogUtils {
                     }
                 });
 
-                // Update FeatureFlag immediately
                 if (index == 0) FeatureFlags.isAdBlockEnabled = isChecked;
                 if (index == 1) FeatureFlags.isAnalyticsBlocked = isChecked;
                 if (index == 2) FeatureFlags.disableTrackingLinks = isChecked;
 
-                // Save immediately
                 SettingsManager.saveAllFlags();
             });
         }
 
-
-        // Add views
         layout.addView(createDivider(context));
         layout.addView(createEnableAllSwitch(context, enableAllSwitch));
         layout.addView(createDivider(context));
@@ -663,16 +611,13 @@ public class DialogUtils {
             layout.addView(s);
         }
 
-        // Show the dialog
         showSectionDialog(context, I18n.t(context, R.string.ig_dialog_section_ad_analytics), layout, () -> {
         });
     }
 
-
     private static void showDistractionOptions(Context context) {
         LinearLayout layout = createSwitchLayout(context);
 
-        // Child switches
         ToggleRow extremeModeSwitch = createSwitch(context, R.drawable.ic_block, "#FF453A", I18n.t(context, R.string.ig_dialog_distraction_extreme_mode), FeatureFlags.isExtremeMode);
         ToggleRow disableStoriesSwitch = createSwitch(context, R.drawable.ic_story_ring, "#30D158", I18n.t(context, R.string.ig_dialog_distraction_disable_stories), FeatureFlags.disableStories);
         ToggleRow disableFeedSwitch = createSwitch(context, R.drawable.ic_block, "#30D158", I18n.t(context, R.string.ig_dialog_distraction_disable_feed), FeatureFlags.disableFeed);
@@ -683,8 +628,6 @@ public class DialogUtils {
 
         ToggleRow[] switches = new ToggleRow[]{disableStoriesSwitch, disableFeedSwitch, disableReelsSwitch, onlyInDMSwitch, disableExploreSwitch, disableCommentsSwitch};
 
-
-        // Enable/Disable All
         ToggleRow enableAllSwitch = createSwitch(context, I18n.t(context, R.string.ig_dialog_enable_disable_all), areAllEnabled(switches));
 
         if (FeatureFlags.isExtremeMode) {
@@ -693,7 +636,6 @@ public class DialogUtils {
             extremeModeSwitch.setEnabled(false);
         }
 
-        // Helper: extreme mode is only available when at least one feature is selected
         Runnable updateExtremeSwitchEnabled = () -> {
             if (!FeatureFlags.isExtremeMode) {
                 boolean anyEnabled = false;
@@ -704,7 +646,6 @@ public class DialogUtils {
             }
         };
 
-        // Initial state: disable extreme mode toggle if nothing is selected yet
         updateExtremeSwitchEnabled.run();
 
         extremeModeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -716,7 +657,6 @@ public class DialogUtils {
                     FeatureFlags.isExtremeMode = true;
                     FeatureFlags.isDistractionFree = true;
 
-                    // Save user’s current selections before freezing them
                     FeatureFlags.disableStories = disableStoriesSwitch.isChecked();
                     FeatureFlags.disableFeed = disableFeedSwitch.isChecked();
                     FeatureFlags.disableReels = disableReelsSwitch.isChecked();
@@ -725,7 +665,6 @@ public class DialogUtils {
                     FeatureFlags.disableComments = disableCommentsSwitch.isChecked();
                     SettingsManager.saveAllFlags();
 
-                    // Disable all UI switches to lock them
                     disableAllSwitches(switches, enableAllSwitch, onlyInDMSwitch);
                     extremeModeSwitch.setEnabled(false);
                 });
@@ -736,7 +675,6 @@ public class DialogUtils {
             }
         });
 
-        // Master switch listener
         enableAllSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             for (ToggleRow s : switches) {
                 s.setChecked(isChecked);
@@ -749,7 +687,6 @@ public class DialogUtils {
             updateExtremeSwitchEnabled.run();
         });
 
-        // Parent-child logic for Reels
         disableReelsSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             onlyInDMSwitch.setEnabled(isChecked);
             if (!isChecked) {
@@ -761,7 +698,6 @@ public class DialogUtils {
             SettingsManager.saveAllFlags();
         });
 
-        // Child logic for "Except in DMs"
         onlyInDMSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked && !disableReelsSwitch.isChecked()) {
                 disableReelsSwitch.setChecked(true);
@@ -771,7 +707,6 @@ public class DialogUtils {
             SettingsManager.saveAllFlags();
         });
 
-        // All other switches
         for (ToggleRow s : new ToggleRow[]{disableStoriesSwitch, disableFeedSwitch, disableExploreSwitch, disableCommentsSwitch}) {
             s.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 updateMasterSwitch(enableAllSwitch, switches, disableReelsSwitch, onlyInDMSwitch);
@@ -780,10 +715,8 @@ public class DialogUtils {
             });
         }
 
-        // Init "Except in DMs" state
         onlyInDMSwitch.setEnabled(disableReelsSwitch.isChecked());
 
-        // Layout building
         layout.addView(extremeModeSwitch);
         layout.addView(createDivider(context));
         layout.addView(createEnableAllSwitch(context, enableAllSwitch));
@@ -827,7 +760,6 @@ public class DialogUtils {
         });
     }
 
-
     private static void showCleanFeedOptions(Context context) {
         LinearLayout layout = createSwitchLayout(context);
 
@@ -852,11 +784,9 @@ public class DialogUtils {
         showSectionDialog(context, I18n.t(context, R.string.ig_dialog_section_clean_feed), layout, () -> {});
     }
 
-
     private static void showMiscOptions(Context context) {
         LinearLayout layout = createSwitchLayout(context);
 
-        // Create all child switches
         ToggleRow[] switches = new ToggleRow[]{
                 createSwitch(context, R.drawable.ic_story_ring, "#BF5AF2", I18n.t(context, R.string.ig_dialog_misc_disable_story_autoswipe), FeatureFlags.disableStoryFlipping),
                 createSwitch(context, R.drawable.ic_movie, "#BF5AF2", I18n.t(context, R.string.ig_dialog_misc_disable_video_autoplay),  FeatureFlags.disableVideoAutoPlay),
@@ -869,10 +799,10 @@ public class DialogUtils {
                 createSwitch(context, R.drawable.ic_heart, "#BF5AF2", I18n.t(context, R.string.ig_dialog_misc_disable_double_tap_like), FeatureFlags.disableDoubleTapLike),
                 createSwitch(context, R.drawable.ic_content_copy, "#BF5AF2", I18n.t(context, R.string.ig_dialog_misc_copy_caption),            FeatureFlags.enableCaptionCopy),
                 createSwitch(context, R.drawable.ic_search, "#BF5AF2", I18n.t(context, R.string.ig_dialog_misc_photo_zoom),               FeatureFlags.enablePhotoZoom),
-                createSwitch(context, R.drawable.ic_timer, "#BF5AF2", I18n.t(context, R.string.ig_dialog_misc_spoof_last_seen),          FeatureFlags.spoofLastSeen)
+                createSwitch(context, R.drawable.ic_timer, "#BF5AF2", I18n.t(context, R.string.ig_dialog_misc_spoof_last_seen),          FeatureFlags.spoofLastSeen),
+                createSwitch(context, R.drawable.ic_shield, "#BF5AF2", I18n.t(context, R.string.ig_dialog_misc_bypass_channel_restrictions), FeatureFlags.bypassChannelRestrictions)
         };
 
-        // Create Enable/Disable All switch
         ToggleRow enableAllSwitch = createSwitch(context, I18n.t(context, R.string.ig_dialog_enable_disable_all), areAllEnabled(switches));
 
         enableAllSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -892,7 +822,6 @@ public class DialogUtils {
                     }
                 });
 
-                // Update FeatureFlags
                 switch (index) {
                     case 0:
                         FeatureFlags.disableStoryFlipping = isChecked;
@@ -930,13 +859,15 @@ public class DialogUtils {
                     case 11:
                         FeatureFlags.spoofLastSeen = isChecked;
                         break;
+                    case 12:
+                        FeatureFlags.bypassChannelRestrictions = isChecked;
+                        break;
                 }
 
                 SettingsManager.saveAllFlags();
             });
         }
 
-        // Add views to layout
         layout.addView(createDivider(context));
         layout.addView(createEnableAllSwitch(context, enableAllSwitch));
         layout.addView(createDivider(context));
@@ -945,7 +876,6 @@ public class DialogUtils {
             layout.addView(s);
         }
 
-        // Show dialog
         showSectionDialog(context, I18n.t(context, R.string.ig_dialog_section_misc), layout, () -> {
         });
     }
@@ -1089,9 +1019,10 @@ public class DialogUtils {
         ToggleRow storySwitch   = createSwitch(context, R.drawable.ic_download, "#FF9F0A", I18n.t(context, R.string.ig_dialog_downloader_stories),  FeatureFlags.enableStoryDownload);
         ToggleRow reelSwitch    = createSwitch(context, R.drawable.ic_download, "#FF9F0A", I18n.t(context, R.string.ig_dialog_downloader_reels),    FeatureFlags.enableReelDownload);
         ToggleRow profileSwitch = createSwitch(context, R.drawable.ic_download, "#FF9F0A", I18n.t(context, R.string.ig_dialog_downloader_profiles), FeatureFlags.enableProfileDownload);
+        ToggleRow voiceSwitch   = createSwitch(context, R.drawable.ic_download, "#FF9F0A", I18n.t(context, R.string.ig_dialog_downloader_voice),    FeatureFlags.enableVoiceDownload);
         ToggleRow batchSwitch   = createSwitch(context, R.drawable.ic_download, "#FF9F0A", I18n.t(context, R.string.ig_dialog_downloader_batch),    FeatureFlags.enableBatchDownload);
 
-        ToggleRow[] switches = new ToggleRow[]{postSwitch, storySwitch, reelSwitch, profileSwitch};
+        ToggleRow[] switches = new ToggleRow[]{postSwitch, storySwitch, reelSwitch, profileSwitch, voiceSwitch};
 
         ToggleRow enableAllSwitch = createSwitch(context, I18n.t(context, R.string.ig_dialog_enable_disable_all), areAllEnabled(switches));
 
@@ -1116,6 +1047,7 @@ public class DialogUtils {
                 if (index == 1) FeatureFlags.enableStoryDownload   = isChecked;
                 if (index == 2) FeatureFlags.enableReelDownload    = isChecked;
                 if (index == 3) FeatureFlags.enableProfileDownload = isChecked;
+                if (index == 4) FeatureFlags.enableVoiceDownload   = isChecked;
 
                 SettingsManager.saveAllFlags();
             });
@@ -1145,8 +1077,6 @@ public class DialogUtils {
                 ? android.os.Environment.getExternalStorageDirectory().getAbsolutePath()
                         + "/Download/InstaEclipse"
                 : FeatureFlags.downloaderCustomPath;
-        // Strip everything up to and including the primary storage root ("…/0/")
-        // so "/storage/emulated/0/Download/InstaEclipse" → "Download/InstaEclipse"
         String folderDisplay = folderRaw.replaceFirst("^.*/0/", "");
         layout.addView(createInfoSection(context,
                 I18n.t(context, R.string.ig_dialog_downloader_folder), folderDisplay));
@@ -1288,7 +1218,6 @@ public class DialogUtils {
         });
     }
 
-
     private static void showClearCacheSection(Context context) {
         LinearLayout layout = new LinearLayout(context);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -1311,8 +1240,6 @@ public class DialogUtils {
         showSectionDialog(context, I18n.t(context, R.string.ig_dialog_section_clear_cache), layout, () -> {});
     }
 
-    // ==== HELPERS ====
-
     @SuppressLint("SetTextI18n")
     private static void showSectionDialog(Context context, String title, LinearLayout contentLayout, Runnable onSave) {
         if (currentDialog != null) { try { currentDialog.dismiss(); } catch (Exception ignored) {} currentDialog = null; }
@@ -1330,7 +1257,6 @@ public class DialogUtils {
 
         container.addView(createDragHandle(context));
 
-        // Header row: back arrow + title
         LinearLayout header = new LinearLayout(context);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setPadding(24, 4, 24, 16);
@@ -1368,7 +1294,6 @@ public class DialogUtils {
         container.addView(header);
         container.addView(createDivider(context));
 
-        // Content with horizontal padding
         LinearLayout contentWrapper = new LinearLayout(context);
         contentWrapper.setOrientation(LinearLayout.VERTICAL);
         contentWrapper.setPadding(24, 0, 24, 0);
@@ -1377,7 +1302,6 @@ public class DialogUtils {
 
         container.addView(createDivider(context));
 
-        // Bottom padding for nav bar
         View bottomPad = new View(context);
         bottomPad.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 48));
         container.addView(bottomPad);
@@ -1390,7 +1314,6 @@ public class DialogUtils {
             IgColorRemapEngine.leaveModuleUi();
         }
     }
-
 
     @SuppressLint("UseSwitchCompatOrMaterialCode")
     private static class ToggleRow extends LinearLayout {
@@ -1470,7 +1393,6 @@ public class DialogUtils {
         return new ToggleRow(context, iconRes, accentHex, label, defaultState);
     }
 
-    /** The same 36dp rounded, tinted icon chip used by the main menu's nav rows. */
     private static View buildIconChip(Context context, int iconRes, String accentHex) {
         android.widget.ImageView iconView = new android.widget.ImageView(context);
         int accent = Color.parseColor(accentHex);
@@ -1520,7 +1442,6 @@ public class DialogUtils {
         valueView.setMaxLines(1);
         valueView.setEllipsize(android.text.TextUtils.TruncateAt.START);
         valueView.setPadding(16, 0, 0, 0);
-        // weight=1 / width=0: value fills remaining space and truncates at start if too long
         valueView.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         row.addView(labelView);
@@ -1535,7 +1456,6 @@ public class DialogUtils {
         return createActionRow(context, iconView, label, accentHex, onClick);
     }
 
-    /** Same visual chip as the emoji variant, but with a real vector logo (tinted to match). */
     private static View createActionRow(Context context, int iconRes, String label, String accentHex, View.OnClickListener onClick) {
         android.widget.ImageView iconView = new android.widget.ImageView(context);
         Drawable icon = loadModuleIcon(iconRes, Color.parseColor(accentHex));
@@ -1543,11 +1463,6 @@ public class DialogUtils {
         return createActionRow(context, iconView, label, accentHex, onClick);
     }
 
-    /** This dialog runs inside Instagram's own process, so a drawable resource ID must be
-     *  resolved against our OWN module's resource table (via XModuleResources), not Instagram's
-     *  — ContextCompat.getDrawable(context, iconRes) would resolve against whatever Instagram's
-     *  own resource table happens to have at that numeric ID, since IDs aren't portable across
-     *  APKs. Same pattern already used by GhostDMMarkAsReadHook for its icon. */
     @SuppressLint("UseCompatLoadingForDrawables")
     private static Drawable loadModuleIcon(int iconRes, int tintColor) {
         try {
@@ -1575,10 +1490,8 @@ public class DialogUtils {
         row.setBackground(bg);
 
         GradientDrawable iconBg = new GradientDrawable();
-        // Color.parseColor's 8-digit form is #AARRGGBB (alpha FIRST) — appending alpha as a
-        // suffix would misparse it as an opaque color instead of a translucent tint.
         int accentColor = Color.parseColor(accentHex);
-        iconBg.setColor((accentColor & 0x00FFFFFF) | 0x33000000); // 20% opacity tint
+        iconBg.setColor((accentColor & 0x00FFFFFF) | 0x33000000);
         iconBg.setCornerRadius(14);
         iconView.setBackground(iconBg);
         iconView.setPadding(14, 10, 14, 10);
@@ -1617,12 +1530,6 @@ public class DialogUtils {
         return wrapper;
     }
 
-    /**
-     * A dialog window created with WRAP_CONTENT height makes its ScrollView measure at its full,
-     * unconstrained content height too — so long menus just overflow past the top of the screen
-     * instead of actually scrolling. Capping the ScrollView's own measured height (via AT_MOST)
-     * keeps short menus compact while making tall ones internally scrollable.
-     */
     private static class MaxHeightScrollView extends ScrollView {
         private final int maxHeightPx;
 
@@ -1670,7 +1577,6 @@ public class DialogUtils {
         View decor = dialog.findViewById(android.R.id.content);
         if (decor != null) IgColorRemapEngine.markModuleDialogView(decor);
     }
-
 
     private static LinearLayout createEnableAllSwitch(Context context, ToggleRow enableAllRow) {
         enableAllRow.makeBold();

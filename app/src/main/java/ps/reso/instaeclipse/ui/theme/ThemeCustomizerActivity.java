@@ -43,7 +43,7 @@ import ps.reso.instaeclipse.utils.core.LsPatchCompanionBridge;
 import ps.reso.instaeclipse.utils.core.SettingsManager;
 import ps.reso.instaeclipse.providers.SettingsProvider;
 
-public class ThemeCustomizerActivity extends AppCompatActivity implements AdvancedColorPickerDialog.Listener {
+public class ThemeCustomizerActivity extends AppCompatActivity implements ColorPickerBottomSheet.Listener {
 
     private static final String CACHE_NAME = "instaeclipse_cache";
     private static final String KEY_ENABLED = "customThemeEnabled";
@@ -362,7 +362,7 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements Advanc
 
     private void openPicker(String slotKey, int color, String label) {
         pendingSlotKey = slotKey;
-        AdvancedColorPickerDialog.newInstance(label, color).show(getSupportFragmentManager(), "colorPicker");
+        ColorPickerBottomSheet.newInstance(label, color).show(getSupportFragmentManager(), "colorPicker");
     }
 
     private String slotLabel(int position) {

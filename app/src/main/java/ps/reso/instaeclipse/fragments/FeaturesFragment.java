@@ -78,7 +78,6 @@ public class FeaturesFragment extends Fragment {
 
     private String currentMenu = "main";
 
-    // STAGING SYSTEM: Holds changes before applying
     private final Map<String, Boolean> stagedChanges = new HashMap<>();
 
     private final BroadcastReceiver prefsReceiver = new BroadcastReceiver() {
@@ -236,10 +235,6 @@ public class FeaturesFragment extends Fragment {
                     path = uriString;
                 }
 
-                // Set flag + save new path atomically so the incoming ACTION_SEND_PREFS
-                // reply (triggered by onResume's ACTION_REQUEST_PREFS) doesn't overwrite us.
-                // commit() (not apply()) ensures the XML is flushed to disk before we make it
-                // world-readable so the module's XSharedPreferences can pick it up on cold start.
                 SharedPreferences.Editor editor = localCache.edit();
                 editor.putBoolean("pathJustSetLocally", true);
                 editor.putString("downloaderCustomUri", uriString);
@@ -263,7 +258,6 @@ public class FeaturesFragment extends Fragment {
         fragmentView = inflater.inflate(R.layout.fragment_features, container, false);
         localCache = requireContext().getSharedPreferences("instaeclipse_cache", Context.MODE_PRIVATE);
 
-        // Request POST_NOTIFICATIONS permission (required API 33+ for download progress notifications)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(requireContext(),
                     android.Manifest.permission.POST_NOTIFICATIONS)
@@ -274,7 +268,6 @@ public class FeaturesFragment extends Fragment {
 
         recyclerFeatures = fragmentView.findViewById(R.id.recycler_features);
         recyclerFeatures.setLayoutManager(new LinearLayoutManager(requireContext()));
-        // Disable change animations so conditional enabled/alpha updates are instant, not crossfaded
         recyclerFeatures.setItemAnimator(null);
         adapter = new FeatureAdapter();
         recyclerFeatures.setAdapter(adapter);
@@ -304,10 +297,6 @@ public class FeaturesFragment extends Fragment {
         return fragmentView;
     }
 
-    // =========================================================
-    // MENU DATA MODEL & ADAPTER
-    // =========================================================
-
     public static class FeatureItem {
         public static final int TYPE_HEADER = 0;
         public static final int TYPE_SWITCH = 1;
@@ -324,13 +313,9 @@ public class FeaturesFragment extends Fragment {
         public int accentColor;
         public boolean isExtreme;
         public List<String> childKeys;
-        /** When this switch is turned ON, also stage this key as true (parent dependency). */
         public String dependsOn;
-        /** When this switch is turned OFF, also stage this key as false (child cascade). */
         public String cascadeOffKey;
-        /** Switch is only enabled when at least one key in this list is currently true. */
         public List<String> requiresAnyOf;
-        /** Switch is locked (disabled) when this key is currently true. */
         public String disabledWhenTrue;
 
         public int segmentPosition;
@@ -382,7 +367,6 @@ public class FeaturesFragment extends Fragment {
                 View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_feature_header, parent, false);
                 return new HeaderViewHolder(v);
             } else if (viewType == 2) {
-                // Spacer: a plain transparent view with fixed height
                 View v = new View(parent.getContext());
                 v.setLayoutParams(new RecyclerView.LayoutParams(
                         RecyclerView.LayoutParams.MATCH_PARENT,
@@ -409,7 +393,6 @@ public class FeaturesFragment extends Fragment {
                 itemHolder.tvTitle.setText(item.title);
                 bindIcon(itemHolder.ivIcon, item.iconRes, item.accentColor);
 
-                // Master switches get a tinted card + bold text to stand out from regular items
                 boolean isMaster = item.type == FeatureItem.TYPE_MASTER_SWITCH;
                 if (isMaster) {
                     int bg = MaterialColors.getColor(itemHolder.itemView, com.google.android.material.R.attr.colorSecondaryContainer);
@@ -443,7 +426,6 @@ public class FeaturesFragment extends Fragment {
                 }
                 itemHolder.cardView.setShapeAppearanceModel(shapeBuilder.build());
 
-                // Compute enabled state from conditions
                 boolean switchEnabled = true;
                 if (item.requiresAnyOf != null) {
                     switchEnabled = false;
@@ -514,12 +496,10 @@ public class FeaturesFragment extends Fragment {
                             refreshConditionalItems();
                         } else if (item.prefKey != null) {
                             stageChange(item.prefKey, checked);
-                            // Auto-enable parent dependency (e.g. disableReels when disableReelsExceptDM is on)
                             if (checked && item.dependsOn != null) {
                                 stageChange(item.dependsOn, true);
                                 refreshRowByKey(item.dependsOn);
                             }
-                            // Auto-disable child when parent is turned off (e.g. disableReelsExceptDM when disableReels is off)
                             if (!checked && item.cascadeOffKey != null) {
                                 stageChange(item.cascadeOffKey, false);
                                 refreshRowByKey(item.cascadeOffKey);
@@ -541,7 +521,6 @@ public class FeaturesFragment extends Fragment {
             }
         }
 
-        /** Refreshes any item whose enabled state depends on runtime conditions. */
         void refreshConditionalItems() {
             for (int i = 0; i < items.size(); i++) {
                 FeatureItem fi = items.get(i);
@@ -583,10 +562,6 @@ public class FeaturesFragment extends Fragment {
         }
     }
 
-    // =========================================================
-    // MENU BUILDING HELPERS
-    // =========================================================
-
     private void showMenu(String title, List<Object> definitions) {
         ViewGroup headerLayout = fragmentView.findViewById(R.id.header_layout);
         TransitionManager.beginDelayedTransition(headerLayout, new AutoTransition().setDuration(200));
@@ -611,7 +586,6 @@ public class FeaturesFragment extends Fragment {
                     item.segmentSize = group.size();
                     displayList.add(item);
                 }
-                // Add a spacer after each group except the last definition
                 if (di < definitions.size() - 1) {
                     FeatureItem spacer = new FeatureItem();
                     spacer.type = FeatureItem.TYPE_SPACER;
@@ -714,10 +688,6 @@ public class FeaturesFragment extends Fragment {
         return item;
     }
 
-    // =========================================================
-    // MENUS
-    // =========================================================
-
     private void loadMainMenu() {
         List<Object> defs = new ArrayList<>();
 
@@ -777,11 +747,12 @@ public class FeaturesFragment extends Fragment {
         defs.add(getString(R.string.feat_features));
         defs.add(Arrays.asList(
                 createMasterSwitch(getString(R.string.ig_dialog_enable_disable_all), Arrays.asList(
-                        "isGhostSeen", "isGhostTyping", "isGhostStory", "isGhostLive",
+                        "isGhostSeen", "isGhostVoiceSeen", "isGhostTyping", "isGhostStory", "isGhostLive",
                         "allowScreenshots", "isGhostScreenshot", "isGhostViewOnce",
                         "enableUnlimitedReplays", "permanentViewMode", "keepEphemeralMessages"
                 )),
                 createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_ghost_hide_dm_seen), "isGhostSeen"),
+                createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_ghost_hide_voice_seen), "isGhostVoiceSeen"),
                 createSwitch(R.drawable.ic_chat, "#5E5CE6", getString(R.string.ig_dialog_ghost_hide_typing), "isGhostTyping"),
                 createSwitch(R.drawable.ic_story_ring, "#5E5CE6", getString(R.string.ig_dialog_ghost_hide_story_views), "isGhostStory"),
                 createSwitch(R.drawable.ic_live, "#5E5CE6", getString(R.string.ig_dialog_ghost_hide_live_presence), "isGhostLive"),
@@ -803,12 +774,13 @@ public class FeaturesFragment extends Fragment {
         defs.add(getString(R.string.feat_features));
         defs.add(Arrays.asList(
                 createMasterSwitch(getString(R.string.ig_dialog_enable_disable_all), Arrays.asList(
-                        "quickToggleSeen", "quickToggleTyping", "quickToggleScreenshot",
+                        "quickToggleSeen", "quickToggleVoiceSeen", "quickToggleTyping", "quickToggleScreenshot",
                         "quickToggleViewOnce", "quickToggleStory", "quickToggleLive",
                         "quickToggleEphemeral", "quickToggleReplays", "quickTogglePermanentView",
                         "quickToggleAllowScreenshots"
                 )),
                 createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_quick_hide_seen), "quickToggleSeen"),
+                createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_quick_hide_voice_seen), "quickToggleVoiceSeen"),
                 createSwitch(R.drawable.ic_chat, "#5E5CE6", getString(R.string.ig_dialog_quick_hide_typing), "quickToggleTyping"),
                 createSwitch(R.drawable.ic_camera, "#5E5CE6", getString(R.string.ig_dialog_quick_disable_screenshot), "quickToggleScreenshot"),
                 createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_quick_hide_view_once), "quickToggleViewOnce"),
@@ -860,7 +832,6 @@ public class FeaturesFragment extends Fragment {
                 "disableReelsExceptDM", "disableExplore", "disableComments"
         );
 
-        // Extreme Mode: only enabled once the user has selected at least one feature
         FeatureItem extreme = createSwitch(R.drawable.ic_block, "#FF453A", getString(R.string.ig_dialog_distraction_extreme_mode), "isExtremeMode");
         extreme.textColor = 0xFFFF453A;
         extreme.isExtreme = true;
@@ -869,7 +840,6 @@ public class FeaturesFragment extends Fragment {
         defs.add(getString(R.string.feat_danger_zone));
         defs.add(Arrays.asList(extreme));
 
-        // Master switch and all feature toggles: locked once extreme mode is active
         FeatureItem masterSwitch = createMasterSwitch(getString(R.string.ig_dialog_enable_disable_all), distractionKeys);
         masterSwitch.disabledWhenTrue = "isExtremeMode";
 
@@ -915,7 +885,7 @@ public class FeaturesFragment extends Fragment {
                 createMasterSwitch(getString(R.string.ig_dialog_enable_disable_all), Arrays.asList(
                         "disableStoryFlipping", "disableVideoAutoPlay", "spoofLastSeen", "disableRepost", "showFollowerToast",
                         "showFeatureToasts", "enableStoryMentions", "disableDiscoverPeople", "enableCopyComment",
-                        "disableDoubleTapLike", "enableCaptionCopy", "enablePhotoZoom"
+                        "disableDoubleTapLike", "enableCaptionCopy", "enablePhotoZoom", "bypassChannelRestrictions"
                 )),
                 createSwitch(R.drawable.ic_story_ring, "#BF5AF2", getString(R.string.ig_dialog_misc_disable_story_autoswipe), "disableStoryFlipping"),
                 createSwitch(R.drawable.ic_movie, "#BF5AF2", getString(R.string.ig_dialog_misc_disable_video_autoplay), "disableVideoAutoPlay"),
@@ -928,7 +898,8 @@ public class FeaturesFragment extends Fragment {
                 createSwitch(R.drawable.ic_content_copy, "#BF5AF2", getString(R.string.ig_dialog_misc_copy_comment), "enableCopyComment"),
                 createSwitch(R.drawable.ic_heart, "#BF5AF2", getString(R.string.ig_dialog_misc_disable_double_tap_like), "disableDoubleTapLike"),
                 createSwitch(R.drawable.ic_content_copy, "#BF5AF2", getString(R.string.ig_dialog_misc_copy_caption), "enableCaptionCopy"),
-                createSwitch(R.drawable.ic_search, "#BF5AF2", getString(R.string.ig_dialog_misc_photo_zoom), "enablePhotoZoom")
+                createSwitch(R.drawable.ic_search, "#BF5AF2", getString(R.string.ig_dialog_misc_photo_zoom), "enablePhotoZoom"),
+                createSwitch(R.drawable.ic_shield, "#BF5AF2", getString(R.string.ig_dialog_misc_bypass_channel_restrictions), "bypassChannelRestrictions")
         ));
 
         showMenu(getString(R.string.ig_dialog_section_misc), defs);
@@ -1020,12 +991,13 @@ public class FeaturesFragment extends Fragment {
         defs.add(getString(R.string.feat_features));
         defs.add(Arrays.asList(
                 createMasterSwitch(getString(R.string.ig_dialog_enable_disable_all), Arrays.asList(
-                        "enablePostDownload", "enableStoryDownload", "enableReelDownload", "enableProfileDownload"
+                        "enablePostDownload", "enableStoryDownload", "enableReelDownload", "enableProfileDownload", "enableVoiceDownload"
                 )),
                 createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_posts), "enablePostDownload"),
                 createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_stories), "enableStoryDownload"),
                 createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_reels), "enableReelDownload"),
                 createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_profiles), "enableProfileDownload"),
+                createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_voice), "enableVoiceDownload"),
                 createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_batch), "enableBatchDownload")
         ));
 
@@ -1050,10 +1022,6 @@ public class FeaturesFragment extends Fragment {
         showMenu(getString(R.string.ig_dialog_section_downloader), defs);
         currentMenu = "downloader";
     }
-
-    // =========================================================
-    // TOOLS ACTIONS & HANDLERS
-    // =========================================================
 
     private void pickDownloadFolder() {
         dirPickerLauncher.launch(null);
@@ -1183,10 +1151,6 @@ public class FeaturesFragment extends Fragment {
                 .show();
     }
 
-    // =========================================================
-    // STAGING LOGIC
-    // =========================================================
-
     private void stageChange(String prefKey, boolean isChecked) {
         if (localCache.getBoolean(prefKey, false) == isChecked) {
             stagedChanges.remove(prefKey);
@@ -1222,10 +1186,6 @@ public class FeaturesFragment extends Fragment {
         if (stagedChanges.containsKey(prefKey)) return stagedChanges.get(prefKey);
         return localCache.getBoolean(prefKey, false);
     }
-
-    // =========================================================
-    // LIFECYCLE BROADCAST REGISTRATION
-    // =========================================================
 
     @Override
     public void onResume() {

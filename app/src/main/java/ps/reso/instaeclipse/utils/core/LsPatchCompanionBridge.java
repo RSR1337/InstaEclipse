@@ -6,7 +6,9 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.ResolveInfo;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 
 import java.io.File;
 import java.util.List;
@@ -27,6 +29,7 @@ public final class LsPatchCompanionBridge {
     public static final String COMPANION_CACHE = "instaeclipse_cache";
 
     private static final Object LOCK = new Object();
+    private static final Handler mainHandler = new Handler(Looper.getMainLooper());
     private static volatile boolean listenerRegistered;
     private static volatile XposedService service;
     private static volatile SharedPreferences remotePrefs;
@@ -184,14 +187,14 @@ public final class LsPatchCompanionBridge {
         SharedPreferences remote = remotePrefs;
         if (remote == null) return;
         try {
-            remote.registerOnSharedPreferenceChangeListener((prefs, key) -> {
+            remote.registerOnSharedPreferenceChangeListener((prefs, key) -> mainHandler.post(() -> {
                 try {
                     SettingsManager.mergeFrom(context, prefs);
                     FeatureManager.refreshFeatureStatus();
                     IgThemeEngine.invalidate();
                     IgThemeHook.refreshCurrentActivity();
                 } catch (Throwable ignored) {}
-            });
+            }));
         } catch (Throwable ignored) {}
     }
 

@@ -39,14 +39,18 @@ import ps.reso.instaeclipse.mods.ghost.GhostScreenshotDetectionHook;
 import ps.reso.instaeclipse.mods.ghost.GhostStorySeenHook;
 import ps.reso.instaeclipse.mods.ghost.GhostTypingIndicatorHook;
 import ps.reso.instaeclipse.mods.ghost.GhostViewOnceHook;
+import ps.reso.instaeclipse.mods.ghost.GhostVoiceSeenHook;
 import ps.reso.instaeclipse.mods.ghost.ScreenshotPermissionHook;
 import ps.reso.instaeclipse.mods.media.FeedVideoDownloadHook;
 import ps.reso.instaeclipse.mods.media.PostDownloadContextMenuHook;
 import ps.reso.instaeclipse.mods.media.ProfilePicDownloadHook;
 import ps.reso.instaeclipse.mods.media.ReelDownloadHook;
 import ps.reso.instaeclipse.mods.media.StoryDownloadHook;
+import ps.reso.instaeclipse.mods.media.VoiceDownloadHook;
+import ps.reso.instaeclipse.mods.misc.AppInitCrashGuardHook;
 import ps.reso.instaeclipse.mods.misc.CommentCopyHook;
 import ps.reso.instaeclipse.mods.misc.CaptionCopyContextMenuHook;
+import ps.reso.instaeclipse.mods.misc.DirectCapabilitiesHook;
 import ps.reso.instaeclipse.mods.misc.DisableDoubleTapLikeHook;
 import ps.reso.instaeclipse.mods.misc.IGMantleCrashHook;
 import ps.reso.instaeclipse.mods.misc.IgApiLookupCrashHook;
@@ -68,9 +72,7 @@ import ps.reso.instaeclipse.utils.core.SettingsManager;
 import ps.reso.instaeclipse.utils.feature.FeatureManager;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-
 public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
-    // List of supported Instagram package names (maintained in CommonUtils)
     private static final List<String> SUPPORTED_PACKAGES = CommonUtils.SUPPORTED_PACKAGES;
     public static DexKitBridge dexKitBridge;
     public static ClassLoader hostClassLoader;
@@ -89,6 +91,12 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                 hookDefaultUncaughtExceptionHandler();
                 setupUncaughtExceptionHandler();
                 LsPatchVerifyErrorGuard.install();
+
+                try {
+                    new AppInitCrashGuardHook().install(null, lpparam.classLoader);
+                } catch (Throwable t) {
+                    ModuleLog.line("(InstaEclipse | AppInitGuard): ❌ Early install error: " + t.getMessage());
+                }
 
                 if (dexKitBridge == null) {
                     moduleSourceDir = NativeLibLoader.resolveModulePath(moduleSourceDir);
@@ -112,12 +120,9 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
 
         try {
 
-
             XposedHelpers.findAndHookMethod("android.app.Application", lpparam.classLoader, "attach", Context.class, new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
-                    // Install CommentCopyButtonHook BEFORE Instagram's Application.attach() runs
-                    // so we catch any ViewBinding pre-inflation that happens during attach()
                     Context context = (Context) param.args[0];
                     hostAppContext = context;
                     if (SelfUninstallGuard.checkAndCleanIfUninstalled(context)) {
@@ -126,8 +131,6 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     SettingsManager.init(context);
                     SettingsManager.loadAllFlags(context);
 
-                    // Init DexKit cache — checks IG version to decide if saved descriptors are valid.
-                    // Must run before any hook that calls DexKitCache.isCacheValid().
                     try {
                         android.content.pm.PackageInfo pi =
                                 context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
@@ -141,7 +144,6 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
 
-                    // Setup context, preferences
                     Context context = (Context) param.args[0];
                     hostAppContext = context;
                     if (SelfUninstallGuard.checkAndCleanIfUninstalled(context)) {
@@ -155,9 +157,8 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     Logging.init(context, "instaeclipse_module.log");
                     DownloadHistory.init(context);
 
-                    FeatureManager.refreshFeatureStatus(); // Update internal feature states
+                    FeatureManager.refreshFeatureStatus();
 
-                    // Activate the LSPosed Sync Bridge to listen to FeaturesFragment updates
                     registerSyncReceiver(context);
 
                     try {
@@ -175,12 +176,16 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
 
                     IGNetworkInterceptor interceptor = new IGNetworkInterceptor();
 
-                    // --- Feature Hooks ---
-
                     try {
                         new StaleStateCrashGuardHook().install(dexKitBridge, lpparam.classLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | CrashGuard): ❌ Failed to hook");
+                    }
+
+                    try {
+                        new AppInitCrashGuardHook().install(dexKitBridge, lpparam.classLoader);
+                    } catch (Throwable ignored) {
+                        ModuleLog.line("(InstaEclipse | AppInitGuard): ❌ Failed to hook");
                     }
 
                     try {
@@ -195,42 +200,41 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                         ModuleLog.line("(InstaEclipse | ApiLookupCrash): ❌ Failed to hook");
                     }
 
-                    // Developer Options
                     try {
                         new DevOptionsUnlockHook().handleDevOptions(dexKitBridge);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | DevOptions): ❌ Failed to hook");
                     }
 
-                    // Ghost Mode
                     try {
-                        new GhostDMSeenHook().handleSeenBlock(dexKitBridge); // DM Seen
-                        new GhostDMMarkAsReadHook(moduleSourceDir).install(lpparam.classLoader); // Mark as Read Button
-                        new GhostChannelMarkAsReadHook().install(lpparam.classLoader); // Channel Mark as Read Button
+                        new GhostDMSeenHook().handleSeenBlock(dexKitBridge);
+                        new GhostVoiceSeenHook().handleVoiceSeenBlock(dexKitBridge);
+                        new GhostDMMarkAsReadHook(moduleSourceDir).install(lpparam.classLoader);
+                        new GhostChannelMarkAsReadHook().install(lpparam.classLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | GhostSeen): ❌ Failed to hook");
                     }
 
                     try {
-                        new GhostTypingIndicatorHook().handleTypingBlock(dexKitBridge); // DM Typing
+                        new GhostTypingIndicatorHook().handleTypingBlock(dexKitBridge);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | GhostTyping): ❌ Failed to hook");
                     }
 
                     try {
-                        new GhostScreenshotDetectionHook().handleScreenshotBlock(dexKitBridge); // Screenshot
+                        new GhostScreenshotDetectionHook().handleScreenshotBlock(dexKitBridge);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | GhostScreenshot): ❌ Failed to hook");
                     }
 
                     try {
-                        new ScreenshotPermissionHook().install(lpparam.classLoader); // Allow Screenshots
+                        new ScreenshotPermissionHook().install(lpparam.classLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | ScreenshotPermission): ❌ Failed to hook");
                     }
 
                     try {
-                        new GhostViewOnceHook().handleViewOnceBlock(dexKitBridge); // View Once
+                        new GhostViewOnceHook().handleViewOnceBlock(dexKitBridge);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | GhostViewOnce): ❌ Failed to hook");
                     }
@@ -242,89 +246,77 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     }
 
                     try {
-                        new GhostStorySeenHook().handleStorySeenBlock(dexKitBridge); // Story Seen
+                        new GhostStorySeenHook().handleStorySeenBlock(dexKitBridge);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | GhostStorySeen): ❌ Failed to hook");
                     }
 
-                    // Hide in-feed widget units (suggested users panels, surveys, carousels, etc.)
                     try {
                         new HideSuggestedFeedItemsHook().install(dexKitBridge, hostClassLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | HideSuggested): ❌ Failed to hook");
                     }
 
-                    // Ads Blocker
                     try {
                         new AdBlocker().disableSponsoredContent(dexKitBridge, hostClassLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | AdBlocker): ❌ Failed to hook");
                     }
 
-                    // tracking link disable
                     try {
                         new TrackingLinkDisable().disableTrackingLinks(hostClassLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | TrackingLinkDisable): ❌ Failed to hook");
                     }
 
-                    // Miscellaneous
                     try {
-                        new DisableStoryFlippingHook().handleStoryFlippingDisable(dexKitBridge); // Story Flipping
+                        new DisableStoryFlippingHook().handleStoryFlippingDisable(dexKitBridge);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | StoryFlipping): ❌ Failed to hook");
                     }
 
-                    // Story Mentions
                     try {
                         new StoryMentionHook().install(dexKitBridge, lpparam.classLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | StoryMentions): ❌ Failed to hook");
                     }
 
-                    // Comment Copy
                     try {
                         new CommentCopyHook().install(dexKitBridge, lpparam.classLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | CopyComment): ❌ Failed to hook");
                     }
 
-                    // Caption Copy
                     try {
                         new CaptionCopyContextMenuHook().install(dexKitBridge, lpparam.classLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | Caption): ❌ Failed to hook");
                     }
 
-                    // Disable Double Tap to Like
                     try {
                         new DisableDoubleTapLikeHook().install(dexKitBridge, lpparam.classLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | DoubleTapLike): ❌ Failed to hook");
                     }
 
-                    // Photo Zoom (long-press)
                     try {
                         new FeedPhotoZoomHook().install(lpparam.classLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | PhotoZoom): ❌ Failed to hook");
                     }
 
-                    // Location Spoof
                     try {
                         new LocationSpoofHook().install(lpparam.classLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | SpoofLocation): ❌ Failed to hook");
                     }
 
-                    // Custom Theme
                     try {
                         new IgThemeHook().install(hostClassLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | Theme): ❌ Failed to hook");
                     }
 
-                    // Force Reel Quality
                     try {
                         new ForceReelQualityHook().install(dexKitBridge, lpparam.classLoader);
                     } catch (Throwable ignored) {
@@ -332,19 +324,23 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     }
 
                     try {
-                        new DisableVideoAutoPlayHook().handleAutoPlayDisable(dexKitBridge); // Video Autoplay
+                        new DisableVideoAutoPlayHook().handleAutoPlayDisable(dexKitBridge);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | AutoPlayDisable): ❌ Failed to hook");
                     }
 
-                    // Build Expired Popup
                     try {
                         new BuildExpiredPopupHook().install(dexKitBridge, lpparam.classLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | BuildExpired): ❌ Failed to hook");
                     }
 
-                    // Media Download (feed)
+                    try {
+                        new DirectCapabilitiesHook().install(dexKitBridge, lpparam.classLoader);
+                    } catch (Throwable ignored) {
+                        ModuleLog.line("(InstaEclipse | DirectCapabilities): ❌ Failed to hook");
+                    }
+
                     try {
                         new FeedVideoDownloadHook().install(lpparam.classLoader);
                         FeedVideoDownloadHook.installVideoUrlCaptureHook(dexKitBridge, lpparam.classLoader);
@@ -352,49 +348,48 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                         ModuleLog.line("(InstaEclipse | MediaDownload): ❌ Failed to hook");
                     }
 
-                    // Post Download — three-dots menu (replaces floating button + long-press)
+                    try {
+                        new VoiceDownloadHook(moduleSourceDir).install(dexKitBridge, lpparam.classLoader);
+                    } catch (Throwable ignored) {
+                        ModuleLog.line("(InstaEclipse | VoiceDownload): ❌ Failed to hook");
+                    }
+
                     try {
                         new PostDownloadContextMenuHook().install(dexKitBridge, lpparam.classLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | PostDownload): ❌ Failed to hook");
                     }
 
-                    // Keep Ephemeral Messages
                     try {
                         new GhostEphemeralKeepHook().install(dexKitBridge, lpparam.classLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | EphemeralHook): ❌ Failed to hook");
                     }
 
-                    // Permanent View Mode (view-once / view-twice → permanent)
                     try {
                         new GhostPermanentViewHook().install(dexKitBridge, lpparam.classLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | ViewOnceMedia): ❌ Failed to hook");
                     }
 
-                    // Story Download
                     try {
                         new StoryDownloadHook().install(dexKitBridge, lpparam.classLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | StoryDownload): ❌ Failed to hook");
                     }
 
-                    // Reel Download
                     try {
                         new ReelDownloadHook().install(dexKitBridge, lpparam.classLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | ReelDownload): ❌ Failed to hook");
                     }
 
-                    // Profile Picture Download
                     try {
                         ProfilePicDownloadHook.install();
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | ProfileDownload): ❌ Failed to hook");
                     }
 
-                    // Network Interceptor
                     try {
                         interceptor.handleInterceptor(lpparam);
                     } catch (Throwable ignored) {
@@ -410,10 +405,6 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
         }
     }
 
-    /**
-     * Injects a dynamic receiver into Instagram to listen for settings changes
-     * sent from the InstaEclipse companion app (FeaturesFragment staging system).
-     */
     private void registerSyncReceiver(Context context) {
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
@@ -625,6 +616,12 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
         public void uncaughtException(Thread thread, Throwable throwable) {
             if (LsPatchVerifyErrorGuard.isCertVerifyError(throwable)) {
                 LsPatchVerifyErrorGuard.swallow(throwable);
+                return;
+            }
+            if (thread != null && thread.getName() != null && thread.getName().startsWith("AppInit")) {
+                try {
+                    ModuleLog.line("(InstaEclipse | AppInitGuard): ⚠️ Swallowed uncaught exception in thread \"" + thread.getName() + "\": " + throwable.getMessage());
+                } catch (Throwable ignored) {}
                 return;
             }
             try {

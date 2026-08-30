@@ -36,9 +36,6 @@ import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 public class StoryDownloadHook {
 
-
-
-    // VideoVersionIntf resolved once at install time — same interface used by feed downloader
     private static Class<?> videoVersionIntfClass;
     private static Method   videoVersionGetUrl;
 
@@ -57,11 +54,7 @@ public class StoryDownloadHook {
     private volatile String currentStoryUsername = null;
     private volatile String currentStoryMediaId  = null;
 
-    // ── Entry point ──────────────────────────────────────────────────────────
-
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
-        // IG 444+ moved VideoVersionIntf from com.instagram.model.mediasize to
-        // com.instagram.api.schemas — try both so this keeps working either way.
         for (String cn : FeedVideoDownloadHook.VIDEO_VERSION_INTF_CLASSES) {
             try {
                 videoVersionIntfClass = classLoader.loadClass(cn);
@@ -87,11 +80,6 @@ public class StoryDownloadHook {
         installButtonInjectorHook(bridge, classLoader);
         installClickHandlerHook(bridge, classLoader);
     }
-
-    // ── Hook 1: inject "Download" into the story options button list ──────────
-    //
-    // Found via "[INTERNAL] Pause Playback" string + CharSequence[] return type, 1 param.
-    // afterHookedMethod: appends our "Download" entry to the returned CharSequence[] array.
 
     private void installButtonInjectorHook(DexKitBridge bridge, ClassLoader classLoader) {
         Method method = DexKitCache.isCacheValid()
@@ -188,13 +176,6 @@ public class StoryDownloadHook {
         }
     }
 
-    // ── Hook 2: handle click on our "Download" option ────────────────────────
-    //
-    // Found via "explore_viewer" + "friendships/mute_friend_reel/%s/" strings.
-    // beforeHookedMethod: reads the CharSequence param (the tapped label); if it
-    // equals "Download", triggers the download. Context and ReelItem are resolved
-    // from fields on 'this' or same-class params.
-
     private void installClickHandlerHook(DexKitBridge bridge, ClassLoader classLoader) {
         Method method = DexKitCache.isCacheValid()
                 ? DexKitCache.loadMethod("StoryDownload_click_v2", classLoader) : null;
@@ -233,7 +214,6 @@ public class StoryDownloadHook {
                 protected void beforeHookedMethod(MethodHookParam param) {
                     if (!FeatureFlags.enableStoryDownload) return;
 
-                    // 1. Find which button was tapped
                     CharSequence tapped = null;
                     for (Object arg : param.args) {
                         if (arg instanceof CharSequence cs) { tapped = cs; break; }
@@ -302,13 +282,6 @@ public class StoryDownloadHook {
         }
     }
 
-    // ── URL extraction ────────────────────────────────────────────────────────
-
-    /**
-     * Finds the object (either 'this' or a same-class parameter) that holds the
-     * ReelItem field. The click handler sometimes receives a reference to the outer
-     * class as a parameter rather than p0/this.
-     */
     private static Object findReelItemHolder(XC_MethodHook.MethodHookParam param) {
         if (hasReelItemField(param.thisObject)) return param.thisObject;
         for (Object arg : param.args) {
@@ -345,14 +318,6 @@ public class StoryDownloadHook {
         return false;
     }
 
-    /**
-     * Extracts the story media URL from the holder object.
-     *   1. Reads the ReelItem field from the holder.
-     *   2. Searches for VideoVersionIntf → video URL (videos).
-     *   3. Searches for image Candidate objects (CDN URL + width int + height int) and
-     *      picks the one with the largest pixel area (photos).
-     *   4. Falls back to raw CDN string scan with area-based ranking.
-     */
     private static String extractStoryUrl(Context ctx, Object holder) {
         if (holder == null) holder = lastReelItem;
         if (holder == null) return null;
@@ -433,7 +398,6 @@ public class StoryDownloadHook {
         return mediaClass != null ? FeedVideoDownloadHook.findFieldAssignableTo(host, mediaClass) : null;
     }
 
-    /** Reads the first field whose declared type name equals {@code typeName}. */
     private static Object readFieldByTypeName(Object obj, String typeName) {
         Class<?> cls = obj.getClass();
         while (cls != null && cls != Object.class) {
@@ -448,7 +412,6 @@ public class StoryDownloadHook {
         return null;
     }
 
-    /** Depth-limited field-graph walk looking for a VideoVersionIntf and calling getUrl(). */
     private static String findVideoUrl(Object obj, Set<Object> visited, int depth) {
         if (obj == null || depth > 5 || !visited.add(obj)) return null;
         if (videoVersionIntfClass == null || videoVersionGetUrl == null) return null;
@@ -495,7 +458,6 @@ public class StoryDownloadHook {
         return null;
     }
 
-    /** Depth-limited field-graph scan for Instagram CDN URL strings. */
     private static void scanCdnUrls(Object obj, List<String> out, int depth, Set<Object> visited) {
         if (obj == null || depth > 5 || out.size() >= 20) return;
         if (!visited.add(obj)) return;
@@ -526,25 +488,12 @@ public class StoryDownloadHook {
         }
     }
 
-    // ── Image candidate scanner ───────────────────────────────────────────────
-
     private static final class CandidateInfo {
         final String url;
         final int    area;
         CandidateInfo(String url, int area) { this.url = url; this.area = area; }
     }
 
-    /**
-     * Walks the object graph looking for Instagram image Candidate objects.
-     * A Candidate is identified by having:
-     *   • At least one String field/method that is a CDN image URL (not video)
-     *   • At least two int/long fields/methods whose values are plausible pixel dimensions (50–20 000 px)
-     *
-     * Field names are ignored — they are obfuscated in Instagram builds.
-     * No-arg methods are also probed to handle Pando/LiveTree JNI-backed nodes where
-     * data is not exposed as Java fields (fixes lower-quality photos on some story types).
-     * The two largest plausible-dimension ints are multiplied to estimate the area.
-     */
     private static void collectImageCandidates(Object obj, List<CandidateInfo> out,
                                                Set<Object> visited, int depth) {
         if (obj == null || depth > 7 || out.size() >= 40) return;
@@ -553,7 +502,6 @@ public class StoryDownloadHook {
         String cn = obj.getClass().getName();
         if (cn.startsWith("android.") || cn.startsWith("java.lang.") || cn.startsWith("kotlin.")) return;
 
-        // Scan this object's own fields looking for (url + dims) pattern
         String candidateUrl = null;
         List<Integer> dims = new ArrayList<>();
 
@@ -577,7 +525,6 @@ public class StoryDownloadHook {
             cls = cls.getSuperclass();
         }
 
-        // Method probe for Pando/LiveTree JNI-backed nodes — data not exposed as Java fields
         if (cn.startsWith("X.") || cn.startsWith("com.instagram.") || cn.startsWith("com.facebook.")) {
             cls = obj.getClass();
             while (cls != null && cls != Object.class) {
@@ -606,10 +553,9 @@ public class StoryDownloadHook {
         if (candidateUrl != null && dims.size() >= 2) {
             dims.sort(Collections.reverseOrder());
             out.add(new CandidateInfo(candidateUrl, dims.get(0) * dims.get(1)));
-            return; // leaf candidate — don't recurse further into it
+            return;
         }
 
-        // Not a candidate — recurse into Instagram/Facebook/X. objects and lists
         cls = obj.getClass();
         while (cls != null && cls != Object.class) {
             for (Field f : cls.getDeclaredFields()) {
@@ -633,8 +579,6 @@ public class StoryDownloadHook {
         }
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
     private static Context findContext(Object obj) {
         if (obj == null) return null;
         Class<?> cls = obj.getClass();
@@ -657,7 +601,7 @@ public class StoryDownloadHook {
         if (url == null || url.isEmpty()) return false;
         if (!url.startsWith("http://") && !url.startsWith("https://")) return false;
         if (!url.contains("cdninstagram.com") && !url.contains("fbcdn.net")) return false;
-        if (url.contains("/t51.") && url.contains("-19/")) return false; // profile pics
+        if (url.contains("/t51.") && url.contains("-19/")) return false;
         return true;
     }
 
@@ -665,11 +609,6 @@ public class StoryDownloadHook {
         return url.contains("t50.") || url.contains("/o1/");
     }
 
-    /**
-     * Prefer video URLs; among images pick the one with the largest pixel area.
-     * Instagram embeds resolution as NNNxNNN in CDN paths (e.g. 1080x1920), so
-     * parsing it directly is the most reliable way to select the full-size copy.
-     */
     private static String pickBestUrl(List<String> urls) {
         for (String u : urls) if (isVideoUrl(u)) return u;
         String best = null;
@@ -681,37 +620,30 @@ public class StoryDownloadHook {
         return best != null ? best : urls.get(0);
     }
 
-    /** Extracts the largest NNNxNNN area found inside a CDN URL. */
     private static int parseUrlArea(String url) {
         int maxArea = 0;
         int i = 0;
         while (i < url.length()) {
-            // Find a digit run
             if (!Character.isDigit(url.charAt(i))) { i++; continue; }
             int numStart = i;
             while (i < url.length() && Character.isDigit(url.charAt(i))) i++;
-            // Must be followed by 'x'
             if (i >= url.length() || url.charAt(i) != 'x') continue;
-            i++; // skip 'x'
+            i++;
             if (i >= url.length() || !Character.isDigit(url.charAt(i))) continue;
             int numMid = i;
             while (i < url.length() && Character.isDigit(url.charAt(i))) i++;
             try {
                 int w = Integer.parseInt(url.substring(numStart, numMid - 1));
                 int h = Integer.parseInt(url.substring(numMid, i));
-                int area = w * h;
-                if (area > maxArea) maxArea = area;
+                if (w >= 50 && w <= 20000 && h >= 50 && h <= 20000) {
+                    int area = w * h;
+                    if (area > maxArea) maxArea = area;
+                }
             } catch (NumberFormatException ignored) {}
         }
         return maxArea;
     }
 
-    // ── Username extraction ───────────────────────────────────────────────────
-
-    /**
-     * Tries to extract the story author's username from the holder or ReelItem object.
-     * ReelItem is non-obfuscated so getUser() and getUsername() are stable method names.
-     */
     private static String extractUsernameFromReelItemHolder(Object holder) {
         Object reelItem = resolveReelItem(holder);
         if (reelItem == null) {
@@ -767,10 +699,9 @@ public class StoryDownloadHook {
     private static boolean looksLikeUsername(String s) {
         return s != null && s.length() >= 2 && s.length() <= 30
                 && s.matches("[a-zA-Z0-9._]+")
-                && !s.matches("\\d+");   // exclude pure numeric IDs
+                && !s.matches("\\d+");
     }
 
-    /** Extracts the short media ID from the ReelItem held by the holder (first segment of getId()). */
     private static String extractMediaIdFromReelItemHolder(Object holder) {
         try {
             Object reelItem = resolveReelItem(holder);
@@ -1197,29 +1128,33 @@ public class StoryDownloadHook {
 
     private void startBatchDownload(Context ctx, List<StoryDl> items) {
         int n = items.size();
-        Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_downloading_all_n_items, n), Toast.LENGTH_SHORT).show();
         String username = currentStoryUsername;
+        BulkDownloadProgressDialog progress = BulkDownloadProgressDialog.show(ctx, mainHandler, n);
         FeedVideoDownloadHook.executor.submit(() -> {
+            int saved = 0;
             int failed = 0;
             for (StoryDl item : items) {
+                if (progress.isCancelled()) break;
                 String fn = FeedVideoDownloadHook.buildFilename(username, "story", item.mediaId, item.video);
                 try {
                     FeedVideoDownloadHook.downloadAndSave(ctx, item.url, fn, item.video, username);
+                    saved++;
                 } catch (Throwable e) {
                     failed++;
                     ModuleLog.line("(IE|Story|DL) item failed: " + e);
                 }
+                progress.updateProgress(saved + failed, saved, failed);
             }
-            final int finalFailed = failed;
-            mainHandler.post(() -> {
-                if (finalFailed == 0) {
-                    Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_all_items_saved, n),
-                            Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_items_partial_saved,
-                            n - finalFailed, n, finalFailed), Toast.LENGTH_SHORT).show();
-                }
-            });
+            if (progress.isCancelled()) {
+                progress.dismissIfShowing();
+                final int finalSaved = saved;
+                final int finalFailed = failed;
+                mainHandler.post(() -> Toast.makeText(ctx,
+                        I18n.t(ctx, R.string.ig_toast_download_cancelled, finalSaved, finalFailed),
+                        Toast.LENGTH_SHORT).show());
+            } else {
+                progress.finish(saved, failed);
+            }
         });
     }
 
@@ -1246,13 +1181,4 @@ public class StoryDownloadHook {
         }).start());
     }
 
-    private static void downloadToStream(String url, java.io.OutputStream out) throws Exception {
-        java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
-        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36");
-        conn.connect();
-        try (java.io.InputStream in = conn.getInputStream()) {
-            byte[] buf = new byte[32768]; int n;
-            while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
-        } finally { conn.disconnect(); }
-    }
 }
