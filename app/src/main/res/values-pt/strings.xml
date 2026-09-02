@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- app wide -->
+    
     <string name="app_name">InstaEclipse</string>
     <string name="home">Início</string>
     <string name="features">Recursos</string>
     <string name="help">Ajuda</string>
 
-    <!-- home -->
+    
     <string name="instagram_version">Versão</string>
     <string name="module_disabled">O módulo não está habilitado. Por favor, habilite-o.</string>
 
@@ -24,7 +24,6 @@
     <string name="not_installed_instagram">O Instagram não está instalado.</string>
     <string name="error_instagram">Erro ao verificar o status do Instagram.</string>
 
-
     <string name="launch_instagram">Abrir Instagram</string>
     <string name="download_apk">Baixar APK</string>
     <string name="how_to_use">Como usar</string>
@@ -35,20 +34,20 @@
     <string name="contributors">Colaboradores</string>
     <string name="special_thanks">Agradecimentos Especiais</string>
 
-    <!-- Não traduzir! -->
+    
 
-    <!-- ajuda -->
+    
     <string name="help_amp_troubleshooting">Ajuda e Solução de Problemas</string>
     <string name="find_updates_and_documentation">Encontre atualizações e documentação.</string>
     <string name="go_to_github">Ir para o GitHub</string>
     <string name="find_support">Encontre suporte.</string>
     <string name="go_to_telegram">Ir para o Telegram</string>
 
-    <!-- Não traduzir! -->
+    
     <string name="github">GitHub</string>
     <string name="telegram">Telegram</string>
 
-    <!-- faq -->
+    
     <string name="frequently_asked_questions">Perguntas Frequentes</string>
     <string name="faq_1">1. Não está funcionando/travando ao usar a versão do Google Play?\n- Use os APKs do APKMirror.</string>
     <string name="faq_2">2. O módulo não está habilitado?\n- Desative e reative o módulo no LSPosed.</string>
@@ -57,7 +56,7 @@
     <string name="faq_5">5. As opções de desenvolvedor têm rótulos ou números estranhos?\n- Use versões Beta ou Alpha, pois as versões estáveis possuem ofuscação.</string>
     <string name="faq_6">6. Distraction Free ativado, mas o conteúdo ainda aparece?\n- Force a parada do Instagram e limpe o cache.</string>
 
-    <!-- features -->
+    
     <string name="developer_options">Opções de Desenvolvedor</string>
     <string name="ghost_mode">Modo Invisível</string>
     <string name="distraction_free">Sem Distrações</string>
@@ -66,9 +65,9 @@
 
     <string name="enable_disable_all">Ativar/Desativar Tudo</string>
 
-    <!-- Não traduzir! -->
+    
 
-    <!-- ghost -->
+    
     <string name="ghost_mode_options">Opções do Modo Invisível</string>
     <string name="typing">Digitando</string>
     <string name="story">Stories</string>
@@ -77,7 +76,7 @@
     <string name="direct_messages">Mensagens Diretas</string>
     <string name="disable_typing">Desativar digitação</string>
 
-    <!-- developer_options -->
+    
     <string name="screen_shot">A captura de tela</string>
     <string name="developer_options_guide">Guia de Opções de Desenvolvedor</string>
     <string name="dev_options_version_req">Use apenas em versões Beta/Alpha!</string>
@@ -88,9 +87,9 @@
     <string name="dev_options_3">3. Procure por \'Employee\' e ative as seguintes opções:</string>
     <string name="dev_options_4">4. Por fim, desative as Opções de Desenvolvedor no módulo para evitar falhas no aplicativo.</string>
 
-    <!-- Não traduzir! -->
+    
 
-    <!-- distraction free -->
+    
     <string name="distraction_free_options">Opções do modo Sem Distrações</string>
     <string name="disable_stories">Desativar Stories</string>
     <string name="disable_feed">Desativar Feed</string>
@@ -98,20 +97,20 @@
     <string name="disable_explore">Desativar Explorar</string>
     <string name="disable_comments">Desativar Comentários</string>
 
-    <!-- Miscellaneous -->
+    
     <string name="misc">Diversos</string>
     <string name="miscellaneous_options">Opções Diversas</string>
     <string name="story_flipping">Desativar Virada de História</string>
     <string name="video_autoplay">Desativar Reprodução Automática de Vídeo</string>
 
-    <!-- cartão de colaborador -->
+    
     <string name="hooked_methods_toast">Recursos ativados</string>
     <string name="contributor_name">Nome do Colaborador</string>
 
-    <!-- Toast -->
+    
     <string name="follower_toast">Status de seguimento</string>
 
-    <!-- Dialog strings -->
+    
     <string name="ig_dialog_close">Fechar</string>
     <string name="ig_dialog_enable_disable_all">Ativar/Desativar tudo</string>
     <string name="ig_dialog_error">Erro</string>
@@ -158,7 +157,7 @@
     <string name="ig_toast_config_imported">✅ Configuração importada.</string>
     <string name="ig_toast_config_import_failed">❌ Falha ao importar configuração.</string>
 
-    <!-- JsonImportActivity -->
+    
     <string name="json_select_config">Selecionar config JSON</string>
     <string name="json_target_not_specified">❌ Pacote de destino não especificado.</string>
     <string name="json_sent">✅ Enviado ao Instagram.</string>
@@ -209,7 +208,7 @@
     <string name="ig_dialog_misc_copy_comment">Copiar comentário</string>
     <string name="ig_dialog_misc_disable_double_tap_like">Desativar toque duplo para curtir</string>
 
-    <!-- Comment Copy dialog -->
+    
     <string name="ig_comment_copy_title">Copiar comentário</string>
     <string name="ig_comment_copy_full">Copiar comentário completo</string>
     <string name="ig_comment_select_part">Selecionar parte para copiar</string>
@@ -239,29 +238,29 @@
     <string name="ig_dialog_restart_not_found">Não foi possível encontrar a aplicação para reiniciar.</string>
     <string name="ig_dialog_restart_failed">Falha ao reiniciar: %1$s</string>
 
-    <!-- Toast: Ghost mode -->
+    
     <string name="ig_toast_ghost_no_options">Nenhuma opção do Modo Fantasma selecionada!</string>
     <string name="ig_toast_ghost_enabled">Modo Fantasma ativado</string>
     <string name="ig_toast_ghost_disabled">Modo Fantasma desativado</string>
     <string name="ig_toast_seen_sent">✅ Lido enviado</string>
     <string name="ig_toast_channel_seen_sent">✅ Canal lido enviado</string>
 
-    <!-- Toast: Follower status -->
+    
     <string name="ig_toast_follows_you">segue você ✅</string>
     <string name="ig_toast_not_follows_you">não segue você ❌</string>
 
-    <!-- Toast: App settings -->
+    
     <string name="ig_toast_settings_applied">Configurações aplicadas!</string>
     <string name="ig_toast_restart_manual">Por favor, feche o Instagram manualmente para as alterações surtirem efeito.</string>
     <string name="ig_toast_settings_restored">Configurações restauradas com sucesso.</string>
     <string name="ig_toast_restore_failed">Falha ao restaurar: %1$s</string>
 
-    <!-- Toast: Download folder -->
+    
     <string name="ig_toast_download_folder_set">Pasta de download: %1$s</string>
     <string name="ig_toast_download_folder_updated">Pasta de download atualizada!</string>
     <string name="ig_toast_download_folder_reset">Pasta de download redefinida para padrão</string>
 
-    <!-- Toast: Downloader -->
+    
     <string name="ig_toast_downloading">A descarregar…</string>
     <string name="ig_toast_downloading_video">A descarregar vídeo…</string>
     <string name="ig_toast_downloading_photo">A descarregar foto…</string>
@@ -283,7 +282,6 @@
     <string name="ig_toast_downloading_profile_pic">A descarregar foto de perfil…</string>
     <string name="ig_toast_profile_pic_saved">Foto de perfil guardada!</string>
     <string name="ig_toast_profile_pic_url_not_found">Não foi possível obter o URL da foto de perfil</string>
-    <string name="ig_toast_merging_video_audio">A juntar vídeo e áudio…</string>
     <string name="ig_toast_downloading_n_items">A descarregar %1$d itens…</string>
     <string name="ig_toast_downloading_all_n_items">A descarregar todos os %1$d itens…</string>
     <string name="ig_toast_all_items_saved">Todos os %1$d itens guardados na pasta InstaEclipse</string>
@@ -300,7 +298,7 @@
     <string name="back">Voltar</string>
     <string name="apply_changes">Aplicar alterações</string>
 
-    <!-- features fragment section headers -->
+    
     <string name="feat_categories">Categorias:</string>
     <string name="feat_tools">Ferramentas:</string>
     <string name="feat_features">Funcionalidades:</string>
@@ -313,16 +311,16 @@
     <string name="feat_downloader_selected">Selecionada: %1$s</string>
     <string name="feat_downloader_reset_folder">Redefinir pasta de transferência</string>
 
-    <!-- multiple versions -->
+    
     <string name="multiple_versions_detected">⚠️ Várias versões detetadas</string>
 
-    <!-- Story mentions dialog -->
+    
     <string name="ig_mention_dialog_title">Menções de história</string>
     <string name="ig_mention_subtitle">%1$d menção(ões) • toque para abrir o perfil</string>
     <string name="ig_mention_no_mentions">Nenhuma menção encontrada nesta história</string>
     <string name="ig_mention_copy_all">Copiar tudo</string>
 
-    <!-- Toast: Downloader (service) -->
+    
     <string name="ig_toast_no_download_folder">Nenhuma pasta de transferência definida</string>
     <string name="ig_toast_file_saved">Guardado: %1$s</string>
     <string name="ig_toast_features_loaded">InstaEclipse carregado 🎯</string>
@@ -331,13 +329,13 @@
     <string name="ig_toast_features_on_off_count">%1$d ativas · %2$d desativadas</string>
     <string name="ig_toast_features_status_full">%1$d ativas · %2$d pendentes · %3$d desativadas</string>
 
-    <!-- Update check dialog -->
+    
     <string name="ig_update_title">Atualização disponível</string>
     <string name="ig_update_message">Uma nova versão (%1$s) está disponível. Deseja atualizar agora?</string>
     <string name="ig_update_button">Atualizar</string>
     <string name="ig_update_later">Mais tarde</string>
     <string name="ig_update_error_message">Falha ao verificar atualizações. Tente novamente mais tarde.</string>
-    <!-- Custom Theme -->
+    
     <string name="ig_dialog_menu_theme">Tema Personalizado</string>
     <string name="theme_title">Tema Personalizado</string>
     <string name="theme_enable">Ativar Tema Personalizado</string>

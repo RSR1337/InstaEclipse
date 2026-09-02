@@ -46,12 +46,6 @@ import ps.reso.instaeclipse.utils.core.CommonUtils;
 import ps.reso.instaeclipse.utils.core.SettingsManager;
 import ps.reso.instaeclipse.providers.SettingsProvider;
 
-/**
- * Full-screen OpenStreetMap picker used to choose the coordinates GPS-spoofing reports to
- * Instagram. Search uses Nominatim's public geocoding API; picked coordinates are persisted
- * directly (both prefs stores) and broadcast to Instagram's process so the change takes
- * effect immediately without an app restart.
- */
 public class LocationPickerActivity extends AppCompatActivity {
 
     public static final String EXTRA_LAT = "lat";

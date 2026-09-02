@@ -48,21 +48,9 @@ public class UIHookManager {
         return currentActivity;
     }
 
-    /**
-     * Activities that already have a pending OnGlobalLayoutListener registered.
-     * Used only to prevent duplicate listener registrations when the search view
-     * is not yet visible at setup time.
-     */
-    private static final java.util.WeakHashMap<Activity, Boolean> sGlobalListenerPending =
-            new java.util.WeakHashMap<>();
-    /**
-     * Tracks whether the GlobalLayoutListener path has completed for an activity,
-     * so we don't keep registering new listeners on every resume after search is found.
-     */
-    private static final java.util.WeakHashMap<Activity, Boolean> sSearchWiringDone =
-            new java.util.WeakHashMap<>();
+    private static final int TAG_SEARCH_LISTENER_PENDING = "ie_search_listener_pending".hashCode();
+    private static final int TAG_SEARCH_WIRING_DONE = "ie_search_wiring_done".hashCode();
 
-    // Resource IDs are constant for a given IG install — cache them statically.
     private static volatile int sSearchTabId = 0;
     private static volatile int sActionBarEndId = 0;
     private static volatile int sInboxButtonId = 0;
@@ -85,15 +73,11 @@ public class UIHookManager {
     }
 
     public static void setupHooks(Activity activity) {
-        // Ghost emoji visibility must update on every resume (reflects current ghost state).
+
         addGhostEmojiNextToInbox(activity, GhostModeUtils.isGhostModeActive());
 
-        // Cache resource IDs once per IG install (string table lookup is non-trivial).
         ensureIdsCached(activity);
 
-        // Always re-apply the search long-press listener. Instagram may overwrite it after
-        // a config change (e.g. when InstaEclipse settings are toggled), so we cannot skip
-        // this on resume — we just avoid the expensive getIdentifier() call via the cache.
         boolean anySearchFound = false;
         if (sSearchTabId != 0) {
             View v = activity.findViewById(sSearchTabId);
@@ -104,14 +88,12 @@ public class UIHookManager {
             if (v != null) { processSearchView(activity, v, "action_bar_end_action_buttons"); anySearchFound = true; }
         }
 
-        // Register at most ONE GlobalLayoutListener per activity to retry search wiring
-        // when the view isn't inflated yet. Skip if we already found search, if a listener
-        // is already pending, or if the listener already completed successfully.
+        final View decorView = activity.getWindow() != null ? activity.getWindow().getDecorView() : null;
         if (!anySearchFound
-                && !Boolean.TRUE.equals(sGlobalListenerPending.get(activity))
-                && !Boolean.TRUE.equals(sSearchWiringDone.get(activity))) {
-            sGlobalListenerPending.put(activity, true);
-            final View decorView = activity.getWindow().getDecorView();
+                && decorView != null
+                && !Boolean.TRUE.equals(decorView.getTag(TAG_SEARCH_LISTENER_PENDING))
+                && !Boolean.TRUE.equals(decorView.getTag(TAG_SEARCH_WIRING_DONE))) {
+            decorView.setTag(TAG_SEARCH_LISTENER_PENDING, Boolean.TRUE);
             decorView.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
                 @Override
                 public void onGlobalLayout() {
@@ -126,8 +108,8 @@ public class UIHookManager {
                     }
                     if (found) {
                         decorView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                        sGlobalListenerPending.remove(activity);
-                        sSearchWiringDone.put(activity, true);
+                        decorView.setTag(TAG_SEARCH_LISTENER_PENDING, null);
+                        decorView.setTag(TAG_SEARCH_WIRING_DONE, Boolean.TRUE);
                     }
                 }
             });
@@ -142,12 +124,6 @@ public class UIHookManager {
 
         BottomSheetHookUtil.hookBottomSheetNavigator(Module.dexKitBridge);
 
-        // Hook View.performLongClick — inbox long-press override.
-        // setOnLongClickListener is unreliable when Instagram has a parent-level touch
-        // interceptor or a custom view that overrides long-press dispatch. Hooking
-        // performLongClick() fires BEFORE any listener/interceptor chain and lets us
-        // fully own the event by returning true via setResult.
-        // This only fires when the user actually long-presses something — not a hot path.
         XposedHelpers.findAndHookMethod(View.class, "performLongClick", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
@@ -159,11 +135,10 @@ public class UIHookManager {
                 if (activity == null) return;
                 GhostModeUtils.toggleSelectedGhostOptions(activity);
                 VibrationUtil.vibrate(activity);
-                param.setResult(true); // consume — skip Instagram's handler entirely
+                param.setResult(true);
             }
         });
 
-        // Hook onResume - Model
         try {
             XposedHelpers.findAndHookMethod("com.instagram.modal.ModalActivity", classLoader, "onResume", new XC_MethodHook() {
                 @Override
@@ -324,7 +299,6 @@ public class UIHookManager {
         }
     }
 
-    /** Registers a broadcast receiver in the Instagram process to handle config imports. */
     public static void registerConfigImportReceiver(android.content.Context context) {
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
@@ -347,7 +321,6 @@ public class UIHookManager {
         }
     }
 
-    /** Registers a receiver in the Instagram process to restore settings from a backup JSON. */
     public static void registerSettingsRestoreReceiver(android.content.Context context) {
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override

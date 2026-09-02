@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="status_hook_ok_container">#132A20</color>
+    <color name="status_hook_ok_on">#F4F6F9</color>
+    <color name="status_hook_err_container">#2A1418</color>
+    <color name="status_hook_err_on">#F4F6F9</color>
+    <color name="status_hook_check_container">#1A1510</color>
+    <color name="status_hook_check_on">#F4F6F9</color>
+</resources>

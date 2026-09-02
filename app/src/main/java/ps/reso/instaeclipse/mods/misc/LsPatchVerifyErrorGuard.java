@@ -30,16 +30,54 @@ public final class LsPatchVerifyErrorGuard {
         return false;
     }
 
+    public static boolean isSessionMutationRegistryError(Throwable throwable) {
+        Throwable cur = throwable;
+        int depth = 0;
+        while (cur != null && depth < 8) {
+            if (cur instanceof IllegalStateException) {
+                String message = cur.getMessage();
+                if (message != null && message.contains("SessionScopedDirectMutationDefinition")) {
+                    return true;
+                }
+            }
+            cur = cur.getCause();
+            depth++;
+        }
+        return false;
+    }
+
+    public static boolean shouldSwallow(Throwable throwable) {
+        return isCertVerifyError(throwable) || isSessionMutationRegistryError(throwable);
+    }
+
     public static void swallow(Throwable throwable) {
         if (logged) return;
         logged = true;
-        ModuleLog.line("(InstaEclipse | LSPatch): swallowed origin APK cert VerifyError");
+        ModuleLog.line("(InstaEclipse | LSPatch): swallowed uncaught exception: " + throwable);
     }
 
     public static void install() {
         if (installed) return;
         installed = true;
         hookHandlerSetter("setUncaughtExceptionHandler");
+        hookDispatch();
+    }
+
+    private static void hookDispatch() {
+        try {
+            XposedHelpers.findAndHookMethod(Thread.class, "dispatchUncaughtException", Throwable.class, new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) {
+                    Throwable throwable = (Throwable) param.args[0];
+                    if (throwable != null && shouldSwallow(throwable)) {
+                        swallow(throwable);
+                        param.setResult(null);
+                    }
+                }
+            });
+        } catch (Throwable t) {
+            ModuleLog.line("(InstaEclipse | LSPatch): dispatchUncaughtException guard failed: " + t.getMessage());
+        }
     }
 
     private static void hookHandlerSetter(String methodName) {
@@ -66,7 +104,7 @@ public final class LsPatchVerifyErrorGuard {
 
         @Override
         public void uncaughtException(Thread thread, Throwable throwable) {
-            if (isCertVerifyError(throwable)) {
+            if (shouldSwallow(throwable)) {
                 swallow(throwable);
                 return;
             }

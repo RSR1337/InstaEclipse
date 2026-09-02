@@ -18,17 +18,14 @@ import android.widget.Space;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
 import ps.reso.instaeclipse.R;
+import ps.reso.instaeclipse.utils.core.ViewAttachDispatcher;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.i18n.I18n;
@@ -45,7 +42,6 @@ public class ProfilePicDownloadHook {
             Collections.synchronizedSet(new HashSet<>());
 
     private static final String DOWNLOAD_ITEM_TAG = "ie_profile_dl_btn";
-    private static volatile WeakReference<View> activeProfilePic;
 
     public static void install() {
         if (FeatureFlags.enableProfileDownload) {
@@ -53,11 +49,10 @@ public class ProfilePicDownloadHook {
             FeatureStatusTracker.setHooked("ProfileDownload");
         }
 
-        XposedHelpers.findAndHookMethod(View.class, "onAttachedToWindow", new XC_MethodHook() {
+        ViewAttachDispatcher.add(new ViewAttachDispatcher.Listener() {
             @Override
-            protected void afterHookedMethod(MethodHookParam param) {
+            public void onViewAttached(View v) {
                 if (!FeatureFlags.enableProfileDownload) return;
-                View v = (View) param.thisObject;
                 int vid = v.getId();
                 if (vid == View.NO_ID) return;
 
@@ -71,19 +66,8 @@ public class ProfilePicDownloadHook {
                     } catch (Throwable ignored) { return; }
                 }
 
-                activeProfilePic = new WeakReference<>(v);
                 injectLongPress(v);
                 scheduleInteractionBarButton(v);
-            }
-        });
-
-        XposedHelpers.findAndHookMethod(View.class, "onDetachedFromWindow", new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) {
-                View v = (View) param.thisObject;
-                if (!isExpandedProfilePic(v)) return;
-                WeakReference<View> active = activeProfilePic;
-                if (active != null && active.get() == v) activeProfilePic = null;
             }
         });
     }
@@ -115,9 +99,6 @@ public class ProfilePicDownloadHook {
     }
 
     private static View resolveActiveProfilePic(View near) {
-        WeakReference<View> cachedRef = activeProfilePic;
-        View cached = cachedRef != null ? cachedRef.get() : null;
-        if (cached != null) return cached;
         if (near == null) return null;
         View root = near.getRootView();
         if (root == null) root = near;

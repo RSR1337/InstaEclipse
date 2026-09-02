@@ -24,6 +24,7 @@ import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.ImageButton;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -33,6 +34,8 @@ import androidx.core.content.ContextCompat;
 import androidx.core.widget.NestedScrollView;
 import androidx.fragment.app.Fragment;
 
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.color.MaterialColors;
 import com.google.android.material.textfield.TextInputEditText;
@@ -42,6 +45,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import ps.reso.instaeclipse.R;
+import ps.reso.instaeclipse.MainActivity;
 import ps.reso.instaeclipse.utils.core.CommonUtils;
 import ps.reso.instaeclipse.utils.log.Logging;
 
@@ -55,6 +59,12 @@ public class LoggingFragment extends Fragment {
     private TextView lineCountView;
     private NestedScrollView scrollView;
     private ImageButton searchClear;
+    private MaterialButton pauseButton;
+    private MaterialButton jumpLatestButton;
+    private Chip pausedBadge;
+    private LinearLayout emptyState;
+    private boolean paused;
+    private boolean userScrolledUp;
     private Runnable pendingTimeout;
     private String companionSection = "";
     private String rawCombined = "";
@@ -95,6 +105,26 @@ public class LoggingFragment extends Fragment {
         lineCountView = view.findViewById(R.id.logging_line_count);
         scrollView = view.findViewById(R.id.logging_scroll);
         searchClear = view.findViewById(R.id.logging_search_clear);
+        pauseButton = view.findViewById(R.id.logging_pause);
+        jumpLatestButton = view.findViewById(R.id.logging_jump_latest);
+        pausedBadge = view.findViewById(R.id.logging_paused_badge);
+        emptyState = view.findViewById(R.id.logging_empty_state);
+
+        pauseButton.setOnClickListener(v -> togglePause());
+        jumpLatestButton.setOnClickListener(v -> scrollToLatest());
+        view.findViewById(R.id.logging_empty_help_button).setOnClickListener(v -> {
+            if (getActivity() instanceof MainActivity) {
+                ((MainActivity) getActivity()).openHelpTab();
+            }
+        });
+
+        scrollView.setOnScrollChangeListener((NestedScrollView.OnScrollChangeListener) (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+            if (scrollY < oldScrollY) {
+                userScrolledUp = true;
+            }
+            updateJumpButton();
+        });
+
         view.findViewById(R.id.logging_copy).setOnClickListener(v -> copyLogs());
         view.findViewById(R.id.logging_clear).setOnClickListener(v -> clearLogs());
         view.findViewById(R.id.logging_share).setOnClickListener(v -> shareLogs());
@@ -138,7 +168,9 @@ public class LoggingFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        loadLogs();
+        if (!paused) {
+            loadLogs();
+        }
     }
 
     @Override
@@ -169,6 +201,10 @@ public class LoggingFragment extends Fragment {
         lineCountView = null;
         scrollView = null;
         searchClear = null;
+        pauseButton = null;
+        jumpLatestButton = null;
+        pausedBadge = null;
+        emptyState = null;
     }
 
     @Override
@@ -255,9 +291,60 @@ public class LoggingFragment extends Fragment {
     }
 
     private void applyDisplay(String text) {
-        boolean pinnedToBottom = rawCombined.isEmpty() || isScrolledNearBottom();
+        boolean pinnedToBottom = !paused && (rawCombined.isEmpty() || isScrolledNearBottom());
         rawCombined = text == null ? "" : text;
         renderFiltered(false, pinnedToBottom);
+        updateEmptyState();
+        updateJumpButton();
+    }
+
+    private void togglePause() {
+        paused = !paused;
+        if (pauseButton != null) {
+            pauseButton.setText(paused ? R.string.logging_resume : R.string.logging_pause);
+        }
+        if (pausedBadge != null) {
+            pausedBadge.setVisibility(paused ? View.VISIBLE : View.GONE);
+        }
+        if (!paused) {
+            userScrolledUp = false;
+            loadLogs();
+        }
+        updateJumpButton();
+    }
+
+    private void scrollToLatest() {
+        userScrolledUp = false;
+        if (scrollView != null) {
+            scrollView.post(() -> {
+                if (scrollView != null) scrollView.fullScroll(View.FOCUS_DOWN);
+            });
+        }
+        updateJumpButton();
+    }
+
+    private void updateJumpButton() {
+        if (jumpLatestButton == null) return;
+        boolean show = paused || userScrolledUp || !isScrolledNearBottom();
+        jumpLatestButton.setVisibility(show && !isEffectivelyEmpty() ? View.VISIBLE : View.GONE);
+    }
+
+    private void updateEmptyState() {
+        if (emptyState == null || scrollView == null) return;
+        boolean empty = isEffectivelyEmpty();
+        emptyState.setVisibility(empty ? View.VISIBLE : View.GONE);
+        scrollView.setVisibility(empty ? View.GONE : View.VISIBLE);
+        if (lineCountView != null) {
+            lineCountView.setVisibility(empty ? View.GONE : View.VISIBLE);
+        }
+    }
+
+    private boolean isEffectivelyEmpty() {
+        if (rawCombined == null || rawCombined.trim().isEmpty()) return true;
+        String trimmed = rawCombined.trim();
+        return trimmed.equals(getString(R.string.logging_no_target).trim())
+                || trimmed.contains(getString(R.string.logging_empty_reply))
+                || trimmed.equals(getString(R.string.logging_placeholder).trim());
     }
 
     private boolean isScrolledNearBottom() {
@@ -328,7 +415,10 @@ public class LoggingFragment extends Fragment {
             scrollView.post(() -> {
                 if (scrollView != null) scrollView.fullScroll(View.FOCUS_DOWN);
             });
+            userScrolledUp = false;
         }
+        updateJumpButton();
+        updateEmptyState();
     }
 
     private static int countLines(String text) {
@@ -343,7 +433,7 @@ public class LoggingFragment extends Fragment {
     private CharSequence styledLogText(View anchor, String text) {
         if (text == null || text.isEmpty()) return text;
         int errorColor = MaterialColors.getColor(anchor, com.google.android.material.R.attr.colorError);
-        int warningColor = ContextCompat.getColor(anchor.getContext(), R.color.warning_yellow);
+        int warningColor = ContextCompat.getColor(anchor.getContext(), R.color.corona_amber);
         int mutedColor = MaterialColors.getColor(anchor, com.google.android.material.R.attr.colorOnSurfaceVariant);
         int accentColor = MaterialColors.getColor(anchor, com.google.android.material.R.attr.colorPrimary);
         SpannableStringBuilder builder = new SpannableStringBuilder();

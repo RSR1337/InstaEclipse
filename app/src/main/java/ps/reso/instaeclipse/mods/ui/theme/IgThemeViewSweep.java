@@ -14,13 +14,11 @@ import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
-import java.util.WeakHashMap;
-
 public final class IgThemeViewSweep {
 
-    private static final int MAX_NODES = 480;
+    private static final int MAX_NODES = 720;
     private static final long MIN_INTERVAL_MS = 280L;
-    private static final WeakHashMap<View, ViewTreeObserver.OnGlobalLayoutListener> LISTENERS = new WeakHashMap<>();
+    private static final int TAG_THEME_LISTENER = "ie_theme_layout_listener".hashCode();
     private static volatile long lastSweepAt;
 
     private IgThemeViewSweep() {}
@@ -29,7 +27,7 @@ public final class IgThemeViewSweep {
         if (activity == null || !IgThemeEngine.isActive()) return;
         View decor = activity.getWindow() != null ? activity.getWindow().getDecorView() : null;
         if (decor == null) return;
-        if (LISTENERS.containsKey(decor)) {
+        if (decor.getTag(TAG_THEME_LISTENER) instanceof ViewTreeObserver.OnGlobalLayoutListener) {
             sweep(decor);
             return;
         }
@@ -39,7 +37,7 @@ public final class IgThemeViewSweep {
             lastSweepAt = now;
             sweep(decor);
         };
-        LISTENERS.put(decor, listener);
+        decor.setTag(TAG_THEME_LISTENER, listener);
         decor.getViewTreeObserver().addOnGlobalLayoutListener(listener);
         sweep(decor);
     }
@@ -50,7 +48,7 @@ public final class IgThemeViewSweep {
     }
 
     private static void walk(View view, int depth, int[] count) {
-        if (view == null || depth > 18 || count[0] >= MAX_NODES) return;
+        if (view == null || depth > 22 || count[0] >= MAX_NODES) return;
         if (IgColorRemapEngine.isModuleUiView(view) || shouldSkip(view)) return;
         count[0]++;
         apply(view);

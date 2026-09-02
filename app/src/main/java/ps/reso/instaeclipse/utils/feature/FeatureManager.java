@@ -7,7 +7,6 @@ public class FeatureManager {
     public static void refreshFeatureStatus() {
         track("DevOptions", R.string.ig_dialog_section_dev_options, FeatureFlags.isDevEnabled);
         track("GhostSeen", R.string.ig_dialog_ghost_hide_dm_seen, FeatureFlags.isGhostSeen);
-        track("GhostVoiceSeen", R.string.ig_dialog_ghost_hide_voice_seen, FeatureFlags.isGhostVoiceSeen);
         track("GhostTyping", R.string.ig_dialog_ghost_hide_typing, FeatureFlags.isGhostTyping);
         track("GhostScreenshot", R.string.ig_dialog_ghost_bypass_screenshot, FeatureFlags.isGhostScreenshot);
         track("GhostViewOnce", R.string.ig_dialog_ghost_hide_view_once, FeatureFlags.isGhostViewOnce);
@@ -38,7 +37,6 @@ public class FeatureManager {
         track("CaptionCopy", R.string.ig_dialog_misc_copy_caption, FeatureFlags.enableCaptionCopy);
         track("CopyComment", R.string.ig_dialog_misc_copy_comment, FeatureFlags.enableCopyComment);
         track("PhotoZoom", R.string.ig_dialog_misc_photo_zoom, FeatureFlags.enablePhotoZoom);
-        track("BypassChannelRestrictions", R.string.ig_dialog_misc_bypass_channel_restrictions, FeatureFlags.bypassChannelRestrictions);
     }
 
     private static void track(String name, int labelResId, boolean enabled) {

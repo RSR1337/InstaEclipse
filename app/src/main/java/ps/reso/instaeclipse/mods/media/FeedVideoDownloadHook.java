@@ -62,7 +62,6 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.WeakHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
@@ -74,6 +73,7 @@ import de.robv.android.xposed.XposedHelpers;
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.mods.ui.UIHookManager;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
+import ps.reso.instaeclipse.utils.core.ViewAttachDispatcher;
 import ps.reso.instaeclipse.utils.history.DownloadHistory;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
@@ -94,10 +94,9 @@ public class FeedVideoDownloadHook {
     private static final String DECOR_OVERLAY_TAG = "ie_decor_overlay";
     private static final int TAG_CACHED_MEDIA = "ie_dl_media".hashCode();
     private static final int TAG_OVERLAY_ANCHOR = "ie_dl_overlay_anchor".hashCode();
-
-    private static final WeakHashMap<View, Boolean> injectedHosts = new WeakHashMap<>();
-    private static final WeakHashMap<View, OverlayBinding> activeOverlays = new WeakHashMap<>();
-    private static final WeakHashMap<Activity, View> bottomSheetContainers = new WeakHashMap<>();
+    private static final int TAG_INJECTED = "ie_dl_injected".hashCode();
+    private static final int TAG_OVERLAY_BINDING = "ie_dl_overlay_binding".hashCode();
+    private static final int TAG_BOTTOM_SHEET = "ie_dl_bottom_sheet".hashCode();
 
     private static volatile int sFeedShareId;
     private static volatile int sFeedLikeId;
@@ -231,15 +230,8 @@ public class FeedVideoDownloadHook {
     }
 
     private void installViewHook() {
-        XC_MethodHook attachHook = new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) {
-                if (!(param.thisObject instanceof View view)) return;
-                scheduleInjectionForView(view);
-            }
-        };
         try {
-            XposedHelpers.findAndHookMethod(View.class, "onAttachedToWindow", attachHook);
+            ViewAttachDispatcher.add(this::scheduleInjectionForView);
             FeatureStatusTracker.setHooked("PostDownload");
             ModuleLog.line("(IE|DL) view injection hooks installed");
         } catch (Throwable t) {
@@ -362,8 +354,8 @@ public class FeedVideoDownloadHook {
                 if (vto.isAlive()) vto.removeOnScrollChangedListener(scrollListener);
             } catch (Throwable ignored) {}
             if (btn.getParent() == host) host.removeView(btn);
-            synchronized (injectedHosts) { injectedHosts.remove(dedupeKey); }
-            synchronized (activeOverlays) { activeOverlays.remove(dedupeKey); }
+            dedupeKey.setTag(TAG_INJECTED, null);
+            dedupeKey.setTag(TAG_OVERLAY_BINDING, null);
         }
     }
 
@@ -419,13 +411,8 @@ public class FeedVideoDownloadHook {
         int h = anchor.getHeight() > 0 ? anchor.getHeight() : w;
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(w, h, Gravity.TOP | Gravity.START);
 
-        Object media = findMediaForView(dedupeKey);
-        if (media != null) btn.setTag(TAG_CACHED_MEDIA, media);
-
-        synchronized (activeOverlays) {
-            OverlayBinding existing = activeOverlays.get(dedupeKey);
-            if (existing != null) existing.dispose();
-        }
+        Object existingTag = dedupeKey.getTag(TAG_OVERLAY_BINDING);
+        if (existingTag instanceof OverlayBinding existing) existing.dispose();
 
         host.addView(btn, lp);
         btn.bringToFront();
@@ -435,9 +422,7 @@ public class FeedVideoDownloadHook {
 
         int gap = dp(ctx, placement == OverlayPlacement.ABOVE ? 10 : 4);
         OverlayBinding binding = new OverlayBinding(anchor, btn, host, dedupeKey, placement, gap);
-        synchronized (activeOverlays) {
-            activeOverlays.put(dedupeKey, binding);
-        }
+        dedupeKey.setTag(TAG_OVERLAY_BINDING, binding);
         setInjected(dedupeKey);
     }
 
@@ -497,11 +482,11 @@ public class FeedVideoDownloadHook {
     }
 
     private static boolean isInjected(View key) {
-        synchronized (injectedHosts) { return Boolean.TRUE.equals(injectedHosts.get(key)); }
+        return Boolean.TRUE.equals(key.getTag(TAG_INJECTED));
     }
 
     private static void setInjected(View key) {
-        synchronized (injectedHosts) { injectedHosts.put(key, true); }
+        key.setTag(TAG_INJECTED, Boolean.TRUE);
     }
 
     private static void postWhenLaidOut(View view, Runnable action) {
@@ -817,13 +802,12 @@ public class FeedVideoDownloadHook {
                 Activity activity = getActivityFromContext(ctx);
                 if (activity == null) return false;
 
-                View bsView;
-                synchronized (bottomSheetContainers) {
-                    bsView = bottomSheetContainers.get(activity);
-                    if (bsView == null) {
-                        View decor = activity.getWindow().getDecorView();
-                        View found = decor.findViewById(sBottomSheetContainerId);
-                        if (found != null) bottomSheetContainers.put(activity, found);
+                View decor = activity.getWindow().getDecorView();
+                View bsView = (View) decor.getTag(TAG_BOTTOM_SHEET);
+                if (bsView == null) {
+                    View found = decor.findViewById(sBottomSheetContainerId);
+                    if (found != null) {
+                        decor.setTag(TAG_BOTTOM_SHEET, found);
                         bsView = found;
                     }
                 }
@@ -845,13 +829,11 @@ public class FeedVideoDownloadHook {
         for (int i = host.getChildCount() - 1; i >= 0; i--) {
             View child = host.getChildAt(i);
             Object tag = child.getTag(TAG_OVERLAY_ANCHOR);
-            if (!(tag instanceof View anchor)) continue;
-            if (isAnchorVisibleOnScreen(anchor)) continue;
-            synchronized (activeOverlays) {
-                OverlayBinding binding = activeOverlays.get(anchor);
-                if (binding != null) binding.dispose();
-                else if (child.getParent() == host) host.removeView(child);
-            }
+            if (!(tag instanceof View key)) continue;
+            if (isAnchorVisibleOnScreen(key)) continue;
+            Object bindingTag = key.getTag(TAG_OVERLAY_BINDING);
+            if (bindingTag instanceof OverlayBinding binding) binding.dispose();
+            else if (child.getParent() == host) host.removeView(child);
         }
     }
 
@@ -1563,9 +1545,13 @@ public class FeedVideoDownloadHook {
     }
 
     static String buildFilename(String username, String type, String mediaId, boolean isVideo, int slideIndex) {
+        return buildFilename(username, type, mediaId, isVideo, slideIndex, null);
+    }
+
+    static String buildFilename(String username, String type, String mediaId, boolean isVideo, int slideIndex, String extOverride) {
         String u  = (username != null && !username.isEmpty()) ? username : "unknown";
         String id = (mediaId  != null && !mediaId.isEmpty())  ? mediaId  : String.valueOf(System.currentTimeMillis());
-        String ext = isVideo ? ".mp4" : ".jpg";
+        String ext = extOverride != null ? extOverride : (isVideo ? ".mp4" : ".jpg");
         StringBuilder sb = new StringBuilder(u).append('_').append(type).append('_').append(id);
         if (slideIndex >= 0) sb.append('_').append(slideIndex + 1);
         if (FeatureFlags.downloaderAddTimestamp) {
@@ -1576,7 +1562,13 @@ public class FeedVideoDownloadHook {
 
     static OutputStream openOutputStream(Context ctx, String filename, boolean isVideo, String username)
             throws Exception {
-        String mimeType = isVideo ? "video/mp4" : "image/jpeg";
+        return openOutputStream(ctx, filename, isVideo, username, null);
+    }
+
+    static OutputStream openOutputStream(Context ctx, String filename, boolean isVideo, String username,
+                                         String mimeTypeOverride)
+            throws Exception {
+        String mimeType = mimeTypeOverride != null ? mimeTypeOverride : (isVideo ? "video/mp4" : "image/jpeg");
 
         if (!FeatureFlags.downloaderCustomPath.isEmpty()) {
             try {
@@ -2001,6 +1993,11 @@ public class FeedVideoDownloadHook {
 
     static boolean downloadAndSave(Context ctx, String url, String filename,
                                    boolean isVideo, String username) throws Exception {
+        return downloadAndSave(ctx, url, filename, isVideo, username, null);
+    }
+
+    static boolean downloadAndSave(Context ctx, String url, String filename,
+                                   boolean isVideo, String username, String mimeTypeOverride) throws Exception {
         if (isDownloaded(ctx, filename, isVideo, username)) {
             mainHandler.post(() -> Toast.makeText(ctx,
                     I18n.t(ctx, R.string.ig_toast_already_downloaded), Toast.LENGTH_SHORT).show());
@@ -2012,12 +2009,12 @@ public class FeedVideoDownloadHook {
                 : FeatureFlags.downloaderCustomUri;
 
         if (!uri.isEmpty()) {
-            delegateUrlToCompanionApp(ctx, url, null, filename, isVideo, username);
+            delegateUrlToCompanionApp(ctx, url, null, filename, isVideo, username, mimeTypeOverride);
             recordDownloadHistory(filename, username);
             return true;
         }
 
-        try (OutputStream out = openOutputStream(ctx, filename, isVideo, username)) {
+        try (OutputStream out = openOutputStream(ctx, filename, isVideo, username, mimeTypeOverride)) {
             downloadToStream(url, out);
         }
         recordDownloadHistory(filename, username);
@@ -2046,16 +2043,37 @@ public class FeedVideoDownloadHook {
                                                    String audioUrl,
                                                    String filename, boolean isVideo,
                                                    String username) throws Exception {
+        delegateUrlToCompanionApp(ctx, url, audioUrl, filename, isVideo, username, null);
+    }
+
+    private static void delegateUrlToCompanionApp(Context ctx,
+                                                   String url,
+                                                   String audioUrl,
+                                                   String filename, boolean isVideo,
+                                                   String username, String mimeTypeOverride) throws Exception {
         android.content.Intent intent = new android.content.Intent();
         intent.setClassName("ps.reso.instaeclipse",
                             "ps.reso.instaeclipse.mods.media.DownloadSaveService");
         intent.putExtra("url",      url);
         if (audioUrl != null) intent.putExtra("audioUrl", audioUrl);
         intent.putExtra("filename", filename);
-        intent.putExtra("mimeType", isVideo ? "video/mp4" : "image/jpeg");
+        intent.putExtra("mimeType", mimeTypeOverride != null ? mimeTypeOverride : (isVideo ? "video/mp4" : "image/jpeg"));
         intent.putExtra("username", username);
         ctx.startForegroundService(intent);
         ModuleLog.line("(IE|DL) Delegated to DownloadSaveService: " + filename);
+    }
+
+    static void delegateAudioOnlyToCompanionApp(Context ctx, String videoUrl, String filename, String username) {
+        android.content.Intent intent = new android.content.Intent();
+        intent.setClassName("ps.reso.instaeclipse",
+                            "ps.reso.instaeclipse.mods.media.DownloadSaveService");
+        intent.putExtra("url",       videoUrl);
+        intent.putExtra("filename",  filename);
+        intent.putExtra("mimeType",  "audio/mp4");
+        intent.putExtra("username",  username);
+        intent.putExtra("audioOnly", true);
+        ctx.startForegroundService(intent);
+        ModuleLog.line("(IE|DL) Delegated audio-only extraction to DownloadSaveService: " + filename);
     }
 
     static List<String> collectCdnUrls(Object obj) {
@@ -2690,7 +2708,7 @@ public class FeedVideoDownloadHook {
         if (!videos.isEmpty() && !images.isEmpty()) {
             handleMixedContent(ctx, urls, videos, images, saveBtn);
         } else if (!videos.isEmpty()) {
-            handleVideoDownload(ctx, videos, saveBtn);
+            handleVideoDownload(ctx, videos, saveBtn, media);
         } else if (images.size() > 1) {
             showCarouselDialog(ctx, images, saveBtn);
         } else if (!images.isEmpty()) {
@@ -2715,12 +2733,112 @@ public class FeedVideoDownloadHook {
         });
     }
 
-    private void handleVideoDownload(Context ctx, List<String> videos, View saveBtn) {
+    private void handleVideoDownload(Context ctx, List<String> videos, View saveBtn, Object media) {
         if (videos.size() == 1) {
+            if (isClipsContext(saveBtn)) {
+                showReelDownloadChoiceDialog(ctx, videos.get(0), media);
+                return;
+            }
             startDirectDownload(ctx, videos.get(0), true);
             return;
         }
         showCarouselDialog(ctx, videos, saveBtn);
+    }
+
+    private void showReelDownloadChoiceDialog(Context ctx, String videoUrl, Object media) {
+        Context dialogCtx = resolveDialogContext(ctx);
+        try {
+            boolean dark = BulkDownloadDialogStyle.isDarkMode(dialogCtx);
+
+            LinearLayout content = new LinearLayout(dialogCtx);
+            content.setOrientation(LinearLayout.VERTICAL);
+            int padH = BulkDownloadDialogStyle.dp(dialogCtx, 20f);
+            content.setPadding(padH, 0, padH, BulkDownloadDialogStyle.dp(dialogCtx, 20f));
+
+            AlertDialog[] holder = new AlertDialog[1];
+
+            View videoBtn = BulkDownloadDialogStyle.buildFilledButton(dialogCtx,
+                    I18n.t(ctx, R.string.ig_dl_reel_choice_video),
+                    () -> {
+                        startDirectDownload(ctx, videoUrl, true);
+                        if (holder[0] != null) holder[0].dismiss();
+                    });
+            content.addView(videoBtn, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+            View coverBtn = BulkDownloadDialogStyle.buildOutlinedButton(dialogCtx,
+                    I18n.t(ctx, R.string.ig_dl_reel_choice_cover),
+                    () -> {
+                        startReelCoverDownload(ctx, media);
+                        if (holder[0] != null) holder[0].dismiss();
+                    });
+            LinearLayout.LayoutParams coverLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            coverLp.topMargin = BulkDownloadDialogStyle.dp(dialogCtx, 10f);
+            content.addView(coverBtn, coverLp);
+
+            View audioBtn = BulkDownloadDialogStyle.buildOutlinedButton(dialogCtx,
+                    I18n.t(ctx, R.string.ig_dl_reel_choice_audio),
+                    () -> {
+                        startReelAudioDownload(ctx, videoUrl);
+                        if (holder[0] != null) holder[0].dismiss();
+                    });
+            LinearLayout.LayoutParams audioLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            audioLp.topMargin = BulkDownloadDialogStyle.dp(dialogCtx, 10f);
+            content.addView(audioBtn, audioLp);
+
+            View cancelBtn = BulkDownloadDialogStyle.buildTextButton(dialogCtx,
+                    I18n.t(ctx, R.string.ig_dialog_cancel), dark,
+                    () -> {
+                        if (holder[0] != null) holder[0].dismiss();
+                    });
+            LinearLayout.LayoutParams cancelLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            cancelLp.topMargin = BulkDownloadDialogStyle.dp(dialogCtx, 4f);
+            content.addView(cancelBtn, cancelLp);
+
+            AlertDialog dialog = new AlertDialog.Builder(dialogCtx)
+                    .setCustomTitle(BulkDownloadDialogStyle.buildTitleView(dialogCtx, I18n.t(ctx, R.string.ig_dl_title)))
+                    .setView(content)
+                    .setCancelable(true)
+                    .create();
+            holder[0] = dialog;
+            BulkDownloadDialogStyle.applyCardWindow(dialog, dialogCtx);
+            dialog.show();
+        } catch (Throwable t) {
+            ModuleLog.line("(IE|DL) reel choice dialog failed: " + t);
+            startDirectDownload(ctx, videoUrl, true);
+        }
+    }
+
+    private void startReelCoverDownload(Context ctx, Object media) {
+        String coverUrl = media != null ? bestImageUrlFromMedia(ctx, media) : null;
+        if (coverUrl == null) {
+            Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_reel_url_not_found), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final String finalUrl = coverUrl;
+        String fn = buildFilename(currentDownloadUsername, "reel_cover", currentDownloadMediaId, false);
+        Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_downloading), Toast.LENGTH_SHORT).show();
+        executor.submit(() -> {
+            try {
+                boolean delegated = downloadAndSave(ctx, finalUrl, fn, false, currentDownloadUsername);
+                if (!delegated) {
+                    mainHandler.post(() ->
+                            Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_reel_cover_saved), Toast.LENGTH_SHORT).show());
+                }
+            } catch (Throwable e) {
+                mainHandler.post(() ->
+                        Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_download_failed, e.getMessage()), Toast.LENGTH_SHORT).show());
+            }
+        });
+    }
+
+    private void startReelAudioDownload(Context ctx, String videoUrl) {
+        String fn = buildFilename(currentDownloadUsername, "reel_audio", currentDownloadMediaId, false, -1, ".m4a");
+        Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_downloading), Toast.LENGTH_SHORT).show();
+        delegateAudioOnlyToCompanionApp(ctx, videoUrl, fn, currentDownloadUsername);
     }
 
     private void showCarouselDialog(Context ctx, List<String> urls, View saveBtn) {

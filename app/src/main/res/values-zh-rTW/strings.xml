@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- app wide -->
+    
     <string name="app_name">InstaEclipse</string>
     <string name="home">首頁</string>
     <string name="features">功能</string>
     <string name="help">幫助</string>
     <string name="instagram_version">版本</string>
 
-    <!-- home -->
+    
     <string name="module_disabled">模組未啟用。請啟用它。</string>
 
     <string name="module_status">模組狀態：</string>
@@ -33,11 +33,11 @@
     <string name="contributors">貢獻者</string>
     <string name="special_thanks">特別感謝</string>
 
-    <!-- Don't translate! -->
+    
     <string name="instagram_logo" translatable="false">Instagram Logo</string>
     <string name="instagram_info" translatable="false">instagram_info</string>
 
-    <!-- help -->
+    
     <string name="help_amp_troubleshooting">幫助和故障排除</string>
     <string name="find_updates_and_documentation">查詢更新和文件。</string>
     <string name="go_to_github">前往 GitHub</string>
@@ -45,12 +45,12 @@
     <string name="go_to_telegram">前往 Telegram</string>
     <string name="instaeclipse_telegram_group" translatable="false">InstaEclipse Telegram Group</string>
 
-    <!-- Don't translate! -->
+    
     <string name="instaeclipse_github" translatable="false">InstaEclipse GitHub</string>
     <string name="github">GitHub</string>
     <string name="telegram">Telegram</string>
 
-    <!-- faq -->
+    
     <string name="frequently_asked_questions">常見問題</string>
     <string name="faq_1"><b>1. 使用 Google Play 版本時無法正常執行或崩潰？</b>\n- 請使用 APKMirror 下載的版本。</string>
     <string name="faq_2"><b>2. 模組未啟用？</b>\n- 在 LSPosed 中禁用並重新啟用該模組。</string>
@@ -59,11 +59,11 @@
     <string name="faq_5"><b>5. 開發者選項的標籤或數字異常</b>\n- 使用 Beta 或 Alpha 版本，因為穩定版有進行過混淆。</string>
     <string name="faq_6"><b>6. 啟用了無干擾模式，但內容仍然顯示？</b>\n- 強制停止 Instagram 並清除其快取。</string>
 
-    <!-- guide -->
+    
     <string name="module_not_working_title">模組仍然無法使用？</string>
     <string name="module_not_working_description" tools:ignore="MissingTranslation" translatable="false"><![CDATA[如果您已<b>獲取 root 權限</b>，請嘗試使用 <a href="https://github.com/JingMatrix/LSPosed/releases/latest">JingMatrix\'s LSPosed</a><br/><br/>。如果您未<b>獲取 root 權限</b>，請安裝<a href="https://github.com/JingMatrix/LSPatch/releases/latest">JingMatrix\'s LSPatch</a>，然後依據<a href="https://t.me/instaEclipse_discussion/158/5149">指南</a>進行操作]]></string>
 
-    <!-- features -->
+    
     <string name="developer_options">開發者選項</string>
     <string name="ghost_mode">幽靈模式</string>
     <string name="distraction_free">無干擾模式</string>
@@ -72,10 +72,10 @@
 
     <string name="enable_disable_all">啟用/禁用所有</string>
 
-    <!-- Don't translate! -->
+    
     <string name="hint" translatable="false">Hint</string>
 
-    <!-- ghost -->
+    
     <string name="ghost_mode_options">幽靈模式選項</string>
     <string name="typing">隱藏輸入狀態</string>
     <string name="story">限時動態</string>
@@ -85,7 +85,7 @@
     <string name="disable_typing">停用輸入狀態提示</string>
     <string name="screen_shot">截圖</string>
 
-    <!-- developer_options -->
+    
     <string name="developer_options_guide">開發者選項指南</string>
     <string name="dev_options_version_req">僅能在 Beta/Alpha 中啟用！</string>
     <string name="dev_options_req">請確保您已登入！</string>
@@ -95,12 +95,12 @@
     <string name="dev_options_3">3. 搜尋「Employee」並啟用以下選項：</string>
     <string name="dev_options_4">4. 最後，從模組中禁用開發者選項以防止應用崩潰。</string>
 
-    <!-- Don't translate! -->
+    
     <string name="is_employee" translatable="false">• is employee</string>
     <string name="is_employee_or_test_user" translatable="false">• is employee or test user</string>
     <string name="employee_options" translatable="false">• employee options</string>
 
-    <!-- distraction free -->
+    
     <string name="distraction_free_options">無干擾模式選項</string>
     <string name="disable_stories">關閉限時動態</string>
     <string name="disable_feed">關閉動態</string>
@@ -108,7 +108,7 @@
     <string name="disable_explore">禁用探索</string>
     <string name="disable_comments">禁用評論</string>
 
-    <!-- Miscellaneous -->
+    
     <string name="misc">雜項</string>
     <string name="miscellaneous_options">雜項選項</string>
     <string name="story_flipping">禁用限時動態翻頁</string>
@@ -116,10 +116,10 @@
     <string name="follower_toast">顯示關注者提示</string>
     <string name="hooked_methods_toast">顯示已啟用功能提示</string>
 
-    <!-- contributor card -->
+    
     <string name="contributor_name">Contributor Name</string>
 
-    <!-- Dialog strings -->
+    
     <string name="ig_dialog_close">關閉</string>
     <string name="ig_dialog_enable_disable_all">全部啟用/停用</string>
     <string name="ig_dialog_error">錯誤</string>
@@ -166,7 +166,7 @@
     <string name="ig_toast_config_imported">✅ 設定已匯入。</string>
     <string name="ig_toast_config_import_failed">❌ 匯入設定失敗。</string>
 
-    <!-- JsonImportActivity -->
+    
     <string name="json_select_config">選擇 JSON 設定檔</string>
     <string name="json_target_not_specified">❌ 未指定目標套件。</string>
     <string name="json_sent">✅ 已傳送至 Instagram。</string>
@@ -217,7 +217,7 @@
     <string name="ig_dialog_misc_copy_comment">複製留言</string>
     <string name="ig_dialog_misc_disable_double_tap_like">停用雙擊點讚</string>
 
-    <!-- Comment Copy dialog -->
+    
     <string name="ig_comment_copy_title">複製留言</string>
     <string name="ig_comment_copy_full">複製完整留言</string>
     <string name="ig_comment_select_part">選取部分複製</string>
@@ -247,29 +247,29 @@
     <string name="ig_dialog_restart_not_found">找不到要重新啟動的應用程式。</string>
     <string name="ig_dialog_restart_failed">重新啟動失敗：%1$s</string>
 
-    <!-- Toast: Ghost mode -->
+    
     <string name="ig_toast_ghost_no_options">未選擇任何幽靈模式選項！</string>
     <string name="ig_toast_ghost_enabled">幽靈模式已啟用</string>
     <string name="ig_toast_ghost_disabled">幽靈模式已停用</string>
     <string name="ig_toast_seen_sent">✅ 已讀已傳送</string>
     <string name="ig_toast_channel_seen_sent">✅ 頻道已讀已傳送</string>
 
-    <!-- Toast: Follower status -->
+    
     <string name="ig_toast_follows_you">正在追蹤您 ✅</string>
     <string name="ig_toast_not_follows_you">未追蹤您 ❌</string>
 
-    <!-- Toast: App settings -->
+    
     <string name="ig_toast_settings_applied">設定已套用！</string>
     <string name="ig_toast_restart_manual">請手動關閉 Instagram 以使變更生效。</string>
     <string name="ig_toast_settings_restored">設定已成功還原。</string>
     <string name="ig_toast_restore_failed">還原失敗：%1$s</string>
 
-    <!-- Toast: Download folder -->
+    
     <string name="ig_toast_download_folder_set">下載資料夾：%1$s</string>
     <string name="ig_toast_download_folder_updated">下載資料夾已更新！</string>
     <string name="ig_toast_download_folder_reset">下載資料夾已重設為預設值</string>
 
-    <!-- Toast: Downloader -->
+    
     <string name="ig_toast_downloading">下載中…</string>
     <string name="ig_toast_downloading_video">正在下載影片…</string>
     <string name="ig_toast_downloading_photo">正在下載相片…</string>
@@ -291,7 +291,6 @@
     <string name="ig_toast_downloading_profile_pic">正在下載大頭照…</string>
     <string name="ig_toast_profile_pic_saved">大頭照已儲存！</string>
     <string name="ig_toast_profile_pic_url_not_found">無法取得大頭照連結</string>
-    <string name="ig_toast_merging_video_audio">正在合併影片與音訊…</string>
     <string name="ig_toast_downloading_n_items">正在下載 %1$d 個項目…</string>
     <string name="ig_toast_downloading_all_n_items">正在下載全部 %1$d 個項目…</string>
     <string name="ig_toast_all_items_saved">全部 %1$d 個項目已儲存至 InstaEclipse 資料夾</string>
@@ -308,7 +307,7 @@
     <string name="back">返回</string>
     <string name="apply_changes">套用變更</string>
 
-    <!-- features fragment section headers -->
+    
     <string name="feat_categories">分類：</string>
     <string name="feat_tools">工具：</string>
     <string name="feat_features">功能：</string>
@@ -321,16 +320,16 @@
     <string name="feat_downloader_selected">已選擇：%1$s</string>
     <string name="feat_downloader_reset_folder">重設下載資料夾</string>
 
-    <!-- multiple versions -->
+    
     <string name="multiple_versions_detected">⚠️ 偵測到多個版本</string>
 
-    <!-- Story mentions dialog -->
+    
     <string name="ig_mention_dialog_title">限時動態提及</string>
     <string name="ig_mention_subtitle">%1$d 個提及 • 點擊開啟個人檔案</string>
     <string name="ig_mention_no_mentions">此限時動態中未發現提及</string>
     <string name="ig_mention_copy_all">全部複製</string>
 
-    <!-- Toast: Downloader (service) -->
+    
     <string name="ig_toast_no_download_folder">未設定下載資料夾</string>
     <string name="ig_toast_file_saved">已儲存：%1$s</string>
     <string name="ig_toast_features_loaded">InstaEclipse 已載入 🎯</string>
@@ -339,14 +338,13 @@
     <string name="ig_toast_features_on_off_count">%1$d 項已生效 · %2$d 項已關閉</string>
     <string name="ig_toast_features_status_full">%1$d 項已生效 · %2$d 項待生效 · %3$d 項已關閉</string>
 
-
-    <!-- Update check dialog -->
+    
     <string name="ig_update_title">有可用更新</string>
     <string name="ig_update_message">新版本（%1$s）已發布，是否立即更新？</string>
     <string name="ig_update_button">更新</string>
     <string name="ig_update_later">稍後</string>
     <string name="ig_update_error_message">檢查更新失敗，請稍後重試。</string>
-    <!-- Custom Theme -->
+    
     <string name="ig_dialog_menu_theme">自訂主題</string>
     <string name="theme_title">自訂主題</string>
     <string name="theme_enable">啟用自訂主題</string>

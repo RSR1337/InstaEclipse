@@ -39,7 +39,6 @@ import ps.reso.instaeclipse.mods.ghost.GhostScreenshotDetectionHook;
 import ps.reso.instaeclipse.mods.ghost.GhostStorySeenHook;
 import ps.reso.instaeclipse.mods.ghost.GhostTypingIndicatorHook;
 import ps.reso.instaeclipse.mods.ghost.GhostViewOnceHook;
-import ps.reso.instaeclipse.mods.ghost.GhostVoiceSeenHook;
 import ps.reso.instaeclipse.mods.ghost.ScreenshotPermissionHook;
 import ps.reso.instaeclipse.mods.media.FeedVideoDownloadHook;
 import ps.reso.instaeclipse.mods.media.PostDownloadContextMenuHook;
@@ -50,7 +49,6 @@ import ps.reso.instaeclipse.mods.media.VoiceDownloadHook;
 import ps.reso.instaeclipse.mods.misc.AppInitCrashGuardHook;
 import ps.reso.instaeclipse.mods.misc.CommentCopyHook;
 import ps.reso.instaeclipse.mods.misc.CaptionCopyContextMenuHook;
-import ps.reso.instaeclipse.mods.misc.DirectCapabilitiesHook;
 import ps.reso.instaeclipse.mods.misc.DisableDoubleTapLikeHook;
 import ps.reso.instaeclipse.mods.misc.IGMantleCrashHook;
 import ps.reso.instaeclipse.mods.misc.IgApiLookupCrashHook;
@@ -69,6 +67,7 @@ import ps.reso.instaeclipse.utils.core.LsPatchCompanionBridge;
 import ps.reso.instaeclipse.utils.core.NativeLibLoader;
 import ps.reso.instaeclipse.utils.core.SelfUninstallGuard;
 import ps.reso.instaeclipse.utils.core.SettingsManager;
+import ps.reso.instaeclipse.utils.feature.FeatureHealthReport;
 import ps.reso.instaeclipse.utils.feature.FeatureManager;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
@@ -208,7 +207,6 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
 
                     try {
                         new GhostDMSeenHook().handleSeenBlock(dexKitBridge);
-                        new GhostVoiceSeenHook().handleVoiceSeenBlock(dexKitBridge);
                         new GhostDMMarkAsReadHook(moduleSourceDir).install(lpparam.classLoader);
                         new GhostChannelMarkAsReadHook().install(lpparam.classLoader);
                     } catch (Throwable ignored) {
@@ -333,12 +331,6 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                         new BuildExpiredPopupHook().install(dexKitBridge, lpparam.classLoader);
                     } catch (Throwable ignored) {
                         ModuleLog.line("(InstaEclipse | BuildExpired): ❌ Failed to hook");
-                    }
-
-                    try {
-                        new DirectCapabilitiesHook().install(dexKitBridge, lpparam.classLoader);
-                    } catch (Throwable ignored) {
-                        ModuleLog.line("(InstaEclipse | DirectCapabilities): ❌ Failed to hook");
                     }
 
                     try {
@@ -467,14 +459,34 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                     try {
                         Intent reply = new Intent(CommonUtils.ACTION_LOGS_REPLY);
                         reply.setPackage(CommonUtils.MY_PACKAGE_NAME);
+                        reply.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
                         reply.putExtra(CommonUtils.EXTRA_LOG_TEXT, Logging.getSnapshotForIpc());
                         reply.putExtra(CommonUtils.EXTRA_LOG_SOURCE, ctx.getPackageName());
                         ctx.sendBroadcast(reply);
                     } catch (Throwable t) {
                         Intent reply = new Intent(CommonUtils.ACTION_LOGS_REPLY);
                         reply.setPackage(CommonUtils.MY_PACKAGE_NAME);
+                        reply.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
                         reply.putExtra(CommonUtils.EXTRA_LOG_ERROR, String.valueOf(t.getMessage()));
                         reply.putExtra(CommonUtils.EXTRA_LOG_SOURCE, ctx.getPackageName());
+                        ctx.sendBroadcast(reply);
+                    }
+
+                } else if (CommonUtils.ACTION_REQUEST_FEATURE_STATUS.equals(action)) {
+                    try {
+                        FeatureManager.refreshFeatureStatus();
+                        Intent reply = new Intent(CommonUtils.ACTION_FEATURE_STATUS_REPLY);
+                        reply.setPackage(CommonUtils.MY_PACKAGE_NAME);
+                        reply.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+                        reply.putExtra(CommonUtils.EXTRA_FEATURE_STATUS_JSON, FeatureHealthReport.buildJson(ctx));
+                        reply.putExtra(CommonUtils.EXTRA_FEATURE_STATUS_SOURCE, ctx.getPackageName());
+                        ctx.sendBroadcast(reply);
+                    } catch (Throwable t) {
+                        Intent reply = new Intent(CommonUtils.ACTION_FEATURE_STATUS_REPLY);
+                        reply.setPackage(CommonUtils.MY_PACKAGE_NAME);
+                        reply.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+                        reply.putExtra(CommonUtils.EXTRA_FEATURE_STATUS_ERROR, String.valueOf(t.getMessage()));
+                        reply.putExtra(CommonUtils.EXTRA_FEATURE_STATUS_SOURCE, ctx.getPackageName());
                         ctx.sendBroadcast(reply);
                     }
 
@@ -562,6 +574,7 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
         filter.addAction("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING");
         filter.addAction("ps.reso.instaeclipse.ACTION_UPDATE_PREF_INT");
         filter.addAction(CommonUtils.ACTION_REQUEST_LOGS);
+        filter.addAction(CommonUtils.ACTION_REQUEST_FEATURE_STATUS);
         filter.addAction(CommonUtils.ACTION_CLEAR_LOGS);
         filter.addAction(CommonUtils.ACTION_REQUEST_DOWNLOAD_HISTORY);
         filter.addAction(CommonUtils.ACTION_CLEAR_DOWNLOAD_HISTORY);
@@ -618,7 +631,11 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                 LsPatchVerifyErrorGuard.swallow(throwable);
                 return;
             }
-            if (thread != null && thread.getName() != null && thread.getName().startsWith("AppInit")) {
+            if (thread != null && thread.getName() != null && (
+                    thread.getName().startsWith("AppInit")
+                            || thread.getName().startsWith("IgSchedulerExecutor")
+                            || thread.getName().startsWith("IgExecutor")
+                            || thread.getName().startsWith("SWPool"))) {
                 try {
                     ModuleLog.line("(InstaEclipse | AppInitGuard): ⚠️ Swallowed uncaught exception in thread \"" + thread.getName() + "\": " + throwable.getMessage());
                 } catch (Throwable ignored) {}

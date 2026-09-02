@@ -4,8 +4,10 @@ import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.text.SpannableString;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -22,22 +24,25 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.color.MaterialColors;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import ps.reso.instaeclipse.MainActivity;
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.utils.core.CommonUtils;
 import ps.reso.instaeclipse.utils.core.Contributor;
+import ps.reso.instaeclipse.utils.core.ModuleHookProbe;
 
 public class HomeFragment extends Fragment {
 
-    // px/s scroll speed — feels like a gentle conveyor belt
     private static final float SCROLL_SPEED_DP_PER_SEC = 48f;
 
     private MaterialButton launchInstagramButton;
@@ -46,13 +51,17 @@ public class HomeFragment extends Fragment {
     private TextView instagramVariantText;
     private MaterialButton instagramMultiButton;
     private ImageView instagramLogo, instagramInfoIcon;
+    private View moduleHookDivider;
+    private LinearLayout moduleHookRow;
+    private View moduleHookDot;
+    private TextView moduleHookText;
 
     private String activePackage;
     private List<String> installedPackages;
+    private int hookProbeGeneration;
 
     private ValueAnimator contributorsAnimator;
     private ValueAnimator specialThanksAnimator;
-
 
     @Nullable
     @Override
@@ -69,6 +78,10 @@ public class HomeFragment extends Fragment {
         instagramMultiButton = view.findViewById(R.id.instagram_multi_button);
         instagramLogo = view.findViewById(R.id.instagram_logo);
         instagramInfoIcon = view.findViewById(R.id.instagram_info_icon);
+        moduleHookDivider = view.findViewById(R.id.module_hook_divider);
+        moduleHookRow = view.findViewById(R.id.module_hook_row);
+        moduleHookDot = view.findViewById(R.id.module_hook_dot);
+        moduleHookText = view.findViewById(R.id.module_hook_text);
 
         checkInstagramStatus();
 
@@ -85,6 +98,9 @@ public class HomeFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        if (activePackage != null) {
+            probeHookStatus(activePackage);
+        }
         resumeAnimators();
     }
 
@@ -115,20 +131,21 @@ public class HomeFragment extends Fragment {
         }
 
         if (installedPackages.isEmpty()) {
+            hideHookRow();
             instagramStatusText.setText(getString(R.string.not_installed_instagram));
             instagramStatusText.setTypeface(null, android.graphics.Typeface.BOLD);
-            instagramStatusCard.setCardBackgroundColor(getResources().getColor(R.color.dark_red));
             instagramLogo.setImageResource(R.drawable.ic_cancel);
+            applyStatusCardColorsFromTheme(
+                    com.google.android.material.R.attr.colorErrorContainer,
+                    com.google.android.material.R.attr.colorOnErrorContainer);
             launchInstagramButton.setEnabled(false);
             return;
         }
 
-        // Prefer the official package; fall back to first found mod
         activePackage = installedPackages.contains(CommonUtils.IG_PACKAGE_NAME)
                 ? CommonUtils.IG_PACKAGE_NAME
                 : installedPackages.get(0);
 
-        instagramStatusCard.setCardBackgroundColor(getResources().getColor(R.color.green));
         instagramLogo.setImageResource(R.drawable.ic_instagram_logo);
         instagramVariantText.setVisibility(View.VISIBLE);
 
@@ -140,6 +157,97 @@ public class HomeFragment extends Fragment {
         }
 
         bindPackageActions(pm, activePackage);
+        showHookChecking();
+        probeHookStatus(activePackage);
+    }
+
+    private void hideHookRow() {
+        if (moduleHookRow == null) return;
+        moduleHookRow.setVisibility(View.GONE);
+        if (moduleHookDivider != null) moduleHookDivider.setVisibility(View.GONE);
+    }
+
+    private void showHookChecking() {
+        if (moduleHookRow == null) return;
+        moduleHookRow.setVisibility(View.VISIBLE);
+        if (moduleHookDivider != null) moduleHookDivider.setVisibility(View.VISIBLE);
+        moduleHookRow.setClickable(false);
+        moduleHookText.setText(R.string.home_hook_checking);
+        applyHookStatusCard(R.color.status_hook_check_container, R.color.status_hook_check_on);
+        moduleHookText.setTextColor(MaterialColors.getColor(moduleHookRow, com.google.android.material.R.attr.colorOnSurfaceVariant));
+        setHookDotColor(ContextCompat.getColor(requireContext(), R.color.corona_amber));
+    }
+
+    private void showHookActive() {
+        if (moduleHookRow == null) return;
+        moduleHookRow.setVisibility(View.VISIBLE);
+        if (moduleHookDivider != null) moduleHookDivider.setVisibility(View.VISIBLE);
+        moduleHookRow.setClickable(false);
+        moduleHookText.setText(R.string.home_hook_active);
+        applyHookStatusCard(R.color.status_hook_ok_container, R.color.status_hook_ok_on);
+        moduleHookText.setTextColor(MaterialColors.getColor(moduleHookRow, com.google.android.material.R.attr.colorOnSurfaceVariant));
+        setHookDotColor(ContextCompat.getColor(requireContext(), R.color.dark_green));
+    }
+
+    private void showHookInactive() {
+        if (moduleHookRow == null) return;
+        moduleHookRow.setVisibility(View.VISIBLE);
+        if (moduleHookDivider != null) moduleHookDivider.setVisibility(View.VISIBLE);
+        moduleHookRow.setClickable(true);
+        moduleHookText.setText(R.string.home_hook_inactive);
+        applyHookStatusCard(R.color.status_hook_err_container, R.color.status_hook_err_on);
+        int amber = ContextCompat.getColor(requireContext(), R.color.corona_amber);
+        moduleHookText.setTextColor(amber);
+        setHookDotColor(amber);
+        moduleHookRow.setOnClickListener(v -> {
+            if (getActivity() instanceof MainActivity activity) {
+                activity.openHelpTab();
+            }
+        });
+    }
+
+    private void setHookDotColor(int color) {
+        if (moduleHookDot == null) return;
+        GradientDrawable dot = new GradientDrawable();
+        dot.setShape(GradientDrawable.OVAL);
+        dot.setColor(color);
+        int size = (int) (8 * getResources().getDisplayMetrics().density);
+        dot.setSize(size, size);
+        moduleHookDot.setBackground(dot);
+    }
+
+    private void probeHookStatus(String pkg) {
+        if (getContext() == null) return;
+        final int gen = ++hookProbeGeneration;
+        showHookChecking();
+        ModuleHookProbe.probe(requireContext(), pkg, active -> {
+            if (!isAdded() || gen != hookProbeGeneration) return;
+            requireActivity().runOnUiThread(() -> {
+                if (!isAdded() || gen != hookProbeGeneration) return;
+                if (active) showHookActive();
+                else showHookInactive();
+            });
+        });
+    }
+
+    private void applyHookStatusCard(int containerRes, int onContainerRes) {
+        applyStatusCardColors(
+                ContextCompat.getColor(requireContext(), containerRes),
+                ContextCompat.getColor(requireContext(), onContainerRes));
+    }
+
+    private void applyStatusCardColorsFromTheme(int containerAttr, int onContainerAttr) {
+        applyStatusCardColors(
+                MaterialColors.getColor(instagramStatusCard, containerAttr),
+                MaterialColors.getColor(instagramStatusCard, onContainerAttr));
+    }
+
+    private void applyStatusCardColors(int container, int onContainer) {
+        instagramStatusCard.setCardBackgroundColor(container);
+        instagramLogo.setImageTintList(android.content.res.ColorStateList.valueOf(onContainer));
+        instagramStatusText.setTextColor(onContainer);
+        instagramVariantText.setTextColor(onContainer);
+        instagramInfoIcon.setImageTintList(android.content.res.ColorStateList.valueOf(onContainer));
     }
 
     @SuppressLint("SetTextI18n")
@@ -207,13 +315,15 @@ public class HomeFragment extends Fragment {
                 new Contributor("Amàzing World", null, null, null)
         );
 
-        // Inflate each list twice so the loop restarts seamlessly
         inflateCards(contributors, contributorsContainer);
         inflateCards(contributors, contributorsContainer);
         inflateCards(specialThanks, specialThanksContainer);
         inflateCards(specialThanks, specialThanksContainer);
 
-        // Start infinite scroll once layout is complete
+        if (isReduceMotionEnabled()) {
+            return;
+        }
+
         contributorsContainer.getViewTreeObserver().addOnGlobalLayoutListener(
                 new ViewTreeObserver.OnGlobalLayoutListener() {
                     @Override
@@ -239,6 +349,15 @@ public class HomeFragment extends Fragment {
                 });
     }
 
+    private boolean isReduceMotionEnabled() {
+        if (getContext() == null) return false;
+        float animator = Settings.Global.getFloat(
+                getContext().getContentResolver(), Settings.Global.ANIMATOR_DURATION_SCALE, 1f);
+        float transition = Settings.Global.getFloat(
+                getContext().getContentResolver(), Settings.Global.TRANSITION_ANIMATION_SCALE, 1f);
+        return animator == 0f || transition == 0f;
+    }
+
     private void inflateCards(List<Contributor> list, LinearLayout container) {
         for (Contributor c : list) {
             View v = LayoutInflater.from(getContext()).inflate(R.layout.contributor_card, container, false);
@@ -247,10 +366,6 @@ public class HomeFragment extends Fragment {
         }
     }
 
-    /**
-     * Builds a ValueAnimator that scrolls from 0 to halfWidth (one full copy of the items)
-     * at a constant speed, restarting instantly — creating a seamless infinite loop.
-     */
     private ValueAnimator buildAnimator(HorizontalScrollView scrollView, int halfWidth) {
         float density = getResources().getDisplayMetrics().density;
         long durationMs = (long) (halfWidth / (SCROLL_SPEED_DP_PER_SEC * density) * 1000f);
@@ -275,8 +390,7 @@ public class HomeFragment extends Fragment {
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
                     if (animator != null && halfWidth > 0) {
-                        // Sync animator position to where the user left the scroll,
-                        // then resume — so it continues from the dropped position.
+
                         int currentX = scrollView.getScrollX() % halfWidth;
                         animator.setCurrentFraction(currentX / (float) halfWidth);
                         if (animator.isPaused()) animator.resume();
@@ -353,6 +467,7 @@ public class HomeFragment extends Fragment {
                     String chosen = installedPackages.get(selectedIndex[0]);
                     if (!chosen.equals(activePackage)) {
                         bindPackageActions(pm, chosen);
+                        probeHookStatus(chosen);
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, null)

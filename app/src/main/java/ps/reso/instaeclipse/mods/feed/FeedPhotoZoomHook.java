@@ -21,45 +21,25 @@ import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/**
- * Adds a long-press-to-zoom overlay to feed photos (issue #174) so photos can be examined
- * full-screen without navigating away to the post's profile/permalink view — Instagram's
- * classic feed row (com.instagram.feed.widget.IgProgressImageView) has no zoom machinery of
- * its own, so this hook grabs the currently-displayed Drawable and shows it in a
- * self-contained pinch/pan zoom overlay (ZoomableImageView) rather than trying to graft in
- * Instagram's own zoom classes (used for profile-picture/Stories zoom), which are tightly
- * coupled to their own render/animation callbacks.
- */
+
 public class FeedPhotoZoomHook {
 
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final String VIEW_CLASS = "com.instagram.feed.widget.IgProgressImageView";
 
-    // IgProgressImageView is a shared, general-purpose component — reused for feed rows,
-    // DM media previews, and story frames alike — so it carries no identity of its own.
-    // "row_feed_button_like" is the same feed-row-only anchor FeedVideoDownloadHook already
-    // relies on to tell a feed post apart from a reel/DM context. Cached once resolved.
+    
     private static volatile int sFeedLikeButtonId = 0;
 
     public void install(ClassLoader classLoader) {
         try {
             Class<?> viewClass = classLoader.loadClass(VIEW_CLASS);
 
-            // Hooked at onAttachedToWindow, not the constructor: the view has no parent yet
-            // at construction time, so the feed-row ancestor check below would always fail.
+            
             XposedHelpers.findAndHookMethod(viewClass, "onAttachedToWindow", new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
-                    // setOnLongClickListener() has a side effect beyond registering the
-                    // callback: it also flips the view's LONG_CLICKABLE flag, which changes
-                    // Android's internal tap-vs-long-press disambiguation timing for that
-                    // view. Attaching it unconditionally to every IgProgressImageView
-                    // instance app-wide was altering touch dispatch on every image view
-                    // regardless of whether Photo Zoom was even enabled or whether the view
-                    // was actually a feed post — causing intermittent dropped taps on
-                    // story-advance and DM media opens. Gate on BOTH the feature flag and a
-                    // feed-row identity check BEFORE attaching, not just inside the callback,
-                    // so the flag is left untouched everywhere else.
+                    
+                    
                     if (!FeatureFlags.enablePhotoZoom) return;
                     try {
                         View view = (View) param.thisObject;
@@ -91,18 +71,13 @@ public class FeedPhotoZoomHook {
         }
     }
 
-    /**
-     * True only when {@code view} sits inside a classic feed post row — verified by finding
-     * "row_feed_button_like" somewhere in the same row's view tree. Walks a bounded number of
-     * ancestors (the row root is typically a few levels up) and, at each level, searches that
-     * ancestor's own subtree (siblings like the like/save buttons, not just further ancestors).
-     */
+    
     private static boolean isInsideFeedRow(View view) {
         if (sFeedLikeButtonId == 0) {
             sFeedLikeButtonId = view.getContext().getResources()
                     .getIdentifier("row_feed_button_like", "id", view.getContext().getPackageName());
         }
-        if (sFeedLikeButtonId == 0) return false; // can't verify — be conservative and skip
+        if (sFeedLikeButtonId == 0) return false; 
 
         ViewParent parent = view.getParent();
         for (int depth = 0; depth < 6 && parent instanceof ViewGroup group; depth++) {
@@ -149,10 +124,7 @@ public class FeedPhotoZoomHook {
         });
     }
 
-    // Instagram's feed image view is backed by a Fresco-style drawable that manages its own
-    // internal scaling and ignores ImageView's matrix/scaleType, so re-drawing the Drawable
-    // directly onto a bare canvas didn't work. Screenshotting the actual View instead captures
-    // exactly what's on screen, regardless of how the underlying drawable renders itself.
+    
     private static Bitmap viewToBitmap(View v) {
         int w = v.getWidth(), h = v.getHeight();
         if (w <= 0 || h <= 0) return null;

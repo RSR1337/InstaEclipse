@@ -7,7 +7,7 @@
     android:layout_height="wrap_content"
     android:layout_marginEnd="8dp"
     app:cardBackgroundColor="?attr/colorSurfaceContainer"
-    app:cardCornerRadius="16dp"
+    app:cardCornerRadius="@dimen/card_radius"
     app:cardElevation="0dp"
     app:strokeWidth="0dp">
 
@@ -18,7 +18,7 @@
         android:gravity="center"
         android:padding="12dp">
 
-        <!-- Contributor Name -->
+        
         <TextView
             android:id="@+id/contributor_name"
             android:layout_width="match_parent"
@@ -32,14 +32,14 @@
             android:layout_marginBottom="8dp"
             tools:text="Abdul Rahman" />
 
-        <!-- Social Buttons Row -->
+        
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center">
 
-            <!-- GitHub Button -->
+            
             <ImageButton
                 android:id="@+id/github_button"
                 android:layout_width="32dp"
@@ -54,7 +54,7 @@
                 app:tint="?attr/colorOnSurfaceVariant"
                 tools:ignore="HardcodedText" />
 
-            <!-- LinkedIn Button -->
+            
             <ImageButton
                 android:id="@+id/linkedin_button"
                 android:layout_width="32dp"
@@ -70,7 +70,7 @@
                 app:tint="?attr/colorOnSurfaceVariant"
                 tools:ignore="HardcodedText" />
 
-            <!-- Telegram Button -->
+            
             <ImageButton
                 android:id="@+id/telegram_button"
                 android:layout_width="32dp"

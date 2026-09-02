@@ -16,7 +16,51 @@
         android:gravity="center_horizontal"
         android:padding="16dp">
 
-        <!-- FAQ Section -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/help_setup_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="?attr/colorSurfaceContainerLow"
+            app:strokeWidth="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/help_setup_title"
+                    android:textAppearance="?attr/textAppearanceTitleMedium"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:id="@+id/help_version_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="@style/TextAppearance.InstaEclipse.Mono"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:layout_marginBottom="8dp" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/help_update_chip"
+                    style="@style/Widget.Material3.Chip.Assist"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone"
+                    app:chipBackgroundColor="@color/corona_amber"
+                    android:textColor="@color/corona_amber_on" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/faq_card"
             android:layout_width="match_parent"
@@ -43,7 +87,7 @@
                     android:textStyle="bold"
                     android:layout_marginBottom="8dp" />
 
-                <!-- FAQ Items -->
+                
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -89,7 +133,7 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Module Not Working Section -->
+        
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/module_not_working_card"
             android:layout_width="match_parent"
@@ -126,7 +170,7 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Community Links -->
+        
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -138,7 +182,7 @@
                 android:orientation="horizontal"
                 tools:ignore="UselessParent">
 
-                <!-- GitHub Circular Card -->
+                
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/github_card"
                     android:layout_width="58dp"
@@ -162,7 +206,7 @@
                         android:contentDescription="@string/go_to_github" />
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Telegram Circular Card -->
+                
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/telegram_card"
                     android:layout_width="58dp"
@@ -188,6 +232,18 @@
             </LinearLayout>
 
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/help_disclaimer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="@string/help_disclaimer"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant" />
 
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

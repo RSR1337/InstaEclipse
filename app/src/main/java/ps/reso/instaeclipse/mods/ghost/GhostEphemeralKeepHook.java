@@ -17,18 +17,7 @@ import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/**
- * Prevents disappearing/vanish-mode messages from being deleted locally.
- *
- * Three hooks:
- *  1. hookVanishLocalDelete — no-ops the method that drives local deletion of
- *                             vanish/ephemeral messages. Found via "igThreadIgid"
- *                             + (DirectThreadKey, boolean) → void signature.
- *  2. hookServerPing        — blocks the outgoing mark_ephemeral_item_ranges_viewed
- *                             server call (belt-and-suspenders with the Interceptor).
- *  3. hookExpiryParser      — zeroes message_expiration_timestamp_ms long fields after
- *                             model parsing so no local countdown timer is started.
- */
+
 public class GhostEphemeralKeepHook {
 
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
@@ -37,10 +26,7 @@ public class GhostEphemeralKeepHook {
         hookExpiryParser(bridge, classLoader);
     }
 
-    /**
-     * No-ops the method that deletes ephemeral/vanish messages from the local thread model.
-     * Found via "igThreadIgid" combined with (DirectThreadKey, boolean) → void signature.
-     */
+    
     private void hookVanishLocalDelete(DexKitBridge bridge, ClassLoader classLoader) {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
@@ -90,7 +76,7 @@ public class GhostEphemeralKeepHook {
         }
     }
 
-    /** Blocks any void method that dispatches mark_ephemeral_item_ranges_viewed. */
+    
     private void hookServerPing(DexKitBridge bridge) {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
@@ -130,10 +116,7 @@ public class GhostEphemeralKeepHook {
         }
     }
 
-    /**
-     * Zeroes any long field on parsed model objects whose value looks like a future
-     * epoch-ms timestamp, so the local expiry countdown never starts.
-     */
+    
     private void hookExpiryParser(DexKitBridge bridge, ClassLoader classLoader) {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override

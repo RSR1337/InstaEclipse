@@ -5,8 +5,8 @@
     android:layout_height="wrap_content"
     android:paddingStart="16dp"
     android:paddingEnd="16dp"
-    android:paddingTop="24dp"
-    android:paddingBottom="8dp"
-    android:textStyle="bold"
-    android:textColor="?attr/colorPrimary"
-    android:textAppearance="?attr/textAppearanceTitleSmall" />
+    android:paddingTop="20dp"
+    android:paddingBottom="6dp"
+    android:textAllCaps="true"
+    android:textAppearance="@style/TextAppearance.InstaEclipse.SectionLabel"
+    android:textColor="?attr/colorOnSurfaceVariant" />

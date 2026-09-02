@@ -26,9 +26,6 @@ public class TrackingLinkDisable {
                         String url = item.getText().toString();
                         if (!url.contains("https://www.instagram.com/")) return;
 
-                        // Tracking params can appear anywhere in the query string, not just
-                        // as the first one — matching only "?param=" (old behavior) missed
-                        // links where another param came first, e.g. "?igshid=X&utm_source=...".
                         boolean hasTracking = url.contains("igsh=")
                                 || url.contains("igshid=")
                                 || url.contains("ig_rid=")

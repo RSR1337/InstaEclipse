@@ -7,7 +7,6 @@ import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
-import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
@@ -65,7 +64,6 @@ public class IgThemeHook {
             hookWindowColors();
             hookComposeColors(classLoader);
             hookNativeColors(classLoader);
-            hookColorData(classLoader);
             hookWidgetTints();
             hookIgdsColorProviders(classLoader);
             hookActivityLifecycle();
@@ -73,8 +71,49 @@ public class IgThemeHook {
             installed = true;
             FeatureStatusTracker.setHooked("CustomTheme");
             ModuleLog.line("(InstaEclipse | Theme): hooks installed enabled=" + FeatureFlags.customThemeEnabled);
+            if (FeatureFlags.customThemeEnabled) {
+                try {
+                    Context app = currentApplicationContext();
+                    if (app != null) {
+                        IgThemeEngine.ensureInitialized(app.getApplicationContext() != null ? app.getApplicationContext() : app);
+                        IgColorRemapEngine.ensureBuilt(app);
+                    } else {
+                        ModuleLog.line("(InstaEclipse | Theme): no Application yet; deferring remap build");
+                    }
+                } catch (Throwable t) {
+                    ModuleLog.line("(InstaEclipse | Theme): early build failed", t);
+                }
+                android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+                Runnable refresh = () -> {
+                    try {
+                        Context app = currentApplicationContext();
+                        if (app != null) {
+                            IgThemeEngine.ensureInitialized(app);
+                            IgColorRemapEngine.ensureBuilt(app);
+                        }
+                        refreshCurrentActivity();
+                    } catch (Throwable t) {
+                        ModuleLog.line("(InstaEclipse | Theme): deferred refresh failed", t);
+                    }
+                };
+                handler.post(refresh);
+                handler.postDelayed(refresh, 1200L);
+                handler.postDelayed(refresh, 3000L);
+            }
         } catch (Throwable t) {
             ModuleLog.line("(InstaEclipse | Theme): hook failed", t);
+        }
+    }
+
+    private static Context currentApplicationContext() {
+        try {
+            Class<?> at = Class.forName("android.app.ActivityThread");
+            Object thread = at.getMethod("currentActivityThread").invoke(null);
+            if (thread == null) return null;
+            Object app = at.getMethod("getApplication").invoke(thread);
+            return app instanceof Context ? (Context) app : null;
+        } catch (Throwable ignored) {
+            return null;
         }
     }
 
@@ -125,6 +164,8 @@ public class IgThemeHook {
                         Resources res = (Resources) param.thisObject;
                         IgThemeEngine.ensureInitialized(res, cl);
                     }
+                    Activity activity = UIHookManager.getCurrentActivity();
+                    if (activity != null) IgColorRemapEngine.ensureBuilt(activity);
                     Integer override = IgThemeEngine.colorForResource(resId);
                     if (override != null) param.setResult(override);
                 }
@@ -168,6 +209,13 @@ public class IgThemeHook {
                     if (!IgThemeEngine.isInitialized()) {
                         Context ctx = (Context) param.thisObject;
                         IgThemeEngine.ensureInitialized(ctx);
+                    }
+                    Context ctx = (Context) param.thisObject;
+                    if (ctx instanceof Activity) {
+                        IgColorRemapEngine.ensureBuilt(ctx);
+                    } else {
+                        Activity activity = UIHookManager.getCurrentActivity();
+                        if (activity != null) IgColorRemapEngine.ensureBuilt(activity);
                     }
                     Integer override = IgThemeEngine.colorForResource(resId);
                     if (override != null) param.setResult(override);
@@ -350,13 +398,6 @@ public class IgThemeHook {
     }
 
     private void hookDrawableColors() {
-        tryHook(() -> XposedHelpers.findAndHookConstructor(ColorDrawable.class, int.class, new XC_MethodHook() {
-            @Override
-            protected void beforeHookedMethod(MethodHookParam param) {
-                if (!IgThemeEngine.isActive() || IgColorRemapEngine.isBypassing()) return;
-                IgColorRemapEngine.applyRemapArg(param.args, 0);
-            }
-        }));
         tryHook(() -> XposedHelpers.findAndHookMethod(ColorDrawable.class, "setColor", int.class, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
@@ -380,25 +421,6 @@ public class IgThemeHook {
                 if (remapped != colors) param.args[0] = remapped;
             }
         }));
-        tryHook(() -> XposedHelpers.findAndHookConstructor(PorterDuffColorFilter.class, int.class, PorterDuff.Mode.class, new XC_MethodHook() {
-            @Override
-            protected void beforeHookedMethod(MethodHookParam param) {
-                if (!IgThemeEngine.isActive() || IgColorRemapEngine.isBypassing()) return;
-                IgColorRemapEngine.applyRemapArg(param.args, 0);
-            }
-        }));
-        if (Build.VERSION.SDK_INT >= 29) {
-            tryHook(() -> {
-                Class<?> blendMode = Class.forName("android.graphics.BlendMode");
-                XposedHelpers.findAndHookConstructor("android.graphics.BlendModeColorFilter", null, int.class, blendMode, new XC_MethodHook() {
-                    @Override
-                    protected void beforeHookedMethod(MethodHookParam param) {
-                        if (!IgThemeEngine.isActive() || IgColorRemapEngine.isBypassing()) return;
-                        IgColorRemapEngine.applyRemapArg(param.args, 0);
-                    }
-                });
-            });
-        }
         tryHook(() -> XposedHelpers.findAndHookMethod(GradientDrawable.class, "setStroke", int.class, int.class, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
@@ -412,15 +434,6 @@ public class IgThemeHook {
                 if (!IgThemeEngine.isActive() || IgColorRemapEngine.isBypassing()) return;
                 if (param.args[1] instanceof ColorStateList) {
                     param.args[1] = IgColorRemapEngine.remapColorStateList((ColorStateList) param.args[1]);
-                }
-            }
-        }));
-        tryHook(() -> XposedHelpers.findAndHookConstructor(RippleDrawable.class, ColorStateList.class, android.graphics.drawable.Drawable.class, android.graphics.drawable.Drawable.class, new XC_MethodHook() {
-            @Override
-            protected void beforeHookedMethod(MethodHookParam param) {
-                if (!IgThemeEngine.isActive() || IgColorRemapEngine.isBypassing()) return;
-                if (param.args[0] instanceof ColorStateList) {
-                    param.args[0] = IgColorRemapEngine.remapColorStateList((ColorStateList) param.args[0]);
                 }
             }
         }));
@@ -533,14 +546,7 @@ public class IgThemeHook {
                 }
             }
         } catch (Throwable ignored) {}
-        String[] palettes = {
-                "com.instagram.compose.core.theme.BaseColors",
-                "com.instagram.compose.core.theme.BasePrismColors",
-                "com.instagram.compose.core.theme.BasePrismColorsV2",
-                "com.instagram.compose.core.theme.SemanticColors",
-                "com.instagram.compose.core.theme.InstagramColors",
-                "com.instagram.compose.core.ui.theme.Theme"
-        };
+        String[] palettes = IgColorRemapEngine.COMPOSE_PALETTE_CLASSES;
         XC_MethodHook packedHook = new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) {
@@ -579,7 +585,12 @@ public class IgThemeHook {
         String[] needles = {
                 "igds_primary_background", "igds_color_primary_background",
                 "igds_primary_text", "igds_color_primary_text",
-                "igds_secondary_background", "igds_elevated_background"
+                "igds_secondary_background", "igds_elevated_background",
+                "igds_primary_icon", "igds_color_primary_icon",
+                "igds_separator", "igds_color_separator",
+                "igds_link", "igds_color_link",
+                "igds_error_or_destructive", "igds_color_error_or_destructive",
+                "igds_elevated_highlight_background", "igds_secondary_text"
         };
         int hooked = 0;
         for (String needle : needles) {
@@ -631,25 +642,6 @@ public class IgThemeHook {
                     }
                 }
             } catch (Throwable ignored) {}
-        } catch (Throwable ignored) {}
-    }
-
-    private void hookColorData(ClassLoader cl) {
-        try {
-            Class<?> colorData = cl.loadClass("com.facebook.dsp.core.ColorData");
-            for (java.lang.reflect.Constructor<?> ctor : colorData.getDeclaredConstructors()) {
-                Class<?>[] types = ctor.getParameterTypes();
-                XposedBridge.hookMethod(ctor, new XC_MethodHook() {
-                    @Override
-                    protected void beforeHookedMethod(MethodHookParam param) {
-                        if (!IgThemeEngine.isActive() || IgColorRemapEngine.isBypassing()) return;
-                        Object[] args = param.args;
-                        for (int i = 0; i < args.length && i < types.length; i++) {
-                            if (types[i] == int.class) IgColorRemapEngine.applyRemapArg(args, i);
-                        }
-                    }
-                });
-            }
         } catch (Throwable ignored) {}
     }
 
@@ -713,11 +705,7 @@ public class IgThemeHook {
         }
     }
 
-    /**
-     * Called after a settings sync so a theme change is visible immediately, rather than
-     * waiting for the user to navigate away and back (which is the only other time the
-     * Activity onResume/onCreate hooks would naturally re-run).
-     */
+    
     public static void refreshCurrentActivity() {
         Activity activity = UIHookManager.getCurrentActivity();
         if (activity == null || activity.isFinishing()) return;
@@ -725,7 +713,14 @@ public class IgThemeHook {
         if (!FeatureFlags.customThemeEnabled) return;
         IgColorRemapEngine.ensureBuilt(activity);
         applyWindowColors(activity);
-        activity.getWindow().getDecorView().post(activity::recreate);
+        View decor = activity.getWindow() != null ? activity.getWindow().getDecorView() : null;
+        if (decor != null) {
+            decor.post(() -> {
+                try {
+                    if (!activity.isFinishing()) activity.recreate();
+                } catch (Throwable ignored) {}
+            });
+        }
     }
 
     static void applyWindowColors(Activity activity) {

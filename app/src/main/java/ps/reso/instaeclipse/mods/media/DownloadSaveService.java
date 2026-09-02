@@ -34,33 +34,17 @@ import java.nio.ByteBuffer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Foreground service that runs in the companion-app process and saves downloaded media
- * to a SAF (Storage Access Framework) folder.
- *
- * <p>The companion app holds the persistable SAF permission for folders picked via
- * FeaturesFragment.  The Xposed module (running in Instagram's process) cannot use
- * that permission directly, so it forwards the CDN URL(s) to this service as plain
- * string extras.  The service downloads the media itself — no file-descriptor passing
- * across different UIDs is required.
- *
- * <p>For video+audio-separate streams the service also handles the merge step locally.
- * Download progress is reported via a live-updating foreground notification.
- */
 public class DownloadSaveService extends Service {
 
     private static final String CHANNEL_ID  = "ie_dl_save";
-    private static final int    NOTIF_ID    = 0x49455344; // "IESD" — ongoing progress
-    private static final int    DONE_NOTIF_BASE = 0x49455345; // per-startId completion notifs
+    private static final int    NOTIF_ID    = 0x49455344;
+    private static final int    DONE_NOTIF_BASE = 0x49455345;
     private static final String CACHE_PREFS = "instaeclipse_cache";
     private static final String UA =
             "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36";
 
-    /** Throttle: minimum ms between notification updates. */
     private static final long NOTIF_INTERVAL_MS = 250;
 
-    // Matches "{stem}_{yyyyMMdd}_{HHmmss}{.ext}" — the timestamp suffix buildFilename()
-    // appends when FeatureFlags.downloaderAddTimestamp is on.
     private static final Pattern TIMESTAMPED_FILENAME_PATTERN =
             Pattern.compile("^(.*)_([0-9]{8}_[0-9]{6})(\\.[^.]+)$");
 
@@ -82,10 +66,11 @@ public class DownloadSaveService extends Service {
         if (intent == null) { stopSelf(startId); return START_NOT_STICKY; }
 
         String url       = intent.getStringExtra("url");
-        String audioUrl  = intent.getStringExtra("audioUrl"); // null → single-stream
+        String audioUrl  = intent.getStringExtra("audioUrl");
         String filename  = intent.getStringExtra("filename");
         String mimeType  = intent.getStringExtra("mimeType");
         String username  = intent.getStringExtra("username");
+        boolean audioOnly = intent.getBooleanExtra("audioOnly", false);
 
         if (url == null || filename == null) { stopSelf(startId); return START_NOT_STICKY; }
 
@@ -103,6 +88,7 @@ public class DownloadSaveService extends Service {
         final String fUrl   = url, fAudio = audioUrl, fFile = filename;
         final String fMime  = mimeType, fUser = username, fSave = saveUri;
         final boolean fUF   = usernameFolder;
+        final boolean fAudioOnly = audioOnly;
 
         new Thread(() -> {
             try {
@@ -111,9 +97,11 @@ public class DownloadSaveService extends Service {
                     showToast(getString(R.string.ig_toast_already_downloaded));
                     return;
                 }
-                Uri savedUri = fAudio != null
-                        ? downloadMergeAndSave(fUrl, fAudio, fFile, fMime, fSave, fUser, fUF)
-                        : downloadAndSave(fUrl, fFile, fMime, fSave, fUser, fUF);
+                Uri savedUri = fAudioOnly
+                        ? downloadExtractAudioAndSave(fUrl, fFile, fSave, fUser, fUF)
+                        : fAudio != null
+                                ? downloadMergeAndSave(fUrl, fAudio, fFile, fMime, fSave, fUser, fUF)
+                                : downloadAndSave(fUrl, fFile, fMime, fSave, fUser, fUF);
                 postDoneNotification(sid, "Saved: " + fFile, fMime, savedUri);
                 showToast(getString(R.string.ig_toast_file_saved, fFile));
             } catch (Throwable e) {
@@ -126,8 +114,6 @@ public class DownloadSaveService extends Service {
 
         return START_NOT_STICKY;
     }
-
-    // ── Download helpers ──────────────────────────────────────────────────────
 
     private Uri downloadAndSave(String url, String filename, String mimeType,
                                 String saveUri, String username, boolean usernameFolder)
@@ -147,7 +133,7 @@ public class DownloadSaveService extends Service {
             pushProgress("Saving…", 97, 100, false);
             return writeViaSaf(tmp, filename, mimeType, saveUri, username, usernameFolder);
         } finally {
-            //noinspection ResultOfMethodCallIgnored
+
             tmp.delete();
         }
     }
@@ -162,7 +148,7 @@ public class DownloadSaveService extends Service {
         File ta  = new File(cacheDir, "ie_sa_" + ts + ".mp4");
         File out = new File(cacheDir, "ie_sm_" + ts + ".mp4");
         try {
-            // Video download: 0–60 %
+
             pushProgress("Downloading video…", 0, 100, false);
             downloadToFile(videoUrl, tv, (done, total) -> {
                 if (total > 0) {
@@ -171,7 +157,6 @@ public class DownloadSaveService extends Service {
                 }
             });
 
-            // Audio download: 60–80 %
             pushProgress("Downloading audio…", 60, 100, false);
             downloadToFile(audioUrl, ta, (done, total) -> {
                 if (total > 0) {
@@ -180,23 +165,66 @@ public class DownloadSaveService extends Service {
                 }
             });
 
-            // Merge: 80–95 % (indeterminate — MediaMuxer gives no callbacks)
             pushProgress("Merging…", 80, 100, true);
             mergeVideoAudio(tv.getAbsolutePath(), ta.getAbsolutePath(), out.getAbsolutePath());
 
             pushProgress("Saving…", 97, 100, false);
             return writeViaSaf(out, filename, mimeType, saveUri, username, usernameFolder);
         } finally {
-            //noinspection ResultOfMethodCallIgnored
+
             tv.delete();
-            //noinspection ResultOfMethodCallIgnored
+
             ta.delete();
-            //noinspection ResultOfMethodCallIgnored
+
             out.delete();
         }
     }
 
-    // ── SAF write ────────────────────────────────────────────────────────────
+    private Uri downloadExtractAudioAndSave(String videoUrl, String filename, String saveUri,
+                                            String username, boolean usernameFolder)
+            throws Exception {
+        File cacheDir = getCacheDir();
+        long ts = System.currentTimeMillis();
+        File tv  = new File(cacheDir, "ie_aa_" + ts + ".mp4");
+        File out = new File(cacheDir, "ie_ao_" + ts + ".m4a");
+        try {
+            pushProgress("Downloading…", 0, 100, false);
+            downloadToFile(videoUrl, tv, (done, total) -> {
+                if (total > 0) {
+                    int pct = (int) (done * 90 / total);
+                    maybeUpdateProgress("Downloading…", pct, 100);
+                }
+            });
+            pushProgress("Extracting audio…", 92, 100, true);
+            extractAudioOnly(tv.getAbsolutePath(), out.getAbsolutePath());
+            pushProgress("Saving…", 97, 100, false);
+            return writeViaSaf(out, filename, "audio/mp4", saveUri, username, usernameFolder);
+        } finally {
+
+            tv.delete();
+
+            out.delete();
+        }
+    }
+
+    private static void extractAudioOnly(String inputPath, String outputPath) throws Exception {
+        MediaExtractor ex = new MediaExtractor();
+        MediaMuxer mux = new MediaMuxer(outputPath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
+        try {
+            ex.setDataSource(inputPath);
+            int ai = selectTrack(ex, "audio/");
+            if (ai < 0) throw new Exception("No audio track found in source video");
+            int ao = mux.addTrack(ex.getTrackFormat(ai));
+            mux.start();
+            ByteBuffer buf = ByteBuffer.allocate(1024 * 1024);
+            MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+            copyTrack(ex, mux, ao, buf, info);
+            mux.stop();
+        } finally {
+            ex.release();
+            mux.release();
+        }
+    }
 
     private Uri writeViaSaf(File src, String filename, String mimeType,
                              String saveUri, String username, boolean usernameFolder)
@@ -224,8 +252,6 @@ public class DownloadSaveService extends Service {
         }
         return file.getUri();
     }
-
-    // ── Dedup: skip re-downloading a file that's already in the SAF folder ─────
 
     private boolean safFileExists(String saveUri, String username, boolean usernameFolder,
                                    String filename) {
@@ -290,11 +316,9 @@ public class DownloadSaveService extends Service {
         return isTimestampToken(name.substring(start, end));
     }
 
-    // ── Network / merge utilities ─────────────────────────────────────────────
-
     @FunctionalInterface
     interface ProgressCallback {
-        /** @param bytesRead bytes downloaded so far; @param totalBytes -1 if unknown */
+
         void onProgress(long bytesRead, long totalBytes);
     }
 
@@ -303,7 +327,7 @@ public class DownloadSaveService extends Service {
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setRequestProperty("User-Agent", UA);
         conn.connect();
-        long total = conn.getContentLengthLong(); // -1 if server doesn't send Content-Length
+        long total = conn.getContentLengthLong();
         try (InputStream in = conn.getInputStream();
              FileOutputStream fos = new FileOutputStream(dest)) {
             byte[] buf = new byte[32768];
@@ -360,26 +384,16 @@ public class DownloadSaveService extends Service {
         }
     }
 
-    // ── Notification helpers ──────────────────────────────────────────────────
-
-    /**
-     * Unconditionally updates the foreground notification (use for phase transitions).
-     */
     private void pushProgress(String text, int progress, int max, boolean indeterminate) {
         lastNotifPct = progress;
         lastNotifMs  = System.currentTimeMillis();
         nm.notify(NOTIF_ID, buildProgressNotification(text, progress, max, indeterminate));
     }
 
-    /** Convenience overload for determinate progress. */
     private void pushProgress(String text, int progress, int max) {
         pushProgress(text, progress, max, false);
     }
 
-    /**
-     * Throttled update — called on every chunk read. Skips the notify call if
-     * less than {@link #NOTIF_INTERVAL_MS} have passed AND progress changed < 2 %.
-     */
     private void maybeUpdateProgress(String text, int pct, int max) {
         maybeUpdateProgress(text, pct, max, false);
     }
@@ -403,7 +417,7 @@ public class DownloadSaveService extends Service {
                     .setOngoing(true)
                     .build();
         }
-        //noinspection deprecation
+
         return new Notification.Builder(this)
                 .setContentTitle("InstaEclipse")
                 .setContentText(text)
@@ -413,21 +427,11 @@ public class DownloadSaveService extends Service {
                 .build();
     }
 
-    /**
-     * Posts a non-ongoing completion/error notification that persists after the service stops.
-     * Uses {@code DONE_NOTIF_BASE + startId} so concurrent downloads don't collide.
-     */
-    /**
-     * Posts a persistent completion notification.
-     * If {@code fileUri} is non-null, tapping the notification opens the saved file
-     * in the device's default viewer (gallery, video player, etc.).
-     */
     private void postDoneNotification(int startId, String text, String mimeType, Uri fileUri) {
         int icon = fileUri != null
                 ? android.R.drawable.stat_sys_download_done
                 : android.R.drawable.stat_notify_error;
 
-        // Build a tap-to-open PendingIntent when we have a valid file URI
         android.app.PendingIntent contentIntent = null;
         if (fileUri != null && mimeType != null) {
             Intent viewIntent = new Intent(Intent.ACTION_VIEW);
@@ -446,7 +450,7 @@ public class DownloadSaveService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             builder = new Notification.Builder(this, CHANNEL_ID);
         } else {
-            //noinspection deprecation
+
             builder = new Notification.Builder(this);
         }
         builder.setContentTitle("InstaEclipse")
@@ -458,7 +462,7 @@ public class DownloadSaveService extends Service {
     }
 
     private void showToast(String msg) {
-        // Use application context — service context is invalid after stopSelf() fires
+
         Context appCtx = getApplicationContext();
         new Handler(Looper.getMainLooper()).post(() ->
                 Toast.makeText(appCtx, msg, Toast.LENGTH_SHORT).show());

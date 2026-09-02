@@ -6,7 +6,6 @@ public class FeatureFlags {
 
     public static boolean isGhostModeEnabled = false;
     public static boolean isGhostSeen = false;
-    public static boolean isGhostVoiceSeen = false;
     public static boolean isGhostTyping = false;
     public static boolean isGhostScreenshot = false;
     public static boolean isGhostViewOnce = false;
@@ -18,7 +17,6 @@ public class FeatureFlags {
     public static boolean permanentViewMode = false;
 
     public static boolean quickToggleSeen = false;
-    public static boolean quickToggleVoiceSeen = false;
     public static boolean quickToggleTyping = false;
     public static boolean quickToggleScreenshot = false;
     public static boolean quickToggleViewOnce = false;
@@ -57,7 +55,7 @@ public class FeatureFlags {
     public static boolean enableCaptionCopy = false;
     public static boolean disableDoubleTapLike = false;
     public static boolean enablePhotoZoom = false;
-    public static boolean bypassChannelRestrictions = false;
+    public static boolean colorfulFeatureIcons = false;
 
     public static boolean spoofLocation = false;
     public static double spoofLat = 0.0;
@@ -83,4 +81,6 @@ public class FeatureFlags {
     public static boolean downloaderAddTimestamp = false;
     public static String  downloaderCustomPath = "";
     public static String  downloaderCustomUri  = "";
+
+    public static boolean unlockEmployeeFlags = false;
 }

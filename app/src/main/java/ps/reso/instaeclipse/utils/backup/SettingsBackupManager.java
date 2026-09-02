@@ -16,7 +16,6 @@ public class SettingsBackupManager {
         s.put("removeBuildExpiredPopup", FeatureFlags.removeBuildExpiredPopup);
 
         s.put("isGhostSeen",             FeatureFlags.isGhostSeen);
-        s.put("isGhostVoiceSeen",        FeatureFlags.isGhostVoiceSeen);
         s.put("isGhostTyping",           FeatureFlags.isGhostTyping);
         s.put("isGhostScreenshot",       FeatureFlags.isGhostScreenshot);
         s.put("isGhostViewOnce",         FeatureFlags.isGhostViewOnce);
@@ -28,7 +27,6 @@ public class SettingsBackupManager {
         s.put("permanentViewMode",       FeatureFlags.permanentViewMode);
 
         s.put("quickToggleSeen",         FeatureFlags.quickToggleSeen);
-        s.put("quickToggleVoiceSeen",    FeatureFlags.quickToggleVoiceSeen);
         s.put("quickToggleTyping",       FeatureFlags.quickToggleTyping);
         s.put("quickToggleScreenshot",   FeatureFlags.quickToggleScreenshot);
         s.put("quickToggleViewOnce",     FeatureFlags.quickToggleViewOnce);
@@ -67,7 +65,7 @@ public class SettingsBackupManager {
         s.put("showFeatureToasts",       FeatureFlags.showFeatureToasts);
         s.put("enableStoryMentions",     FeatureFlags.enableStoryMentions);
         s.put("enablePhotoZoom",         FeatureFlags.enablePhotoZoom);
-        s.put("bypassChannelRestrictions", FeatureFlags.bypassChannelRestrictions);
+        s.put("colorfulFeatureIcons",    FeatureFlags.colorfulFeatureIcons);
 
         s.put("enablePostDownload",      FeatureFlags.enablePostDownload);
         s.put("enableStoryDownload",     FeatureFlags.enableStoryDownload);
@@ -97,7 +95,6 @@ public class SettingsBackupManager {
         if (s.has("removeBuildExpiredPopup")) FeatureFlags.removeBuildExpiredPopup = s.getBoolean("removeBuildExpiredPopup");
 
         if (s.has("isGhostSeen"))            FeatureFlags.isGhostSeen            = s.getBoolean("isGhostSeen");
-        if (s.has("isGhostVoiceSeen"))       FeatureFlags.isGhostVoiceSeen       = s.getBoolean("isGhostVoiceSeen");
         if (s.has("isGhostTyping"))          FeatureFlags.isGhostTyping          = s.getBoolean("isGhostTyping");
         if (s.has("isGhostScreenshot"))      FeatureFlags.isGhostScreenshot      = s.getBoolean("isGhostScreenshot");
         if (s.has("isGhostViewOnce"))        FeatureFlags.isGhostViewOnce        = s.getBoolean("isGhostViewOnce");
@@ -109,7 +106,6 @@ public class SettingsBackupManager {
         if (s.has("permanentViewMode"))        FeatureFlags.permanentViewMode        = s.getBoolean("permanentViewMode");
 
         if (s.has("quickToggleSeen"))        FeatureFlags.quickToggleSeen        = s.getBoolean("quickToggleSeen");
-        if (s.has("quickToggleVoiceSeen"))   FeatureFlags.quickToggleVoiceSeen   = s.getBoolean("quickToggleVoiceSeen");
         if (s.has("quickToggleTyping"))      FeatureFlags.quickToggleTyping      = s.getBoolean("quickToggleTyping");
         if (s.has("quickToggleScreenshot"))  FeatureFlags.quickToggleScreenshot  = s.getBoolean("quickToggleScreenshot");
         if (s.has("quickToggleViewOnce"))    FeatureFlags.quickToggleViewOnce    = s.getBoolean("quickToggleViewOnce");
@@ -148,7 +144,7 @@ public class SettingsBackupManager {
         if (s.has("showFeatureToasts"))      FeatureFlags.showFeatureToasts      = s.getBoolean("showFeatureToasts");
         if (s.has("enableStoryMentions"))    FeatureFlags.enableStoryMentions    = s.getBoolean("enableStoryMentions");
         if (s.has("enablePhotoZoom"))        FeatureFlags.enablePhotoZoom        = s.getBoolean("enablePhotoZoom");
-        if (s.has("bypassChannelRestrictions")) FeatureFlags.bypassChannelRestrictions = s.getBoolean("bypassChannelRestrictions");
+        if (s.has("colorfulFeatureIcons"))   FeatureFlags.colorfulFeatureIcons   = s.getBoolean("colorfulFeatureIcons");
 
         if (s.has("enablePostDownload"))     FeatureFlags.enablePostDownload     = s.getBoolean("enablePostDownload");
         if (s.has("enableStoryDownload"))    FeatureFlags.enableStoryDownload    = s.getBoolean("enableStoryDownload");

@@ -10,11 +10,6 @@ import de.robv.android.xposed.XposedBridge;
 import ps.reso.instaeclipse.mods.ui.UIHookManager;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/**
- * Launches one of InstaEclipse's own Activities (e.g. LocationPickerActivity) from code
- * running inside Instagram's hooked process. Requires the target Activity to be exported,
- * since it's a separate app/uid from Instagram's.
- */
 public final class ModuleActivityLauncher {
 
     private ModuleActivityLauncher() {}

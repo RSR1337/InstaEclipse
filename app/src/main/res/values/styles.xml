@@ -4,18 +4,31 @@
         <item name="android:textColor">@color/white</item>
         <item name="android:textSize">20sp</item>
         <item name="android:textStyle">bold</item>
+        <item name="fontFamily">@font/inter_bold</item>
+    </style>
+    <style name="TextAppearance.InstaEclipse.Mono" parent="TextAppearance.Material3.BodySmall">
+        <item name="fontFamily">@font/jetbrains_mono</item>
+        <item name="android:fontFamily">@font/jetbrains_mono</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:lineSpacingMultiplier">1.54</item>
+    </style>
+    <style name="TextAppearance.InstaEclipse.SectionLabel" parent="TextAppearance.Material3.LabelSmall">
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:letterSpacing">0.08</item>
     </style>
     <style name="ShapeAppearance.App.Circle" parent="">
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">50%</item>
     </style>
-    <!-- Define a custom style for Spinner Popup -->
+    
     <style name="SpinnerPopup" parent="Theme.AppCompat.Light">
         <item name="android:textAppearance">@style/SpinnerTextAppearance</item>
         <item name="android:background">@android:color/black</item>
     </style>
 
-    <!-- Define the text appearance for the Spinner items -->
+    
     <style name="SpinnerTextAppearance" parent="TextAppearance.AppCompat.Body1">
         <item name="android:autoSizeTextType">uniform</item>
         <item name="android:autoSizeMinTextSize">10sp</item>
@@ -24,7 +37,7 @@
         <item name="android:textColor">@android:color/white</item>
     </style>
 
-    <!-- Material3 FeaturesFragment styles -->
+    
     <style name="MenuRow">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
@@ -43,7 +56,7 @@
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="cardBackgroundColor">?attr/colorSurfaceContainerLow</item>
-        <item name="cardCornerRadius">24dp</item>
+        <item name="cardCornerRadius">@dimen/card_radius_large</item>
         <item name="strokeWidth">0dp</item>
     </style>
     <style name="SubmenuSwitch">

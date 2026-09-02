@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- app wide -->
+    
     <string name="app_name">InstaEclipse</string>
     <string name="home">Ana Səhifə</string>
     <string name="features">Funksiyalar</string>
     <string name="help">Kömək</string>
 
-    <!-- home -->
+    
     <string name="instagram_version">Versiya</string>
     <string name="module_disabled">Modul aktiv deyil. Lütfən aktiv edin.</string>
 
@@ -36,20 +36,20 @@
     <string name="contributors">Təhfə Verənlər</string>
     <string name="special_thanks">Xüsusi Təşəkkürlər</string>
 
-    <!-- Don’t translate! -->
+    
 
-    <!-- help -->
+    
     <string name="help_amp_troubleshooting">Kömək &amp; Problemlərin Həlli</string>
     <string name="find_updates_and_documentation">Yeniləmələri və Dökümentasiyanı tapın.</string>
     <string name="go_to_github">GitHub\'a Keç</string>
     <string name="find_support">Dəstək alın.</string>
     <string name="go_to_telegram">Telegram\'a Keç</string>
 
-    <!-- Don’t translate! -->
+    
     <string name="github">GitHub</string>
     <string name="telegram">Telegram</string>
 
-    <!-- faq -->
+    
     <string name="frequently_asked_questions">Tez-tez Soruşulan Suallar</string>
     <string name="faq_1">1. Google Play Versiyasındı işləmir və ya xəta verir?\n- APKMirror APK\'lərindən istifadə edin.</string>
     <string name="faq_2">2. Modul aktiv deyil?\n- Modulu LSPosed\'də deaktiv edib yenidən aktiv edin.</string>
@@ -58,7 +58,7 @@
     <string name="faq_5">5. Tərtibatçı variantlarında qəribə etiketlər və ya nömrələr var?\n- Sabit versiyalardı qarışıq olduğunu gözünə alaraq Beta və ya Alfa versiyalardan istifadə edin.</string>
     <string name="faq_6">6. "Dikkat Dağıtıcıları Bağla" funksiyası aktiv amma məzmun hələ də görünür?\n- Instagram\'ı zorla dayandırın və keşini təmizləyin.</string>
 
-    <!-- features -->
+    
     <string name="developer_options">Tərtibatçı Variantları</string>
     <string name="ghost_mode">Gizli Rejim</string>
     <string name="distraction_free">Diqqət Dağıtıcıları Bağla</string>
@@ -67,9 +67,9 @@
 
     <string name="enable_disable_all">Hamısını Aktiv/Deaktiv Et</string>
 
-    <!-- Don’t translate! -->
+    
 
-    <!-- ghost -->
+    
     <string name="ghost_mode_options">Gizli Rejim Seçimləri</string>
     <string name="typing">Yazır</string>
     <string name="story">Hekayə</string>
@@ -78,7 +78,7 @@
     <string name="direct_messages">Birbaşa Mesajlar</string>
     <string name="disable_typing">"Yazır" Seçimini Deaktiv Et</string>
 
-    <!-- developer_options -->
+    
     <string name="screen_shot">Ekran görüntüsü</string>
     <string name="developer_options_guide">Tərtibatçı Variantları Bələdçisi</string>
     <string name="dev_options_version_req">Yalnız Beta/Alfa versiyalarında istifadə edin!</string>
@@ -89,9 +89,9 @@
     <string name="dev_options_3">3. "Employee" sözünü axtarın və aşağıdaki variantları aktiv edin:</string>
     <string name="dev_options_4">4. Sonda, tətbiqin xəta verməməsi üçün moduldaki Tərtibatçı Variantlarını deaktiv edin.</string>
 
-    <!-- Don’t translate! -->
+    
 
-    <!-- distraction free -->
+    
     <string name="distraction_free_options">Diqqət Dağıtıcıları Bağlat Seçimləri</string>
     <string name="disable_stories">Hekayələri Deaktiv Et</string>
     <string name="disable_feed">Axışı Deaktiv Et</string>
@@ -99,20 +99,20 @@
     <string name="disable_explore">Kəşf Etməyi Deaktiv Et</string>
     <string name="disable_comments">Rəyləri Deaktiv Et</string>
 
-    <!-- Miscellaneous -->
+    
     <string name="misc">Müxtəlif</string>
     <string name="miscellaneous_options">Müxtəlif Seçimlər</string>
     <string name="story_flipping">Hekayə Çevirməni Deaktiv Et</string>
     <string name="video_autoplay">Video Avtomatik Oynatmağı Deaktiv Et</string>
 
-    <!-- contributor card -->
+    
     <string name="hooked_methods_toast">Aktiv edilmiş funksiyalar</string>
     <string name="contributor_name">Töhfə Verənin Adı</string>
 
-    <!-- Toast -->
+    
     <string name="follower_toast">İzləmə statusu</string>
 
-    <!-- Dialog strings -->
+    
     <string name="ig_dialog_close">Bağla</string>
     <string name="ig_dialog_enable_disable_all">Hamısını aktivləşdir/deaktivləşdir</string>
     <string name="ig_dialog_error">Xəta</string>
@@ -159,7 +159,7 @@
     <string name="ig_toast_config_imported">✅ Konfiqurasiya idxal edildi.</string>
     <string name="ig_toast_config_import_failed">❌ Konfiqurasiya idxal edilə bilmədi.</string>
 
-    <!-- JsonImportActivity -->
+    
     <string name="json_select_config">JSON Konfiqurasiyasını Seç</string>
     <string name="json_target_not_specified">❌ Hədəf paket göstərilməyib.</string>
     <string name="json_sent">✅ Instagram\'a göndərildi.</string>
@@ -210,7 +210,7 @@
     <string name="ig_dialog_misc_copy_comment">Şərhi Kopyala</string>
     <string name="ig_dialog_misc_disable_double_tap_like">İkiqat toxunuşla bəyənməni deaktiv et</string>
 
-    <!-- Comment Copy dialog -->
+    
     <string name="ig_comment_copy_title">Şərhi Kopyala</string>
     <string name="ig_comment_copy_full">Tam Şərhi Kopyala</string>
     <string name="ig_comment_select_part">Kopyalamaq üçün Hissə Seç</string>
@@ -240,29 +240,29 @@
     <string name="ig_dialog_restart_not_found">Yenidən başlatmaq üçün tətbiq tapılmadı.</string>
     <string name="ig_dialog_restart_failed">Yenidən başlatma uğursuz oldu: %1$s</string>
 
-    <!-- Toast: Ghost mode -->
+    
     <string name="ig_toast_ghost_no_options">Xəyal rejimi seçimi edilmədi!</string>
     <string name="ig_toast_ghost_enabled">Xəyal rejimi aktivləşdirildi</string>
     <string name="ig_toast_ghost_disabled">Xəyal rejimi deaktivləşdirildi</string>
     <string name="ig_toast_seen_sent">✅ Oxundu göndərildi</string>
     <string name="ig_toast_channel_seen_sent">✅ Kanal oxundu göndərildi</string>
 
-    <!-- Toast: Follower status -->
+    
     <string name="ig_toast_follows_you">sizi izləyir ✅</string>
     <string name="ig_toast_not_follows_you">sizi izləmir ❌</string>
 
-    <!-- Toast: App settings -->
+    
     <string name="ig_toast_settings_applied">Parametrlər tətbiq edildi!</string>
     <string name="ig_toast_restart_manual">Dəyişikliklərin qüvvəyə minməsi üçün Instagram-ı əl ilə bağlayın.</string>
     <string name="ig_toast_settings_restored">Parametrlər uğurla bərpa edildi.</string>
     <string name="ig_toast_restore_failed">Bərpa uğursuz oldu: %1$s</string>
 
-    <!-- Toast: Download folder -->
+    
     <string name="ig_toast_download_folder_set">Yükləmə qovluğu: %1$s</string>
     <string name="ig_toast_download_folder_updated">Yükləmə qovluğu yeniləndi!</string>
     <string name="ig_toast_download_folder_reset">Yükləmə qovluğu standarta sıfırlandı</string>
 
-    <!-- Toast: Downloader -->
+    
     <string name="ig_toast_downloading">Yüklənir…</string>
     <string name="ig_toast_downloading_video">Video yüklənir…</string>
     <string name="ig_toast_downloading_photo">Şəkil yüklənir…</string>
@@ -284,7 +284,6 @@
     <string name="ig_toast_downloading_profile_pic">Profil şəkli yüklənir…</string>
     <string name="ig_toast_profile_pic_saved">Profil şəkli saxlanıldı!</string>
     <string name="ig_toast_profile_pic_url_not_found">Profil şəklinin URL-i alına bilmədi</string>
-    <string name="ig_toast_merging_video_audio">Video və səs birləşdirilir…</string>
     <string name="ig_toast_downloading_n_items">%1$d element yüklənir…</string>
     <string name="ig_toast_downloading_all_n_items">Bütün %1$d element yüklənir…</string>
     <string name="ig_toast_all_items_saved">Bütün %1$d element InstaEclipse qovluğuna saxlanıldı</string>
@@ -301,7 +300,7 @@
     <string name="back">Geri</string>
     <string name="apply_changes">Dəyişiklikləri Tətbiq Et</string>
 
-    <!-- features fragment section headers -->
+    
     <string name="feat_categories">Kateqoriyalar:</string>
     <string name="feat_tools">Alətlər:</string>
     <string name="feat_features">Xüsusiyyətlər:</string>
@@ -314,16 +313,16 @@
     <string name="feat_downloader_selected">Seçilmiş: %1$s</string>
     <string name="feat_downloader_reset_folder">Yükləmə Qovluğunu Sıfırla</string>
 
-    <!-- multiple versions -->
+    
     <string name="multiple_versions_detected">⚠️ Birdən çox versiya aşkarlandı</string>
 
-    <!-- Story mentions dialog -->
+    
     <string name="ig_mention_dialog_title">Hekayə Qeydləri</string>
     <string name="ig_mention_subtitle">%1$d qeyd • profili açmaq üçün tıkla</string>
     <string name="ig_mention_no_mentions">Bu hekayədə qeyd tapılmadı</string>
     <string name="ig_mention_copy_all">Hamısını Kopyala</string>
 
-    <!-- Toast: Downloader (service) -->
+    
     <string name="ig_toast_no_download_folder">Yükləmə qovluğu təyin edilməyib</string>
     <string name="ig_toast_file_saved">Saxlanıldı: %1$s</string>
     <string name="ig_toast_features_loaded">InstaEclipse yükləndi 🎯</string>
@@ -332,13 +331,13 @@
     <string name="ig_toast_features_on_off_count">%1$d aktiv · %2$d deaktiv</string>
     <string name="ig_toast_features_status_full">%1$d aktiv · %2$d gözləmədə · %3$d deaktiv</string>
 
-    <!-- Update check dialog -->
+    
     <string name="ig_update_title">Yeniləmə mövcuddur</string>
     <string name="ig_update_message">Yeni versiya (%1$s) mövcuddur. İndi yeniləmək istəyirsiniz?</string>
     <string name="ig_update_button">Yenilə</string>
     <string name="ig_update_later">Sonra</string>
     <string name="ig_update_error_message">Yeniləmələri yoxlamaq mümkün olmadı. Zəhmət olmasa sonra yenidən cəhd edin.</string>
-    <!-- Custom Theme -->
+    
     <string name="ig_dialog_menu_theme">Xüsusi Tema</string>
     <string name="theme_title">Xüsusi Tema</string>
     <string name="theme_enable">Xüsusi Temanı Aktivləşdir</string>

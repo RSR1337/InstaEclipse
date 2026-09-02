@@ -14,7 +14,6 @@ import ps.reso.instaeclipse.utils.i18n.I18n;
 public class GhostModeUtils {
     public static boolean isGhostModeActive() {
         if (FeatureFlags.quickToggleSeen && FeatureFlags.isGhostSeen) return true;
-        if (FeatureFlags.quickToggleVoiceSeen && FeatureFlags.isGhostVoiceSeen) return true;
         if (FeatureFlags.quickToggleTyping && FeatureFlags.isGhostTyping) return true;
         if (FeatureFlags.quickToggleScreenshot && FeatureFlags.isGhostScreenshot) return true;
         if (FeatureFlags.quickToggleViewOnce && FeatureFlags.isGhostViewOnce) return true;
@@ -26,7 +25,6 @@ public class GhostModeUtils {
         return FeatureFlags.quickToggleAllowScreenshots && FeatureFlags.allowScreenshots;
     }
 
-
     public static void toggleSelectedGhostOptions(Context context) {
         boolean anySelected = false;
         boolean shouldDisable = false;
@@ -34,10 +32,6 @@ public class GhostModeUtils {
         if (FeatureFlags.quickToggleSeen) {
             anySelected = true;
             if (FeatureFlags.isGhostSeen) shouldDisable = true;
-        }
-        if (FeatureFlags.quickToggleVoiceSeen) {
-            anySelected = true;
-            if (FeatureFlags.isGhostVoiceSeen) shouldDisable = true;
         }
         if (FeatureFlags.quickToggleTyping) {
             anySelected = true;
@@ -82,13 +76,12 @@ public class GhostModeUtils {
                 GhostEmojiManager.addGhostEmojiNextToInbox(activity, false);
             }
             Toast.makeText(context, "❗ " + I18n.t(context, R.string.ig_toast_ghost_no_options), Toast.LENGTH_SHORT).show();
-            return; // Nothing to do
+            return;
         }
 
-        boolean newState = !shouldDisable; // true = enable, false = disable
+        boolean newState = !shouldDisable;
 
         if (FeatureFlags.quickToggleSeen) FeatureFlags.isGhostSeen = newState;
-        if (FeatureFlags.quickToggleVoiceSeen) FeatureFlags.isGhostVoiceSeen = newState;
         if (FeatureFlags.quickToggleTyping) FeatureFlags.isGhostTyping = newState;
         if (FeatureFlags.quickToggleScreenshot) FeatureFlags.isGhostScreenshot = newState;
         if (FeatureFlags.quickToggleViewOnce) FeatureFlags.isGhostViewOnce = newState;
@@ -99,16 +92,13 @@ public class GhostModeUtils {
         if (FeatureFlags.quickTogglePermanentView) FeatureFlags.permanentViewMode = newState;
         if (FeatureFlags.quickToggleAllowScreenshots) FeatureFlags.allowScreenshots = newState;
 
-        // Save changes
         SettingsManager.saveAllFlags();
 
         Activity activity = UIHookManager.getCurrentActivity();
         if (activity != null) {
-            GhostEmojiManager.addGhostEmojiNextToInbox(activity, newState); // true = show ghost, false = hide
+            GhostEmojiManager.addGhostEmojiNextToInbox(activity, newState);
         }
 
-
-        // Toast
         if (newState) {
             Toast.makeText(context, "👻 " + I18n.t(context, R.string.ig_toast_ghost_enabled), Toast.LENGTH_SHORT).show();
         } else {

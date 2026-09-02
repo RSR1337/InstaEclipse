@@ -64,16 +64,6 @@ import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 public class StoryMentionHook {
 
-
-
-    // Story @mentions live behind a two-step pipeline, not a single Media-level getter:
-    //   Media -> LiveTreeMediaDict (found by type) -> "reel_mentions" field (raw tree entries)
-    //   -> a converter method that turns each raw entry into an Interactive sticker object,
-    //      with the actual mentioned User stored in one of Interactive's own fields.
-    // Anchoring on the "reel_mentions" JSON key and the converter's own debug string is far
-    // more stable across IG versions than matching a Media-level method's signature — those
-    // getters get refactored/renamed/re-typed constantly (see git history of this file), but
-    // literal JSON field names and hardcoded log/QPL strings don't change on a version bump.
     private static volatile Method rawMentionsGetter;
     private static volatile Method mentionsConverter;
     private static volatile Class<?> mentionTappableClass;
@@ -96,16 +86,12 @@ public class StoryMentionHook {
         }
     }
 
-    // ── Entry point ──────────────────────────────────────────────────────────
-
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
         resolveMentionPipeline(bridge, classLoader);
         installButtonHook(bridge, classLoader);
         installClickHook(bridge, classLoader);
         FeatureStatusTracker.setHooked("StoryMentions");
     }
-
-    // ── DexKit: resolve the two-step mention pipeline ────────────────────────
 
     private static void resolveMentionPipeline(DexKitBridge bridge, ClassLoader classLoader) {
         try {
@@ -230,9 +216,6 @@ public class StoryMentionHook {
         return false;
     }
 
-    // Walks an object's declared fields (and superclasses) for the first one whose exact
-    // declared type matches typeName. Used to find LiveTreeMediaDict on Media, and the
-    // mentioned User inside an Interactive sticker, without depending on obfuscated field names.
     private static Object findFieldByType(Object obj, String typeName) {
         if (obj == null) return null;
         Class<?> cls = obj.getClass();
@@ -327,11 +310,6 @@ public class StoryMentionHook {
         }
     }
 
-    // ── Hook 2: handle "View Mentions" tap ───────────────────────────────────
-    //
-    // Same anchor as StoryDownloadHook click handler. We intercept only our label;
-    // all other taps pass through to Instagram and to the StoryDownloadHook.
-
     private void installClickHook(DexKitBridge bridge, ClassLoader classLoader) {
         Method method = null;
 
@@ -373,7 +351,7 @@ public class StoryMentionHook {
                         String mentionLabel = I18n.t(AndroidAppHelper.currentApplication(), R.string.ig_btn_view_mentions);
                         if (tapped == null || !mentionLabel.contentEquals(tapped)) return;
 
-                        param.setResult(null); // consume event
+                        param.setResult(null);
 
                         Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
                         Object media = null;
@@ -409,8 +387,6 @@ public class StoryMentionHook {
             ModuleLog.line("(IE|Mention) ❌ click hook: " + t);
         }
     }
-
-    // ── Mention extraction ────────────────────────────────────────────────────
 
     private static void resolveProfileActivities(ClassLoader classLoader) {
         String[] detailNames = {
@@ -766,8 +742,6 @@ public class StoryMentionHook {
         return null;
     }
 
-    // Recursively walk fields (including Object-typed ones) to find a Media instance.
-    // Checks runtime class name, not declared field type, so it works through Object fields.
     private static final int GRAPH_MAX_DEPTH = 6;
 
     private static Object findMediaInGraph(Object obj, int depth, Set<Object> visited) {
@@ -802,8 +776,6 @@ public class StoryMentionHook {
         }
         return null;
     }
-
-    // ── Bottom sheet dialog ───────────────────────────────────────────────────
 
     private static void showMentionsDialog(Context ctx, List<MentionedUser> mentions) {
         mainHandler.post(() -> {
@@ -942,8 +914,6 @@ public class StoryMentionHook {
             }
         });
     }
-
-    // ── UI helpers ────────────────────────────────────────────────────────────
 
     private static GradientDrawable roundRect(int color, float radiusDp, Context ctx, float dp) {
         GradientDrawable d = new GradientDrawable();

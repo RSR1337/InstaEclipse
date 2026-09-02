@@ -46,5 +46,14 @@
             android:maxLines="1"
             android:ellipsize="end" />
 
+        <TextView
+            android:id="@+id/theme_preset_contrast"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:gravity="center"
+            android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
+            android:maxLines="1" />
+
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

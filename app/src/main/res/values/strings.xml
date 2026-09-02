@@ -1,6 +1,6 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">InstaEclipse</string>
-    <string name="version" translatable="false">v0.6.0</string>
+    <string name="version" translatable="false">v0.6.1</string>
     <string name="home">Home</string>
     <string name="features">Features</string>
     <string name="help">Help</string>
@@ -28,6 +28,9 @@
     <string name="error_instagram">Error checking Instagram status</string>
 
     <string name="launch_instagram">Launch Instagram</string>
+    <string name="home_hook_checking">Checking hook status…</string>
+    <string name="home_hook_active">Hook active</string>
+    <string name="home_hook_inactive">Module not active — tap for setup help</string>
     <string name="download_apk">Download APK</string>
     <string name="how_to_use">How to use</string>
     <string name="usage_instructions">Hold down the search icon</string>
@@ -171,6 +174,33 @@
     <string name="logging_filter_empty">No issues in the current log buffer.</string>
     <string name="logging_share">Share</string>
     <string name="logging_share_title">Share logs</string>
+    <string name="logging_pause">Pause</string>
+    <string name="logging_resume">Resume</string>
+    <string name="logging_paused">Paused</string>
+    <string name="logging_jump_latest">Jump to latest</string>
+    <string name="logging_empty_help_cta">No logs yet. Need help getting started?</string>
+    <string name="help_setup_title">Setup guide</string>
+    <string name="help_version_format">InstaEclipse %1$s</string>
+    <string name="help_update_available">Update available — v%1$s</string>
+    <string name="help_up_to_date">You\'re on the latest release</string>
+    <string name="help_checking_updates">Checking for updates…</string>
+    <string name="help_disclaimer">InstaEclipse is an unofficial companion for Instagram modding. Use at your own risk. Not affiliated with Meta or Instagram.</string>
+
+    <string name="verify_hooks_title">Verify Hooks</string>
+    <string name="verify_hooks_ok_label">OK</string>
+    <string name="verify_hooks_broken_label">Broken</string>
+    <string name="verify_hooks_disabled_label">Disabled</string>
+    <string name="verify_hooks_loading">Running hook health check…</string>
+    <string name="verify_hooks_retrying">Retrying hook check (%1$d/%2$d)…</string>
+    <string name="verify_hooks_run_test">Run test again</string>
+    <string name="verify_hooks_no_target">Install a supported Instagram app first.</string>
+    <string name="verify_hooks_timeout">Instagram did not respond in time. Keep Instagram open in the background and try again.</string>
+    <string name="verify_hooks_empty_reply">No hook status returned. Open Instagram with the module enabled.</string>
+    <string name="verify_hooks_error_format">Hook check failed: %1$s</string>
+    <string name="verify_hooks_state_ok">Hook active</string>
+    <string name="verify_hooks_state_broken">Hook failed</string>
+    <string name="verify_hooks_state_disabled">Feature disabled</string>
+
     <string name="ig_dialog_menu_backup_restore">Backup &amp; Restore</string>
     <string name="ig_dialog_menu_about">About</string>
     <string name="ig_dialog_menu_restart">Restart App</string>
@@ -208,6 +238,9 @@
     <string name="theme_expand_section">Expand section</string>
     <string name="theme_reset_custom">Reset to Default</string>
     <string name="theme_saved">Theme saved</string>
+    <string name="theme_contrast_good">Good contrast</string>
+    <string name="theme_contrast_fair">Fair contrast</string>
+    <string name="theme_contrast_low">Low contrast</string>
     <string name="theme_pick_color">Pick a color</string>
     <string name="theme_apply_color">Apply</string>
     <string name="theme_rgba_format">R %1$d  G %2$d  B %3$d  A %4$d</string>
@@ -278,7 +311,6 @@
     <string name="json_cancelled">Cancelled or no file selected.</string>
 
     <string name="ig_dialog_ghost_hide_dm_seen">Hide DM Seen</string>
-    <string name="ig_dialog_ghost_hide_voice_seen">Hide Voice Note Listened</string>
     <string name="ig_dialog_ghost_hide_typing">Hide Typing Indicator</string>
     <string name="ig_dialog_ghost_hide_story_views">Hide Story Views</string>
     <string name="ig_dialog_ghost_hide_live_presence">Hide Live Presence</string>
@@ -291,7 +323,6 @@
     <string name="ig_dialog_customize_quick_toggle">Customize Quick Toggle</string>
 
     <string name="ig_dialog_quick_hide_seen">Include Hide DM Seen</string>
-    <string name="ig_dialog_quick_hide_voice_seen">Include Hide Voice Note Listened</string>
     <string name="ig_dialog_quick_hide_typing">Include Hide Typing Indicator</string>
     <string name="ig_dialog_quick_disable_screenshot">Include Bypass Screenshot Detection</string>
     <string name="ig_dialog_quick_hide_view_once">Include Hide View Once Opened</string>
@@ -331,7 +362,9 @@
     <string name="ig_dialog_misc_disable_double_tap_like">Disable Double Tap to Like</string>
     <string name="ig_dialog_misc_copy_caption">Copy Caption</string>
     <string name="ig_dialog_misc_photo_zoom">Photo Zoom (Long-Press)</string>
-    <string name="ig_dialog_misc_bypass_channel_restrictions">Bypass Channel &amp; DM Restrictions</string>
+    <string name="ig_dialog_icon_style">Feature icon style</string>
+    <string name="ig_dialog_icon_style_yellow">Yellow</string>
+    <string name="ig_dialog_icon_style_colorful">Colorful</string>
 
     <string name="ig_comment_copy_title">Copy Comment</string>
     <string name="ig_comment_copy_full">Copy Full Comment</string>
@@ -391,6 +424,7 @@
 
     <string name="ig_toast_downloading">Downloading…</string>
     <string name="ig_toast_downloading_video">Downloading video…</string>
+    <string name="ig_toast_merging_video_audio">Merging video &amp; audio…</string>
     <string name="ig_toast_downloading_photo">Downloading photo…</string>
     <string name="ig_toast_video_saved">Video saved to InstaEclipse folder</string>
     <string name="ig_toast_photo_saved">Photo saved to InstaEclipse folder</string>
@@ -413,7 +447,6 @@
     <string name="ig_toast_profile_pic_already_saved">Profile picture already saved</string>
     <string name="ig_profile_download_button">Download</string>
     <string name="ig_toast_profile_pic_url_not_found">Could not get profile picture URL</string>
-    <string name="ig_toast_merging_video_audio">Merging video + audio…</string>
     <string name="ig_toast_downloading_n_items">Downloading %1$d items…</string>
     <string name="ig_toast_downloading_all_n_items">Downloading all %1$d items…</string>
     <string name="ig_toast_all_items_saved">All %1$d items saved to InstaEclipse folder</string>
@@ -437,6 +470,10 @@
     <string name="ig_dl_carousel_all">Download all %1$d items</string>
     <string name="ig_dl_type_photo">Photo</string>
     <string name="ig_dl_type_video">Video</string>
+    <string name="ig_dl_reel_choice_video">Download Reel</string>
+    <string name="ig_dl_reel_choice_cover">Download Cover</string>
+    <string name="ig_dl_reel_choice_audio">Download Audio</string>
+    <string name="ig_toast_reel_cover_saved">Cover saved to InstaEclipse folder</string>
 
     <string name="ig_btn_view_mentions">View Mentions</string>
     <string name="ig_toast_mention_copied">@%1$s copied</string>

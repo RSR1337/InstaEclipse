@@ -22,15 +22,15 @@
 
             <ImageView
                 android:id="@+id/toolbar_title_image"
-                android:layout_width="42dp"
-                android:layout_height="42dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:layout_gravity="start|center_vertical"
-                android:src="@drawable/ic_logo"
-                android:contentDescription="App Logo"
-                android:paddingEnd="7dp"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="10dp"
+                android:src="@drawable/ic_eclipse_logo"
+                android:contentDescription="@string/app_name"
                 android:adjustViewBounds="true"
-                android:scaleType="fitCenter"
-                app:tint="?attr/colorPrimary" />
+                android:scaleType="fitCenter" />
 
             <TextView
                 android:id="@+id/toolbar_title_name"
@@ -49,15 +49,14 @@
                 android:layout_gravity="end|center_vertical"
                 android:layout_marginEnd="4dp"
                 android:text="@string/version"
-                android:textAppearance="?attr/textAppearanceLabelLarge"
+                android:textAppearance="@style/TextAppearance.InstaEclipse.Mono"
                 android:textColor="?attr/colorOnSurfaceVariant"
                 android:paddingEnd="16dp"
                 tools:ignore="RtlSymmetry" />
         </com.google.android.material.appbar.MaterialToolbar>
     </com.google.android.material.appbar.AppBarLayout>
 
-    <!-- Fragment container: direct FrameLayout so fragments with RecyclerViews scroll correctly.
-         paddingBottom reserves space so the bottom nav never covers content in Home/Help. -->
+    
     <FrameLayout
         android:id="@+id/fragment_container"
         android:layout_width="match_parent"
@@ -74,6 +73,8 @@
         android:fitsSystemWindows="true"
         app:menu="@menu/bottom_navigation_menu"
         app:labelVisibilityMode="labeled"
+        app:itemIconTint="@color/bottom_nav_tint"
+        app:itemTextColor="@color/bottom_nav_tint"
         android:background="?attr/colorSurfaceContainer" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

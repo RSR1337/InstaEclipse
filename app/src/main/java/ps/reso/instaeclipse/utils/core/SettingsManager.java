@@ -36,10 +36,10 @@ public class SettingsManager {
         SharedPreferences.Editor editor = prefs.edit();
 
         editor.putBoolean("isDevEnabled", FeatureFlags.isDevEnabled);
+        editor.putBoolean("unlockEmployeeFlags", FeatureFlags.unlockEmployeeFlags);
 
         editor.putBoolean("isGhostModeEnabled", FeatureFlags.isGhostModeEnabled);
         editor.putBoolean("isGhostSeen", FeatureFlags.isGhostSeen);
-        editor.putBoolean("isGhostVoiceSeen", FeatureFlags.isGhostVoiceSeen);
         editor.putBoolean("isGhostTyping", FeatureFlags.isGhostTyping);
         editor.putBoolean("isGhostScreenshot", FeatureFlags.isGhostScreenshot);
         editor.putBoolean("isGhostViewOnce", FeatureFlags.isGhostViewOnce);
@@ -51,7 +51,6 @@ public class SettingsManager {
         editor.putBoolean("permanentViewMode", FeatureFlags.permanentViewMode);
 
         editor.putBoolean("quickToggleSeen", FeatureFlags.quickToggleSeen);
-        editor.putBoolean("quickToggleVoiceSeen", FeatureFlags.quickToggleVoiceSeen);
         editor.putBoolean("quickToggleTyping", FeatureFlags.quickToggleTyping);
         editor.putBoolean("quickToggleScreenshot", FeatureFlags.quickToggleScreenshot);
         editor.putBoolean("quickToggleViewOnce", FeatureFlags.quickToggleViewOnce);
@@ -96,6 +95,7 @@ public class SettingsManager {
         editor.putBoolean("enableCaptionCopy", FeatureFlags.enableCaptionCopy);
         editor.putBoolean("disableDoubleTapLike", FeatureFlags.disableDoubleTapLike);
         editor.putBoolean("enablePhotoZoom", FeatureFlags.enablePhotoZoom);
+        editor.putBoolean("colorfulFeatureIcons", FeatureFlags.colorfulFeatureIcons);
         editor.putBoolean("enablePostDownload", FeatureFlags.enablePostDownload);
         editor.putBoolean("enableStoryDownload", FeatureFlags.enableStoryDownload);
         editor.putBoolean("enableReelDownload", FeatureFlags.enableReelDownload);
@@ -158,10 +158,10 @@ public class SettingsManager {
         }
 
         FeatureFlags.isDevEnabled = prefs.getBoolean("isDevEnabled", false);
+        FeatureFlags.unlockEmployeeFlags = prefs.getBoolean("unlockEmployeeFlags", false);
 
         FeatureFlags.isGhostModeEnabled = prefs.getBoolean("isGhostModeEnabled", false);
         FeatureFlags.isGhostSeen = prefs.getBoolean("isGhostSeen", false);
-        FeatureFlags.isGhostVoiceSeen = prefs.getBoolean("isGhostVoiceSeen", false);
         FeatureFlags.isGhostTyping = prefs.getBoolean("isGhostTyping", false);
         FeatureFlags.isGhostScreenshot = prefs.getBoolean("isGhostScreenshot", false);
         FeatureFlags.isGhostViewOnce = prefs.getBoolean("isGhostViewOnce", false);
@@ -173,7 +173,6 @@ public class SettingsManager {
         FeatureFlags.permanentViewMode = prefs.getBoolean("permanentViewMode", false);
 
         FeatureFlags.quickToggleSeen = prefs.getBoolean("quickToggleSeen", false);
-        FeatureFlags.quickToggleVoiceSeen = prefs.getBoolean("quickToggleVoiceSeen", false);
         FeatureFlags.quickToggleTyping = prefs.getBoolean("quickToggleTyping", false);
         FeatureFlags.quickToggleScreenshot = prefs.getBoolean("quickToggleScreenshot", false);
         FeatureFlags.quickToggleViewOnce = prefs.getBoolean("quickToggleViewOnce", false);
@@ -218,7 +217,7 @@ public class SettingsManager {
         FeatureFlags.enableCaptionCopy = prefs.getBoolean("enableCaptionCopy", false);
         FeatureFlags.disableDoubleTapLike = prefs.getBoolean("disableDoubleTapLike", false);
         FeatureFlags.enablePhotoZoom = prefs.getBoolean("enablePhotoZoom", false);
-        FeatureFlags.bypassChannelRestrictions = prefs.getBoolean("bypassChannelRestrictions", false);
+        FeatureFlags.colorfulFeatureIcons = prefs.getBoolean("colorfulFeatureIcons", false);
         FeatureFlags.enablePostDownload = prefs.getBoolean("enablePostDownload", false);
         FeatureFlags.enableStoryDownload = prefs.getBoolean("enableStoryDownload", false);
         FeatureFlags.enableReelDownload = prefs.getBoolean("enableReelDownload", false);

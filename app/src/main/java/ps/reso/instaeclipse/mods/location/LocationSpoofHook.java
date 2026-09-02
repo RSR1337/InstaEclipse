@@ -16,12 +16,6 @@ import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/**
- * Spoofs GPS location system-wide by hooking LocationManager's last-known-location and
- * update-request paths, plus FusedLocationProviderClient's getLastLocation() where Play
- * Services is available — so Instagram (and any other app querying location) sees the
- * coordinates set via LocationPickerActivity instead of the device's real position.
- */
 public class LocationSpoofHook {
 
     private static volatile boolean sHooked = false;
@@ -80,7 +74,7 @@ public class LocationSpoofHook {
                         }
                     }
                 } catch (Throwable ignored) {
-                    // Play Services location client not present — LocationManager hooks still cover it
+
                 }
 
                 FeatureStatusTracker.setHooked("SpoofLocation");

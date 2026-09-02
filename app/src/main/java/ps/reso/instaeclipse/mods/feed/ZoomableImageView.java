@@ -9,11 +9,7 @@ import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.widget.ImageView;
 
-/**
- * Self-contained pinch-to-zoom + pan + double-tap-to-reset image view, used to show a
- * feed photo full-screen without navigating away (issue #174). Standard
- * ScaleGestureDetector/Matrix pattern; no Instagram internals involved.
- */
+
 class ZoomableImageView extends ImageView {
 
     private static final float MIN_SCALE = 1f;

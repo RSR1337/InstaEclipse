@@ -14,23 +14,10 @@ import java.util.ArrayDeque;
 import java.util.Date;
 import java.util.Locale;
 
-/**
- * Persistent, size-bounded ring buffer of log lines, used to power the in-app log viewer
- * (LoggingFragment). Runs independently in whichever process calls init() — Instagram's
- * hooked process and the companion app each keep their own buffer/file, since a hooked
- * process can't directly read another process's memory.
- *
- * Consecutive identical lines are collapsed into a single "(×N)" entry to avoid the buffer
- * filling up with noise from a hook that logs the same thing on every call.
- */
 public final class Logging {
 
     private static final long FLUSH_DELAY_MS = 750;
-    // Broadcast extras ride the Binder transaction buffer (~1MB total, shared across all
-    // in-flight transactions in the process), and Java strings are UTF-16 (2 bytes/char), so
-    // this must stay well under half a million chars or the reply broadcast triggers
-    // TransactionTooLargeException -> the receiving process gets killed with
-    // CannotDeliverBroadcastException instead of ever seeing the intent.
+
     private static final int IPC_MAX_CHARS = 150000;
     private static final long MAX_FILE_BYTES = 4 * 1024 * 1024;
     private static final int MAX_LINES = 10000;

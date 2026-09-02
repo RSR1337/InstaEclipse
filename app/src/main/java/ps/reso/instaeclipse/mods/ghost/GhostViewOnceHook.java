@@ -31,7 +31,7 @@ public class GhostViewOnceHook {
         }
 
         try {
-            // Step 1: Find methods containing "visual_item_seen"
+            
             List<MethodData> methods = bridge.findMethod(
                     FindMethod.create().matcher(
                             MethodMatcher.create().usingStrings("visual_item_seen")
@@ -47,18 +47,18 @@ public class GhostViewOnceHook {
                 ClassDataList paramTypes = method.getParamTypes();
                 String returnType = String.valueOf(method.getReturnType());
 
-                // Step 2: Match method signature: (?,?,AbstractClassType) -> void
+                
                 if (paramTypes.size() >= 2 && paramTypes.size() <= 4 && returnType.contains("void")) {
 
                     Method reflectMethod;
                     try {
                         reflectMethod = method.getMethodInstance(Module.hostClassLoader);
                     } catch (Throwable e) {
-                        // Skip if reflection fails
+                        
                         continue;
                     }
 
-                    // Step 3: Hook method
+                    
                     DexKitCache.saveMethod("GhostViewOnce", reflectMethod);
                     XposedBridge.hookMethod(reflectMethod, buildViewOnceHook());
 

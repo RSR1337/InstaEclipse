@@ -25,10 +25,7 @@ public class GhostReplayLimitHook {
         hookSyncMethod(bridge, classLoader);
     }
 
-    /**
-     * Hooks the DM thread entry update that marks the visual message as seen.
-     * Skipping it keeps the local "seen" state at 0.
-     */
+    
     private void hookUpdateMethod(DexKitBridge bridge, ClassLoader classLoader) {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
@@ -63,11 +60,7 @@ public class GhostReplayLimitHook {
         }
     }
 
-    /**
-     * Hooks parseFromJson that reads "seen_count" and "tap_models" from the server
-     * response. After it runs, zeroes any small int field on thisObject — those are
-     * the replay counters; IDs and timestamps are longs and won't match.
-     */
+    
     private void hookParseFromJsonMethod(DexKitBridge bridge, ClassLoader classLoader) {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
@@ -113,11 +106,7 @@ public class GhostReplayLimitHook {
         }
     }
 
-    /**
-     * Hooks the synchronized method (UserSession as first param, 3 params total)
-     * that persists the seen/replay count to local store. Skipping it stops the
-     * counter from being committed.
-     */
+    
     private void hookSyncMethod(DexKitBridge bridge, ClassLoader classLoader) {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
@@ -160,10 +149,7 @@ public class GhostReplayLimitHook {
         }
     }
 
-    /**
-     * Zeroes int fields whose value is in [1, 10] on the given object.
-     * Replay/seen counts are always tiny (1 or 2); IDs and timestamps are longs.
-     */
+    
     private static void zeroReplayCountFields(Object obj) {
         if (obj == null) return;
         try {

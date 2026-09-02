@@ -34,6 +34,7 @@ import java.util.List;
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.mods.ui.theme.CustomThemeStore;
 import ps.reso.instaeclipse.mods.ui.theme.IgThemePalette;
+import ps.reso.instaeclipse.mods.ui.theme.ThemeContrastChecker;
 import ps.reso.instaeclipse.mods.ui.theme.ThemePreset;
 import ps.reso.instaeclipse.mods.ui.theme.ThemePresetCategory;
 import ps.reso.instaeclipse.mods.ui.theme.ThemePresets;
@@ -394,6 +395,17 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements ColorP
             ThemePreset preset = presets.get(position);
             holder.name.setText(preset.name);
             IgThemePalette.bindCardPreview(holder.itemView.getContext(), holder.preview, preset.palette);
+
+            float ratio = ThemeContrastChecker.calculateContrastRatio(preset.palette.primaryText, preset.palette.background);
+            int bucket = ThemeContrastChecker.bucketFor(ratio);
+            int badgeTextRes = bucket == ThemeContrastChecker.BUCKET_GOOD ? R.string.theme_contrast_good
+                    : bucket == ThemeContrastChecker.BUCKET_FAIR ? R.string.theme_contrast_fair
+                    : R.string.theme_contrast_low;
+            int badgeColorAttr = bucket == ThemeContrastChecker.BUCKET_GOOD ? com.google.android.material.R.attr.colorPrimary
+                    : bucket == ThemeContrastChecker.BUCKET_FAIR ? com.google.android.material.R.attr.colorOnSurfaceVariant
+                    : com.google.android.material.R.attr.colorError;
+            holder.contrast.setText(badgeTextRes);
+            holder.contrast.setTextColor(MaterialColors.getColor(holder.contrast, badgeColorAttr));
             boolean selected = !customMode && preset.id == selectedPresetId;
             int stroke = selected
                     ? MaterialColors.getColor(holder.card, com.google.android.material.R.attr.colorPrimary)
@@ -417,6 +429,7 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements ColorP
             final MaterialCardView card;
             final FrameLayout preview;
             final TextView name;
+            final TextView contrast;
             final ImageView delete;
 
             Holder(View itemView) {
@@ -424,6 +437,7 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements ColorP
                 card = itemView.findViewById(R.id.theme_preset_card);
                 preview = itemView.findViewById(R.id.theme_preset_preview);
                 name = itemView.findViewById(R.id.theme_preset_name);
+                contrast = itemView.findViewById(R.id.theme_preset_contrast);
                 delete = itemView.findViewById(R.id.theme_preset_delete);
             }
         }

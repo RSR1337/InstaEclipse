@@ -18,9 +18,6 @@ import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/**
- * Handles Ghost Mode for Direct Messages (DM) in Instagram.
- */
 public class GhostDMSeenHook {
     public void handleSeenBlock(DexKitBridge bridge) {
         XC_MethodHook hook = new XC_MethodHook() {
@@ -30,7 +27,6 @@ public class GhostDMSeenHook {
             }
         };
 
-        // Cache hit — skip DexKit
         if (DexKitCache.isCacheValid()) {
             Method cached = DexKitCache.loadMethod("GhostSeen", Module.hostClassLoader);
             if (cached != null) {
@@ -42,7 +38,7 @@ public class GhostDMSeenHook {
         }
 
         try {
-            // Step 1: Find all methods containing "mark_thread_seen-"
+
             List<MethodData> methods = bridge.findMethod(FindMethod.create()
                     .matcher(MethodMatcher.create().usingStrings("mark_thread_seen-")));
 
@@ -56,14 +52,13 @@ public class GhostDMSeenHook {
                 try {
                     reflectMethod = method.getMethodInstance(Module.hostClassLoader);
                 } catch (Throwable e) {
-                    continue; // Skip methods that can't be resolved
+                    continue;
                 }
 
                 int modifiers = reflectMethod.getModifiers();
                 String returnType = String.valueOf(method.getReturnType());
                 ClassDataList paramTypes = method.getParamTypes();
 
-                // Step 2: Match: static final void method(?, ?, ?, ...)
                 if (Modifier.isStatic(modifiers)
                         && Modifier.isFinal(modifiers)
                         && returnType.contains("void")
@@ -109,6 +104,5 @@ public class GhostDMSeenHook {
             ModuleLog.line("(InstaEclipse | GhostModeSeen): ❌ DexKit exception: " + e.getMessage());
         }
     }
-
 
 }

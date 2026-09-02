@@ -2,18 +2,51 @@
 <resources>
     <color name="black">#121212</color>
     <color name="red">#FF0000</color>
-    <color name="dark_red">#C3172D</color>
+    <color name="dark_red">#D63838</color>
     <color name="dark_gray">#1E1E1E</color>
     <color name="gray">#3C3C3C</color>
     <color name="white">#FFFFFF</color>
-    <color name="accent_blue">#448AFF</color>
-    <color name="warning_yellow">#FFCA28</color>
-    <color name="green">#4CAF50</color>
-    <color name="dark_green">#21C063</color>
 
+    <color name="corona_amber">#FFB020</color>
+    <color name="corona_amber_on">#1A1205</color>
+    <color name="accent_link_light">#8A5A00</color>
 
-    <!-- Bottom Navigation Colors -->
-    <color name="bottom_nav_icon">#B0BEC5</color>
-    <color name="bottom_nav_icon_active">#448AFF</color>
+    <color name="accent_blue">@color/corona_amber</color>
+    <color name="warning_yellow">@color/corona_amber</color>
+    <color name="green">#3DD68C</color>
+    <color name="dark_green">#3DD68C</color>
+    <color name="error_red">#FF5C5C</color>
+
+    <color name="bottom_nav_icon">#7A8291</color>
+    <color name="bottom_nav_icon_active">@color/corona_amber</color>
     <color name="purple_200">#9C27B0</color>
+
+    <color name="surface_0_dark">#0A0C10</color>
+    <color name="surface_1_dark">#12151B</color>
+    <color name="surface_2_dark">#1A1E26</color>
+    <color name="surface_3_dark">#1E232C</color>
+    <color name="surface_4_dark">#222830</color>
+    <color name="text_primary_dark">#F4F6F9</color>
+    <color name="text_secondary_dark">#A8B0BE</color>
+    <color name="text_tertiary_dark">#7A8291</color>
+    <color name="outline_dark">#2A303C</color>
+    <color name="outline_variant_dark">#2A303C</color>
+
+    <color name="surface_0_light">#F5F6F8</color>
+    <color name="surface_1_light">#FFFFFF</color>
+    <color name="surface_2_light">#ECEEF2</color>
+    <color name="surface_3_light">#ECEEF2</color>
+    <color name="surface_4_light">#E4E7ED</color>
+    <color name="text_primary_light">#171B21</color>
+    <color name="text_secondary_light">#5B6472</color>
+    <color name="text_tertiary_light">#7A8291</color>
+    <color name="outline_light">#DDE1E8</color>
+    <color name="outline_variant_light">#DDE1E8</color>
+
+    <color name="status_hook_ok_container">#D8F3E6</color>
+    <color name="status_hook_ok_on">#134D32</color>
+    <color name="status_hook_err_container">#FCE8E8</color>
+    <color name="status_hook_err_on">#8B1A1A</color>
+    <color name="status_hook_check_container">#FFF4E0</color>
+    <color name="status_hook_check_on">#171B21</color>
 </resources>

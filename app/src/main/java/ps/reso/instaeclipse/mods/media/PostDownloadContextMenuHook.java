@@ -16,10 +16,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Set;
-import java.util.WeakHashMap;
+import java.util.Map;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -50,8 +49,8 @@ public class PostDownloadContextMenuHook {
     private static final ThreadLocal<Boolean> sAddingDownload =
             ThreadLocal.withInitial(() -> Boolean.FALSE);
 
-    private static final Set<Object> processedCreators =
-            Collections.newSetFromMap(new WeakHashMap<>());
+    private static final int PROCESSED_LIMIT = 32;
+    private static final Map<Object, Boolean> processedCreators = new IdentityHashMap<>();
 
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
         try {
@@ -235,8 +234,13 @@ public class PostDownloadContextMenuHook {
                 Object self = param.args[idxSelf];
                 boolean alreadyProcessed;
                 synchronized (processedCreators) {
-                    alreadyProcessed = processedCreators.contains(self);
-                    if (!alreadyProcessed) processedCreators.add(self);
+                    alreadyProcessed = processedCreators.containsKey(self);
+                    if (!alreadyProcessed) {
+                        processedCreators.put(self, Boolean.TRUE);
+                        if (processedCreators.size() > PROCESSED_LIMIT) {
+                            processedCreators.remove(processedCreators.keySet().iterator().next());
+                        }
+                    }
                 }
                 if (alreadyProcessed) return;
 

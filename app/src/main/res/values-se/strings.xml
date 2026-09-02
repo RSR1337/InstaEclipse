@@ -5,7 +5,7 @@
     <string name="features">Funktioner</string>
     <string name="help">Hjälp</string>
 
-    <!-- home -->
+    
     <string name="instagram_version">Versuvdna</string>
     <string name="module_disabled">Modulen är inaktiverad. Aktivera den i Xposed Installer.</string>
 
@@ -35,20 +35,20 @@
     <string name="contributors">Bidragsgivare</string>
     <string name="special_thanks">Särskilt tack</string>
 
-    <!-- Don't translate! -->
+    
 
-    <!-- help -->
+    
     <string name="help_amp_troubleshooting">Hjälp och felsökning</string>
     <string name="find_updates_and_documentation">Sök efter uppdateringar och dokumentation.</string>
     <string name="go_to_github">Besök GitHub</string>
     <string name="find_support">Hitta support.</string>
     <string name="go_to_telegram">Besök Telegram</string>
 
-    <!-- Don't translate! -->
+    
     <string name="github">GitHub</string>
     <string name="telegram">Telegram</string>
 
-    <!-- faq -->
+    
     <string name="frequently_asked_questions">Vanliga frågor (FAQ)</string>
     <string name="faq_1">1. Fungerar det inte eller kraschar det med Google Play-versionen?\n- Använd APK:er från APKMirror istället.</string>
     <string name="faq_2">2. Är modulen inte aktiverad?\n- Avaktivera och återaktivera den i LSPosed.</string>
@@ -57,7 +57,7 @@
     <string name="faq_5">5. Visas konstiga etiketter eller nummer i utvecklaralternativen?\n- Använd Beta- eller Alpha-versioner; stabila versioner är obfuskerade.</string>
     <string name="faq_6">6. Är störningsfritt läge aktiverat men innehåll visas ändå?\n- Tvinga stopp på Instagram och rensa dess cache.</string>
 
-    <!-- features -->
+    
     <string name="developer_options">Utvecklaralternativ</string>
     <string name="ghost_mode">Spökläge</string>
     <string name="distraction_free">Störningsfritt läge</string>
@@ -66,9 +66,9 @@
 
     <string name="enable_disable_all">Aktivera/avaktivera allt</string>
 
-    <!-- Don't translate! -->
+    
 
-    <!-- ghost -->
+    
     <string name="ghost_mode_options">Inställningar för spökläge</string>
     <string name="typing">Skrivindikator</string>
     <string name="story">Story</string>
@@ -77,7 +77,7 @@
     <string name="direct_messages">Direktmeddelanden</string>
     <string name="disable_typing">Inaktivera skrivindikator</string>
 
-    <!-- developer_options -->
+    
     <string name="screen_shot">Skärmdump</string>
     <string name="developer_options_guide">Guide för utvecklaralternativ</string>
     <string name="dev_options_version_req">Använd enbart på Beta/Alpha-versioner!</string>
@@ -88,9 +88,9 @@
     <string name="dev_options_3">3. Sök efter \"Employee\" och aktivera följande alternativ:</string>
     <string name="dev_options_4">4. Avaktivera sedan utvecklaralternativen i modulen för att förhindra krascher.</string>
 
-    <!-- Don't translate! -->
+    
 
-    <!-- distraction free -->
+    
     <string name="distraction_free_options">Inställningar för störningsfritt läge</string>
     <string name="disable_stories">Inaktivera Stories</string>
     <string name="disable_feed">Inaktivera flödet</string>
@@ -98,20 +98,20 @@
     <string name="disable_explore">Inaktivera Utforska</string>
     <string name="disable_comments">Inaktivera kommentarer</string>
 
-    <!-- contributor card -->
+    
     <string name="hooked_methods_toast">Visa notifikation om aktiverade funktioner</string>
     <string name="contributor_name">Contributor Name</string>
 
-    <!-- Miscellaneous -->
+    
     <string name="misc">Övrigt</string>
     <string name="miscellaneous_options">Övriga alternativ</string>
     <string name="story_flipping">"Inaktivera bläddring mellan stories  "</string>
     <string name="video_autoplay">Inaktivera automatisk uppspelning av video</string>
 
-    <!-- Toast -->
+    
     <string name="follower_toast">Visa följarnotifikation</string>
 
-    <!-- Dialog strings -->
+    
     <string name="ig_dialog_close">Stäng</string>
     <string name="ig_dialog_enable_disable_all">Aktivera/inaktivera alla</string>
     <string name="ig_dialog_error">Fel</string>
@@ -158,7 +158,7 @@
     <string name="ig_toast_config_imported">✅ Konfiguration importerad.</string>
     <string name="ig_toast_config_import_failed">❌ Import av konfiguration misslyckades.</string>
 
-    <!-- JsonImportActivity -->
+    
     <string name="json_select_config">Välj JSON-konfiguration</string>
     <string name="json_target_not_specified">❌ Målpaket ej angivet.</string>
     <string name="json_sent">✅ Skickat till Instagram.</string>
@@ -209,7 +209,7 @@
     <string name="ig_dialog_misc_copy_comment">Kopiera kommentar</string>
     <string name="ig_dialog_misc_disable_double_tap_like">Inaktivera dubbelklick för att gilla</string>
 
-    <!-- Comment Copy dialog -->
+    
     <string name="ig_comment_copy_title">Kopiera kommentar</string>
     <string name="ig_comment_copy_full">Kopiera hela kommentaren</string>
     <string name="ig_comment_select_part">Välj del att kopiera</string>
@@ -239,29 +239,29 @@
     <string name="ig_dialog_restart_not_found">Kunde inte hitta appen för omstart.</string>
     <string name="ig_dialog_restart_failed">Omstart misslyckades: %1$s</string>
 
-    <!-- Toast: Ghost mode -->
+    
     <string name="ig_toast_ghost_no_options">Inga spöklägealternativ valda!</string>
     <string name="ig_toast_ghost_enabled">Spökläge aktiverat</string>
     <string name="ig_toast_ghost_disabled">Spökläge inaktiverat</string>
     <string name="ig_toast_seen_sent">✅ Läst skickat</string>
     <string name="ig_toast_channel_seen_sent">✅ Kanal läst skickat</string>
 
-    <!-- Toast: Follower status -->
+    
     <string name="ig_toast_follows_you">följer dig ✅</string>
     <string name="ig_toast_not_follows_you">följer dig inte ❌</string>
 
-    <!-- Toast: App settings -->
+    
     <string name="ig_toast_settings_applied">Inställningar tillämpade!</string>
     <string name="ig_toast_restart_manual">Stäng Instagram manuellt för att ändringarna ska träda i kraft.</string>
     <string name="ig_toast_settings_restored">Inställningar återställda.</string>
     <string name="ig_toast_restore_failed">Återställning misslyckades: %1$s</string>
 
-    <!-- Toast: Download folder -->
+    
     <string name="ig_toast_download_folder_set">Nedladdningsmapp: %1$s</string>
     <string name="ig_toast_download_folder_updated">Nedladdningsmapp uppdaterad!</string>
     <string name="ig_toast_download_folder_reset">Nedladdningsmapp återställd till standard</string>
 
-    <!-- Toast: Downloader -->
+    
     <string name="ig_toast_downloading">Laddar ned…</string>
     <string name="ig_toast_downloading_video">Laddar ned video…</string>
     <string name="ig_toast_downloading_photo">Laddar ned foto…</string>
@@ -283,7 +283,6 @@
     <string name="ig_toast_downloading_profile_pic">Laddar ned profilbild…</string>
     <string name="ig_toast_profile_pic_saved">Profilbild sparad!</string>
     <string name="ig_toast_profile_pic_url_not_found">Kunde inte hämta profilbildens URL</string>
-    <string name="ig_toast_merging_video_audio">Sammanfogar video och ljud…</string>
     <string name="ig_toast_downloading_n_items">Laddar ned %1$d objekt…</string>
     <string name="ig_toast_downloading_all_n_items">Laddar ned alla %1$d objekt…</string>
     <string name="ig_toast_all_items_saved">Alla %1$d objekt sparade i InstaEclipse-mappen</string>
@@ -300,7 +299,7 @@
     <string name="back">Tillbaka</string>
     <string name="apply_changes">Tillämpa ändringar</string>
 
-    <!-- features fragment section headers -->
+    
     <string name="feat_categories">Kategorier:</string>
     <string name="feat_tools">Verktyg:</string>
     <string name="feat_features">Funktioner:</string>
@@ -313,16 +312,16 @@
     <string name="feat_downloader_selected">Vald: %1$s</string>
     <string name="feat_downloader_reset_folder">Återställ nedladdningsmapp</string>
 
-    <!-- multiple versions -->
+    
     <string name="multiple_versions_detected">⚠️ Flera versioner hittades</string>
 
-    <!-- Story mentions dialog -->
+    
     <string name="ig_mention_dialog_title">Story-omnämnanden</string>
     <string name="ig_mention_subtitle">%1$d omnämnande(n) • tryck för att öppna profilen</string>
     <string name="ig_mention_no_mentions">Inga omnämnanden hittades i denna story</string>
     <string name="ig_mention_copy_all">Kopiera alla</string>
 
-    <!-- Toast: Downloader (service) -->
+    
     <string name="ig_toast_no_download_folder">Ingen nedladdningsmapp angiven</string>
     <string name="ig_toast_file_saved">Sparad: %1$s</string>
     <string name="ig_toast_features_loaded">InstaEclipse laddad 🎯</string>
@@ -331,13 +330,13 @@
     <string name="ig_toast_features_on_off_count">%1$d aktiva · %2$d av</string>
     <string name="ig_toast_features_status_full">%1$d aktiva · %2$d väntande · %3$d av</string>
 
-    <!-- Update check dialog -->
+    
     <string name="ig_update_title">Uppdatering tillgänglig</string>
     <string name="ig_update_message">En ny version (%1$s) är tillgänglig. Vill du uppdatera nu?</string>
     <string name="ig_update_button">Uppdatera</string>
     <string name="ig_update_later">Senare</string>
     <string name="ig_update_error_message">Det gick inte att söka efter uppdateringar. Försök igen senare.</string>
-    <!-- Custom Theme -->
+    
     <string name="ig_dialog_menu_theme">Anpassat Tema</string>
     <string name="theme_title">Anpassat Tema</string>
     <string name="theme_enable">Aktivera Anpassat Tema</string>

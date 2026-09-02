@@ -12,6 +12,15 @@ public class CommonUtils {
     public static final String IG_PACKAGE_NAME = "com.instagram.android";
     public static final String MY_PACKAGE_NAME = "ps.reso.instaeclipse";
 
+    public static Context moduleContext(Context host) {
+        if (host == null) return null;
+        try {
+            return host.createPackageContext(MY_PACKAGE_NAME, Context.CONTEXT_IGNORE_SECURITY);
+        } catch (Exception e) {
+            return host;
+        }
+    }
+
     public static final String ACTION_REQUEST_LOGS = "ps.reso.instaeclipse.ACTION_REQUEST_LOGS";
     public static final String ACTION_LOGS_REPLY = "ps.reso.instaeclipse.ACTION_LOGS_REPLY";
     public static final String ACTION_CLEAR_LOGS = "ps.reso.instaeclipse.ACTION_CLEAR_LOGS";
@@ -25,6 +34,12 @@ public class CommonUtils {
     public static final String EXTRA_DOWNLOAD_HISTORY_JSON = "download_history_json";
     public static final String EXTRA_DOWNLOAD_HISTORY_ERROR = "download_history_error";
     public static final String EXTRA_DOWNLOAD_HISTORY_SOURCE = "download_history_source";
+
+    public static final String ACTION_REQUEST_FEATURE_STATUS = "ps.reso.instaeclipse.ACTION_REQUEST_FEATURE_STATUS";
+    public static final String ACTION_FEATURE_STATUS_REPLY = "ps.reso.instaeclipse.ACTION_FEATURE_STATUS_REPLY";
+    public static final String EXTRA_FEATURE_STATUS_JSON = "feature_status_json";
+    public static final String EXTRA_FEATURE_STATUS_ERROR = "feature_status_error";
+    public static final String EXTRA_FEATURE_STATUS_SOURCE = "feature_status_source";
 
     public static final List<String> SUPPORTED_PACKAGES = Arrays.asList(
             "com.instagram.android",

@@ -42,7 +42,7 @@ public class DisableStoryFlippingHook {
 
     private void findAndHookMethod(DexKitBridge bridge) {
         try {
-            // Step 1: Find methods matching the targeted method structure
+
             List<MethodData> methods = bridge.findMethod(
                     FindMethod.create().matcher(
                             MethodMatcher.create()
@@ -101,7 +101,6 @@ public class DisableStoryFlippingHook {
                 return;
             }
 
-            // Step 2: Hook the correct method
             for (MethodData method : methods) {
                 try {
                     Method targetMethod = method.getMethodInstance(Module.hostClassLoader);

@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -31,6 +32,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -54,12 +56,16 @@ import java.util.Map;
 import java.util.Scanner;
 
 import ps.reso.instaeclipse.R;
+import ps.reso.instaeclipse.VerifyHooksActivity;
 import ps.reso.instaeclipse.mods.location.LocationPickerActivity;
 import ps.reso.instaeclipse.ui.theme.ThemeCustomizerActivity;
 import ps.reso.instaeclipse.utils.core.CommonUtils;
 import ps.reso.instaeclipse.utils.core.LsPatchCompanionBridge;
 import ps.reso.instaeclipse.utils.core.SettingsManager;
 import ps.reso.instaeclipse.providers.SettingsProvider;
+import ps.reso.instaeclipse.utils.ui.EclipseAccents;
+import ps.reso.instaeclipse.utils.ui.FeatureAccents;
+import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 
 public class FeaturesFragment extends Fragment {
 
@@ -77,6 +83,8 @@ public class FeaturesFragment extends Fragment {
     private ActivityResultLauncher<Intent> themeCustomizerLauncher;
 
     private String currentMenu = "main";
+    private RecyclerView.ItemDecoration tileSpacingDecoration;
+    private int menuAccent = FeatureAccents.color(EclipseAccents.PRIMARY);
 
     private final Map<String, Boolean> stagedChanges = new HashMap<>();
 
@@ -123,6 +131,7 @@ public class FeaturesFragment extends Fragment {
             SettingsManager.stampUpdatedAt(editor);
         }
         editor.commit();
+        FeatureFlags.colorfulFeatureIcons = localCache.getBoolean("colorfulFeatureIcons", false);
         LsPatchCompanionBridge.makeWorldReadable(requireContext(), LsPatchCompanionBridge.COMPANION_CACHE);
         LsPatchCompanionBridge.syncFrom(localCache);
     }
@@ -303,6 +312,7 @@ public class FeaturesFragment extends Fragment {
         public static final int TYPE_CLICKABLE = 2;
         public static final int TYPE_MASTER_SWITCH = 3;
         public static final int TYPE_SPACER = 4;
+        public static final int TYPE_TILE = 5;
 
         public int type;
         public String title;
@@ -344,6 +354,20 @@ public class FeaturesFragment extends Fragment {
         }
     }
 
+    static class TileViewHolder extends RecyclerView.ViewHolder {
+        TextView tvTitle;
+        TextView tvSubtitle;
+        ImageView ivIcon;
+        MaterialCardView cardView;
+        TileViewHolder(View v) {
+            super(v);
+            tvTitle = v.findViewById(R.id.tv_title);
+            tvSubtitle = v.findViewById(R.id.tv_subtitle);
+            ivIcon = v.findViewById(R.id.iv_icon);
+            cardView = v.findViewById(R.id.card_view);
+        }
+    }
+
     private class FeatureAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         List<FeatureItem> items = new ArrayList<>();
 
@@ -356,7 +380,8 @@ public class FeaturesFragment extends Fragment {
         public int getItemViewType(int position) {
             int type = items.get(position).type;
             if (type == FeatureItem.TYPE_HEADER) return 0;
-            if (type == FeatureItem.TYPE_SPACER)  return 2;
+            if (type == FeatureItem.TYPE_SPACER) return 2;
+            if (type == FeatureItem.TYPE_TILE) return 3;
             return 1;
         }
 
@@ -373,6 +398,9 @@ public class FeaturesFragment extends Fragment {
                         (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12f, parent.getResources().getDisplayMetrics())
                 ));
                 return new RecyclerView.ViewHolder(v) {};
+            } else if (viewType == 3) {
+                View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_feature_tile, parent, false);
+                return new TileViewHolder(v);
             } else {
                 View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_feature, parent, false);
                 return new ItemViewHolder(v);
@@ -387,6 +415,14 @@ public class FeaturesFragment extends Fragment {
 
             if (holder instanceof HeaderViewHolder) {
                 ((HeaderViewHolder) holder).tvHeader.setText(item.title);
+            } else if (holder instanceof TileViewHolder) {
+                TileViewHolder tileHolder = (TileViewHolder) holder;
+                tileHolder.tvTitle.setText(item.title);
+                tileHolder.tvSubtitle.setVisibility(View.GONE);
+                bindIcon(tileHolder.ivIcon, item.iconRes, item.accentColor);
+                tileHolder.cardView.setOnClickListener(v -> {
+                    if (item.onClick != null) item.onClick.run();
+                });
             } else if (holder instanceof ItemViewHolder) {
                 ItemViewHolder itemHolder = (ItemViewHolder) holder;
 
@@ -408,7 +444,7 @@ public class FeaturesFragment extends Fragment {
                     itemHolder.tvTitle.setTypeface(null, android.graphics.Typeface.NORMAL);
                 }
 
-                float largeRadius = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 24f, getResources().getDisplayMetrics());
+                float largeRadius = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12f, getResources().getDisplayMetrics());
                 float smallRadius = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 4f, getResources().getDisplayMetrics());
 
                 ShapeAppearanceModel.Builder shapeBuilder = itemHolder.cardView.getShapeAppearanceModel().toBuilder();
@@ -563,6 +599,10 @@ public class FeaturesFragment extends Fragment {
     }
 
     private void showMenu(String title, List<Object> definitions) {
+        showMenu(title, definitions, false);
+    }
+
+    private void showMenu(String title, List<Object> definitions, boolean tileGrid) {
         ViewGroup headerLayout = fragmentView.findViewById(R.id.header_layout);
         TransitionManager.beginDelayedTransition(headerLayout, new AutoTransition().setDuration(200));
 
@@ -582,6 +622,9 @@ public class FeaturesFragment extends Fragment {
                 List<FeatureItem> group = (List<FeatureItem>) def;
                 for (int i = 0; i < group.size(); i++) {
                     FeatureItem item = group.get(i);
+                    if (tileGrid && item.type == FeatureItem.TYPE_CLICKABLE) {
+                        item.type = FeatureItem.TYPE_TILE;
+                    }
                     item.segmentPosition = i;
                     item.segmentSize = group.size();
                     displayList.add(item);
@@ -594,8 +637,11 @@ public class FeaturesFragment extends Fragment {
             }
         }
 
+        applyRecyclerLayout(tileGrid);
+
         recyclerFeatures.setAlpha(0f);
-        recyclerFeatures.setTranslationY(60f);
+        float driftPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 8f, getResources().getDisplayMetrics());
+        recyclerFeatures.setTranslationY(driftPx);
 
         adapter.setItems(displayList);
         recyclerFeatures.scrollToPosition(0);
@@ -603,9 +649,49 @@ public class FeaturesFragment extends Fragment {
         recyclerFeatures.animate()
                 .alpha(1f)
                 .translationY(0f)
-                .setDuration(250)
+                .setDuration(200)
                 .setInterpolator(new DecelerateInterpolator())
                 .start();
+    }
+
+    private void applyRecyclerLayout(boolean tileGrid) {
+        if (tileSpacingDecoration != null) {
+            recyclerFeatures.removeItemDecoration(tileSpacingDecoration);
+            tileSpacingDecoration = null;
+        }
+        if (tileGrid) {
+            GridLayoutManager glm = new GridLayoutManager(requireContext(), 2);
+            glm.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
+                @Override
+                public int getSpanSize(int position) {
+                    int type = adapter.items.get(position).type;
+                    if (type == FeatureItem.TYPE_HEADER
+                            || type == FeatureItem.TYPE_SPACER
+                            || type == FeatureItem.TYPE_SWITCH
+                            || type == FeatureItem.TYPE_MASTER_SWITCH) {
+                        return 2;
+                    }
+                    return 1;
+                }
+            });
+            recyclerFeatures.setLayoutManager(glm);
+            final int halfGap = (int) (getResources().getDisplayMetrics().density * 4);
+            tileSpacingDecoration = new RecyclerView.ItemDecoration() {
+                @Override
+                public void getItemOffsets(@NonNull Rect outRect, @NonNull View view, @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
+                    int pos = parent.getChildAdapterPosition(view);
+                    if (pos == RecyclerView.NO_POSITION || pos >= adapter.items.size()) return;
+                    if (adapter.items.get(pos).type == FeatureItem.TYPE_TILE) {
+                        outRect.left = halfGap;
+                        outRect.right = halfGap;
+                        outRect.bottom = halfGap * 2;
+                    }
+                }
+            };
+            recyclerFeatures.addItemDecoration(tileSpacingDecoration);
+        } else {
+            recyclerFeatures.setLayoutManager(new LinearLayoutManager(requireContext()));
+        }
     }
 
     private FeatureItem createNav(String title, Runnable navAction) {
@@ -616,26 +702,41 @@ public class FeaturesFragment extends Fragment {
         return item;
     }
 
-    private FeatureItem createNav(int iconRes, String accentHex, String title, Runnable navAction) {
+    private int accentColor() {
+        return menuAccent;
+    }
+
+    private static int dangerColor() {
+        return Color.parseColor(EclipseAccents.DANGER);
+    }
+
+    private FeatureItem createNav(int iconRes, String title, String accentHex, Runnable navAction) {
         FeatureItem item = createNav(title, navAction);
         item.iconRes = iconRes;
-        item.accentColor = Color.parseColor(accentHex);
+        item.accentColor = FeatureAccents.color(accentHex);
         return item;
     }
 
-    private FeatureItem createClickable(String title, int color, Runnable onClick) {
+    private FeatureItem createNav(int iconRes, String title, Runnable navAction) {
+        return createNav(iconRes, title, EclipseAccents.PRIMARY, navAction);
+    }
+
+    private FeatureItem createClickable(int iconRes, String title, String accentHex, Runnable onClick) {
+        FeatureItem item = createClickable(title, onClick);
+        item.iconRes = iconRes;
+        item.accentColor = FeatureAccents.color(accentHex);
+        return item;
+    }
+
+    private FeatureItem createClickable(int iconRes, String title, Runnable onClick) {
+        return createClickable(iconRes, title, EclipseAccents.PRIMARY, onClick);
+    }
+
+    private FeatureItem createClickable(String title, Runnable onClick) {
         FeatureItem item = new FeatureItem();
         item.type = FeatureItem.TYPE_CLICKABLE;
         item.title = title;
-        item.textColor = color;
         item.onClick = onClick;
-        return item;
-    }
-
-    private FeatureItem createClickable(int iconRes, String accentHex, String title, Runnable onClick) {
-        FeatureItem item = createClickable(title, Color.parseColor(accentHex), onClick);
-        item.iconRes = iconRes;
-        item.accentColor = Color.parseColor(accentHex);
         return item;
     }
 
@@ -647,10 +748,10 @@ public class FeaturesFragment extends Fragment {
         return item;
     }
 
-    private FeatureItem createSwitch(int iconRes, String accentHex, String title, String prefKey) {
+    private FeatureItem createSwitch(int iconRes, String title, String prefKey) {
         FeatureItem item = createSwitch(title, prefKey);
         item.iconRes = iconRes;
-        item.accentColor = Color.parseColor(accentHex);
+        item.accentColor = accentColor();
         return item;
     }
 
@@ -660,10 +761,10 @@ public class FeaturesFragment extends Fragment {
         return item;
     }
 
-    private FeatureItem createSwitchWithDependency(int iconRes, String accentHex, String title, String prefKey, String dependsOn) {
+    private FeatureItem createSwitchWithDependency(int iconRes, String title, String prefKey, String dependsOn) {
         FeatureItem item = createSwitchWithDependency(title, prefKey, dependsOn);
         item.iconRes = iconRes;
-        item.accentColor = Color.parseColor(accentHex);
+        item.accentColor = accentColor();
         return item;
     }
 
@@ -673,10 +774,10 @@ public class FeaturesFragment extends Fragment {
         return item;
     }
 
-    private FeatureItem createSwitchWithCascadeOff(int iconRes, String accentHex, String title, String prefKey, String cascadeOffKey) {
+    private FeatureItem createSwitchWithCascadeOff(int iconRes, String title, String prefKey, String cascadeOffKey) {
         FeatureItem item = createSwitchWithCascadeOff(title, prefKey, cascadeOffKey);
         item.iconRes = iconRes;
-        item.accentColor = Color.parseColor(accentHex);
+        item.accentColor = accentColor();
         return item;
     }
 
@@ -689,79 +790,120 @@ public class FeaturesFragment extends Fragment {
     }
 
     private void loadMainMenu() {
+        FeatureFlags.colorfulFeatureIcons = getCurrentState("colorfulFeatureIcons");
         List<Object> defs = new ArrayList<>();
 
         defs.add(getString(R.string.feat_categories));
         defs.add(Arrays.asList(
-                createNav(R.drawable.ic_tune, "#0A84FF", getString(R.string.ig_dialog_menu_dev_options), this::loadDevMenu),
-                createNav(R.drawable.ic_eye, "#5E5CE6", getString(R.string.ig_dialog_menu_ghost_settings), this::loadGhostMenu),
-                createNav(R.drawable.ic_shield, "#FF453A", getString(R.string.ig_dialog_menu_ad_analytics), this::loadAdsMenu),
-                createNav(R.drawable.ic_sparkle, "#64D2FF", getString(R.string.ig_dialog_menu_clean_feed), this::loadCleanFeedMenu),
-                createNav(R.drawable.ic_block, "#30D158", getString(R.string.ig_dialog_menu_distraction_free), this::loadDistractionMenu),
-                createNav(R.drawable.ic_settings_gear, "#BF5AF2", getString(R.string.ig_dialog_menu_misc), this::loadMiscMenu),
-                createNav(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_menu_downloader), this::loadDownloaderMenu),
-                createNav(R.drawable.ic_pin, "#FFD60A", getString(R.string.ig_dialog_menu_location), this::loadLocationMenu),
-                createNav(R.drawable.ic_movie, "#32D74B", getString(R.string.ig_dialog_menu_quality), this::loadQualityMenu),
-                createNav(R.drawable.ic_palette, "#FF2D55", getString(R.string.theme_customize), () ->
+                createNav(R.drawable.ic_tune, getString(R.string.ig_dialog_menu_dev_options), FeatureAccents.DEV, this::loadDevMenu),
+                createNav(R.drawable.ic_eye, getString(R.string.ig_dialog_menu_ghost_settings), FeatureAccents.GHOST, this::loadGhostMenu),
+                createNav(R.drawable.ic_shield, getString(R.string.ig_dialog_menu_ad_analytics), FeatureAccents.ADS, this::loadAdsMenu),
+                createNav(R.drawable.ic_sparkle, getString(R.string.ig_dialog_menu_clean_feed), FeatureAccents.CLEAN_FEED, this::loadCleanFeedMenu),
+                createNav(R.drawable.ic_block, getString(R.string.ig_dialog_menu_distraction_free), FeatureAccents.DISTRACTION, this::loadDistractionMenu),
+                createNav(R.drawable.ic_settings_gear, getString(R.string.ig_dialog_menu_misc), FeatureAccents.MISC, this::loadMiscMenu),
+                createNav(R.drawable.ic_download, getString(R.string.ig_dialog_menu_downloader), FeatureAccents.DOWNLOADER, this::loadDownloaderMenu),
+                createNav(R.drawable.ic_pin, getString(R.string.ig_dialog_menu_location), FeatureAccents.LOCATION, this::loadLocationMenu),
+                createNav(R.drawable.ic_movie, getString(R.string.ig_dialog_menu_quality), FeatureAccents.QUALITY, this::loadQualityMenu),
+                createNav(R.drawable.ic_palette, getString(R.string.theme_customize), FeatureAccents.THEME, () ->
                         themeCustomizerLauncher.launch(new Intent(requireContext(), ThemeCustomizerActivity.class)))
         ));
 
         defs.add(getString(R.string.feat_tools));
         defs.add(Arrays.asList(
-                createClickable(R.drawable.ic_save, "#30D158", getString(R.string.ig_dialog_backup_settings), this::backupSettings),
-                createClickable(R.drawable.ic_folder, "#0A84FF", getString(R.string.ig_dialog_restore_settings), this::restoreSettings),
-                createClickable(R.drawable.ic_info, "#8E8E93", getString(R.string.ig_dialog_menu_about), this::showAboutDialog),
-                createClickable(R.drawable.ic_restart, "#FF453A", getString(R.string.ig_dialog_menu_restart), this::restartInstagram)
+                createNav(R.drawable.ic_palette, getString(R.string.ig_dialog_icon_style), FeatureAccents.THEME, this::loadIconStyleMenu),
+                createClickable(R.drawable.ic_terminal, getString(R.string.verify_hooks_title), FeatureAccents.VERIFY, () ->
+                        startActivity(new Intent(requireContext(), VerifyHooksActivity.class))),
+                createClickable(R.drawable.ic_save, getString(R.string.ig_dialog_backup_settings), FeatureAccents.SUCCESS, this::backupSettings),
+                createClickable(R.drawable.ic_folder, getString(R.string.ig_dialog_restore_settings), FeatureAccents.INFO, this::restoreSettings),
+                createClickable(R.drawable.ic_info, getString(R.string.ig_dialog_menu_about), FeatureAccents.NEUTRAL, this::showAboutDialog),
+                createClickable(R.drawable.ic_restart, getString(R.string.ig_dialog_menu_restart), FeatureAccents.ADS, this::restartInstagram)
         ));
 
-        showMenu(getString(R.string.features), defs);
+        showMenu(getString(R.string.features), defs, true);
         currentMenu = "main";
     }
 
+    private void loadIconStyleMenu() {
+        FeatureFlags.colorfulFeatureIcons = localCache.getBoolean("colorfulFeatureIcons", false);
+        menuAccent = FeatureAccents.primary();
+        boolean colorful = FeatureFlags.colorfulFeatureIcons;
+        List<Object> defs = new ArrayList<>();
+
+        defs.add(getString(R.string.feat_options));
+        defs.add(Arrays.asList(
+                createIconStyleOption(getString(R.string.ig_dialog_icon_style_yellow), !colorful, false),
+                createIconStyleOption(getString(R.string.ig_dialog_icon_style_colorful), colorful, true)
+        ));
+
+        showMenu(getString(R.string.ig_dialog_icon_style), defs);
+        currentMenu = "icon_style";
+    }
+
+    private FeatureItem createIconStyleOption(String title, boolean selected, boolean colorfulValue) {
+        FeatureItem item = createClickable(R.drawable.ic_palette, title, FeatureAccents.THEME, () -> applyIconStyle(colorfulValue));
+        if (selected) {
+            item.title = title + "  ✓";
+            item.textColor = FeatureAccents.primary();
+        }
+        return item;
+    }
+
+    private void applyIconStyle(boolean colorful) {
+        SharedPreferences.Editor editor = localCache.edit();
+        editor.putBoolean("colorfulFeatureIcons", colorful);
+        long updatedAt = touchAndFlush(editor);
+        sendBoolPref("colorfulFeatureIcons", colorful, updatedAt);
+        FeatureFlags.colorfulFeatureIcons = colorful;
+        stagedChanges.remove("colorfulFeatureIcons");
+        if (stagedChanges.isEmpty()) fabSave.hide();
+        loadIconStyleMenu();
+    }
+
     private void loadDevMenu() {
+        menuAccent = FeatureAccents.color(FeatureAccents.DEV);
         List<Object> defs = new ArrayList<>();
 
         defs.add(getString(R.string.feat_features));
-        defs.add(Arrays.asList(createSwitch(R.drawable.ic_tune, "#0A84FF", getString(R.string.ig_dialog_dev_enable), "isDevEnabled")));
+        defs.add(Arrays.asList(createSwitch(R.drawable.ic_tune, getString(R.string.ig_dialog_dev_enable), "isDevEnabled")));
 
         defs.add(getString(R.string.feat_config));
         defs.add(Arrays.asList(
-                createClickable(R.drawable.ic_download, "#30D158", getString(R.string.ig_dialog_dev_import), this::importDevConfig),
-                createClickable(R.drawable.ic_upload, "#0A84FF", getString(R.string.ig_dialog_dev_export), this::exportDevConfig),
-                createClickable(R.drawable.ic_restart, "#FF9F0A", getString(R.string.ig_dialog_dev_restore_default_config), this::restoreDefaultConfig)
+                createClickable(R.drawable.ic_download, getString(R.string.ig_dialog_dev_import), FeatureAccents.SUCCESS, this::importDevConfig),
+                createClickable(R.drawable.ic_upload, getString(R.string.ig_dialog_dev_export), FeatureAccents.INFO, this::exportDevConfig),
+                createClickable(R.drawable.ic_restart, getString(R.string.ig_dialog_dev_restore_default_config), FeatureAccents.DOWNLOADER, this::restoreDefaultConfig)
         ));
 
         defs.add(getString(R.string.feat_options));
-        defs.add(Arrays.asList(createSwitch(R.drawable.ic_block, "#FF453A", getString(R.string.ig_dialog_dev_remove_build_expired), "removeBuildExpiredPopup")));
+        defs.add(Arrays.asList(createSwitch(R.drawable.ic_block, getString(R.string.ig_dialog_dev_remove_build_expired), "removeBuildExpiredPopup")));
 
         showMenu(getString(R.string.ig_dialog_section_dev_options), defs);
         currentMenu = "dev";
     }
 
     private void loadGhostMenu() {
+        menuAccent = FeatureAccents.color(FeatureAccents.GHOST);
         List<Object> defs = new ArrayList<>();
 
         defs.add(getString(R.string.feat_quick_toggle));
-        defs.add(Arrays.asList(createNav(R.drawable.ic_tune, "#5E5CE6", getString(R.string.ig_dialog_customize_quick_toggle), this::loadQuickTogglesMenu)));
+        defs.add(Arrays.asList(createNav(R.drawable.ic_tune, getString(R.string.ig_dialog_customize_quick_toggle), this::loadQuickTogglesMenu)));
 
         defs.add(getString(R.string.feat_features));
         defs.add(Arrays.asList(
                 createMasterSwitch(getString(R.string.ig_dialog_enable_disable_all), Arrays.asList(
-                        "isGhostSeen", "isGhostVoiceSeen", "isGhostTyping", "isGhostStory", "isGhostLive",
+                        "isGhostSeen", "isGhostTyping", "isGhostStory", "isGhostLive",
                         "allowScreenshots", "isGhostScreenshot", "isGhostViewOnce",
                         "enableUnlimitedReplays", "permanentViewMode", "keepEphemeralMessages"
                 )),
-                createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_ghost_hide_dm_seen), "isGhostSeen"),
-                createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_ghost_hide_voice_seen), "isGhostVoiceSeen"),
-                createSwitch(R.drawable.ic_chat, "#5E5CE6", getString(R.string.ig_dialog_ghost_hide_typing), "isGhostTyping"),
-                createSwitch(R.drawable.ic_story_ring, "#5E5CE6", getString(R.string.ig_dialog_ghost_hide_story_views), "isGhostStory"),
-                createSwitch(R.drawable.ic_live, "#5E5CE6", getString(R.string.ig_dialog_ghost_hide_live_presence), "isGhostLive"),
-                createSwitch(R.drawable.ic_camera, "#5E5CE6", getString(R.string.ig_dialog_ghost_allow_screenshots_dms), "allowScreenshots"),
-                createSwitch(R.drawable.ic_camera, "#5E5CE6", getString(R.string.ig_dialog_ghost_bypass_screenshot), "isGhostScreenshot"),
-                createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_ghost_hide_view_once), "isGhostViewOnce"),
-                createSwitch(R.drawable.ic_restart, "#5E5CE6", getString(R.string.ig_dialog_ghost_unlimited_replays), "enableUnlimitedReplays"),
-                createSwitch(R.drawable.ic_eye, "#5E5CE6", getString(R.string.ig_dialog_ghost_permanent_view_once), "permanentViewMode"),
-                createSwitch(R.drawable.ic_timer, "#5E5CE6", getString(R.string.ig_dialog_ghost_keep_disappearing), "keepEphemeralMessages")
+                createSwitch(R.drawable.ic_eye_off, getString(R.string.ig_dialog_ghost_hide_dm_seen), "isGhostSeen"),
+                createSwitch(R.drawable.ic_chat, getString(R.string.ig_dialog_ghost_hide_typing), "isGhostTyping"),
+                createSwitch(R.drawable.ic_story_ring, getString(R.string.ig_dialog_ghost_hide_story_views), "isGhostStory"),
+                createSwitch(R.drawable.ic_live, getString(R.string.ig_dialog_ghost_hide_live_presence), "isGhostLive"),
+                createSwitch(R.drawable.ic_camera, getString(R.string.ig_dialog_ghost_allow_screenshots_dms), "allowScreenshots"),
+                createSwitch(R.drawable.ic_camera, getString(R.string.ig_dialog_ghost_bypass_screenshot), "isGhostScreenshot"),
+                createSwitch(R.drawable.ic_eye_off, getString(R.string.ig_dialog_ghost_hide_view_once), "isGhostViewOnce"),
+                createSwitch(R.drawable.ic_restart, getString(R.string.ig_dialog_ghost_unlimited_replays), "enableUnlimitedReplays"),
+                createSwitch(R.drawable.ic_eye, getString(R.string.ig_dialog_ghost_permanent_view_once), "permanentViewMode"),
+                createSwitch(R.drawable.ic_timer, getString(R.string.ig_dialog_ghost_keep_disappearing), "keepEphemeralMessages")
         ));
 
         showMenu(getString(R.string.ig_dialog_section_ghost_mode), defs);
@@ -769,27 +911,27 @@ public class FeaturesFragment extends Fragment {
     }
 
     private void loadQuickTogglesMenu() {
+        menuAccent = FeatureAccents.color(FeatureAccents.GHOST);
         List<Object> defs = new ArrayList<>();
 
         defs.add(getString(R.string.feat_features));
         defs.add(Arrays.asList(
                 createMasterSwitch(getString(R.string.ig_dialog_enable_disable_all), Arrays.asList(
-                        "quickToggleSeen", "quickToggleVoiceSeen", "quickToggleTyping", "quickToggleScreenshot",
+                        "quickToggleSeen", "quickToggleTyping", "quickToggleScreenshot",
                         "quickToggleViewOnce", "quickToggleStory", "quickToggleLive",
                         "quickToggleEphemeral", "quickToggleReplays", "quickTogglePermanentView",
                         "quickToggleAllowScreenshots"
                 )),
-                createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_quick_hide_seen), "quickToggleSeen"),
-                createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_quick_hide_voice_seen), "quickToggleVoiceSeen"),
-                createSwitch(R.drawable.ic_chat, "#5E5CE6", getString(R.string.ig_dialog_quick_hide_typing), "quickToggleTyping"),
-                createSwitch(R.drawable.ic_camera, "#5E5CE6", getString(R.string.ig_dialog_quick_disable_screenshot), "quickToggleScreenshot"),
-                createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_quick_hide_view_once), "quickToggleViewOnce"),
-                createSwitch(R.drawable.ic_story_ring, "#5E5CE6", getString(R.string.ig_dialog_quick_hide_story_seen), "quickToggleStory"),
-                createSwitch(R.drawable.ic_live, "#5E5CE6", getString(R.string.ig_dialog_quick_hide_live_seen), "quickToggleLive"),
-                createSwitch(R.drawable.ic_timer, "#5E5CE6", getString(R.string.ig_dialog_quick_keep_ephemeral), "quickToggleEphemeral"),
-                createSwitch(R.drawable.ic_restart, "#5E5CE6", getString(R.string.ig_dialog_quick_unlimited_replays), "quickToggleReplays"),
-                createSwitch(R.drawable.ic_eye, "#5E5CE6", getString(R.string.ig_dialog_quick_permanent_view), "quickTogglePermanentView"),
-                createSwitch(R.drawable.ic_camera, "#5E5CE6", getString(R.string.ig_dialog_quick_allow_screenshots), "quickToggleAllowScreenshots")
+                createSwitch(R.drawable.ic_eye_off, getString(R.string.ig_dialog_quick_hide_seen), "quickToggleSeen"),
+                createSwitch(R.drawable.ic_chat, getString(R.string.ig_dialog_quick_hide_typing), "quickToggleTyping"),
+                createSwitch(R.drawable.ic_camera, getString(R.string.ig_dialog_quick_disable_screenshot), "quickToggleScreenshot"),
+                createSwitch(R.drawable.ic_eye_off, getString(R.string.ig_dialog_quick_hide_view_once), "quickToggleViewOnce"),
+                createSwitch(R.drawable.ic_story_ring, getString(R.string.ig_dialog_quick_hide_story_seen), "quickToggleStory"),
+                createSwitch(R.drawable.ic_live, getString(R.string.ig_dialog_quick_hide_live_seen), "quickToggleLive"),
+                createSwitch(R.drawable.ic_timer, getString(R.string.ig_dialog_quick_keep_ephemeral), "quickToggleEphemeral"),
+                createSwitch(R.drawable.ic_restart, getString(R.string.ig_dialog_quick_unlimited_replays), "quickToggleReplays"),
+                createSwitch(R.drawable.ic_eye, getString(R.string.ig_dialog_quick_permanent_view), "quickTogglePermanentView"),
+                createSwitch(R.drawable.ic_camera, getString(R.string.ig_dialog_quick_allow_screenshots), "quickToggleAllowScreenshots")
         ));
 
         showMenu(getString(R.string.ig_dialog_section_quick_toggle), defs);
@@ -797,14 +939,15 @@ public class FeaturesFragment extends Fragment {
     }
 
     private void loadAdsMenu() {
+        menuAccent = FeatureAccents.color(FeatureAccents.ADS);
         List<Object> defs = new ArrayList<>();
 
         defs.add(getString(R.string.feat_features));
         defs.add(Arrays.asList(
                 createMasterSwitch(getString(R.string.ig_dialog_enable_disable_all), Arrays.asList("isAdBlockEnabled", "isAnalyticsBlocked", "disableTrackingLinks")),
-                createSwitch(R.drawable.ic_shield, "#FF453A", getString(R.string.ig_dialog_ad_block_ads), "isAdBlockEnabled"),
-                createSwitch(R.drawable.ic_shield, "#FF453A", getString(R.string.ig_dialog_ad_block_analytics), "isAnalyticsBlocked"),
-                createSwitch(R.drawable.ic_link, "#FF453A", getString(R.string.ig_dialog_ad_disable_tracking), "disableTrackingLinks")
+                createSwitch(R.drawable.ic_shield, getString(R.string.ig_dialog_ad_block_ads), "isAdBlockEnabled"),
+                createSwitch(R.drawable.ic_shield, getString(R.string.ig_dialog_ad_block_analytics), "isAnalyticsBlocked"),
+                createSwitch(R.drawable.ic_link, getString(R.string.ig_dialog_ad_disable_tracking), "disableTrackingLinks")
         ));
 
         showMenu(getString(R.string.ig_dialog_section_ad_analytics), defs);
@@ -812,12 +955,13 @@ public class FeaturesFragment extends Fragment {
     }
 
     private void loadCleanFeedMenu() {
+        menuAccent = FeatureAccents.color(FeatureAccents.CLEAN_FEED);
         List<Object> defs = new ArrayList<>();
 
         defs.add(getString(R.string.feat_features));
         defs.add(Arrays.asList(
-                createSwitch(R.drawable.ic_sparkle, "#64D2FF", getString(R.string.ig_dialog_clean_feed_hide_suggested), "hideSuggestionsInFeed"),
-                createSwitch(R.drawable.ic_sparkle, "#64D2FF", getString(R.string.ig_dialog_clean_feed_hide_threads), "hideThreadsSuggestions")
+                createSwitch(R.drawable.ic_sparkle, getString(R.string.ig_dialog_clean_feed_hide_suggested), "hideSuggestionsInFeed"),
+                createSwitch(R.drawable.ic_sparkle, getString(R.string.ig_dialog_clean_feed_hide_threads), "hideThreadsSuggestions")
         ));
 
         showMenu(getString(R.string.ig_dialog_section_clean_feed), defs);
@@ -825,6 +969,7 @@ public class FeaturesFragment extends Fragment {
     }
 
     private void loadDistractionMenu() {
+        menuAccent = FeatureAccents.color(FeatureAccents.DISTRACTION);
         List<Object> defs = new ArrayList<>();
 
         List<String> distractionKeys = Arrays.asList(
@@ -832,8 +977,8 @@ public class FeaturesFragment extends Fragment {
                 "disableReelsExceptDM", "disableExplore", "disableComments"
         );
 
-        FeatureItem extreme = createSwitch(R.drawable.ic_block, "#FF453A", getString(R.string.ig_dialog_distraction_extreme_mode), "isExtremeMode");
-        extreme.textColor = 0xFFFF453A;
+        FeatureItem extreme = createSwitch(R.drawable.ic_block, getString(R.string.ig_dialog_distraction_extreme_mode), "isExtremeMode");
+        extreme.textColor = dangerColor();
         extreme.isExtreme = true;
         extreme.requiresAnyOf = distractionKeys;
 
@@ -843,21 +988,21 @@ public class FeaturesFragment extends Fragment {
         FeatureItem masterSwitch = createMasterSwitch(getString(R.string.ig_dialog_enable_disable_all), distractionKeys);
         masterSwitch.disabledWhenTrue = "isExtremeMode";
 
-        FeatureItem disableReels = createSwitchWithCascadeOff(R.drawable.ic_movie, "#30D158", getString(R.string.ig_dialog_distraction_disable_reels), "disableReels", "disableReelsExceptDM");
+        FeatureItem disableReels = createSwitchWithCascadeOff(R.drawable.ic_movie, getString(R.string.ig_dialog_distraction_disable_reels), "disableReels", "disableReelsExceptDM");
         disableReels.disabledWhenTrue = "isExtremeMode";
 
-        FeatureItem disableReelsExceptDM = createSwitchWithDependency(R.drawable.ic_movie, "#30D158", getString(R.string.ig_dialog_distraction_disable_reels_except_dm), "disableReelsExceptDM", "disableReels");
+        FeatureItem disableReelsExceptDM = createSwitchWithDependency(R.drawable.ic_movie, getString(R.string.ig_dialog_distraction_disable_reels_except_dm), "disableReelsExceptDM", "disableReels");
         disableReelsExceptDM.disabledWhenTrue = "isExtremeMode";
 
         defs.add(getString(R.string.feat_features));
         defs.add(Arrays.asList(
                 masterSwitch,
-                createSwitchLockedByExtreme(R.drawable.ic_story_ring, "#30D158", getString(R.string.ig_dialog_distraction_disable_stories), "disableStories"),
-                createSwitchLockedByExtreme(R.drawable.ic_block, "#30D158", getString(R.string.ig_dialog_distraction_disable_feed), "disableFeed"),
+                createSwitchLockedByExtreme(R.drawable.ic_story_ring, getString(R.string.ig_dialog_distraction_disable_stories), "disableStories"),
+                createSwitchLockedByExtreme(R.drawable.ic_block, getString(R.string.ig_dialog_distraction_disable_feed), "disableFeed"),
                 disableReels,
                 disableReelsExceptDM,
-                createSwitchLockedByExtreme(R.drawable.ic_search, "#30D158", getString(R.string.ig_dialog_distraction_disable_explore), "disableExplore"),
-                createSwitchLockedByExtreme(R.drawable.ic_chat, "#30D158", getString(R.string.ig_dialog_distraction_disable_comments), "disableComments")
+                createSwitchLockedByExtreme(R.drawable.ic_search, getString(R.string.ig_dialog_distraction_disable_explore), "disableExplore"),
+                createSwitchLockedByExtreme(R.drawable.ic_chat, getString(R.string.ig_dialog_distraction_disable_comments), "disableComments")
         ));
 
         showMenu(getString(R.string.ig_dialog_section_distraction_free), defs);
@@ -870,14 +1015,15 @@ public class FeaturesFragment extends Fragment {
         return item;
     }
 
-    private FeatureItem createSwitchLockedByExtreme(int iconRes, String accentHex, String title, String prefKey) {
+    private FeatureItem createSwitchLockedByExtreme(int iconRes, String title, String prefKey) {
         FeatureItem item = createSwitchLockedByExtreme(title, prefKey);
         item.iconRes = iconRes;
-        item.accentColor = Color.parseColor(accentHex);
+        item.accentColor = accentColor();
         return item;
     }
 
     private void loadMiscMenu() {
+        menuAccent = FeatureAccents.color(FeatureAccents.MISC);
         List<Object> defs = new ArrayList<>();
 
         defs.add(getString(R.string.feat_features));
@@ -885,21 +1031,20 @@ public class FeaturesFragment extends Fragment {
                 createMasterSwitch(getString(R.string.ig_dialog_enable_disable_all), Arrays.asList(
                         "disableStoryFlipping", "disableVideoAutoPlay", "spoofLastSeen", "disableRepost", "showFollowerToast",
                         "showFeatureToasts", "enableStoryMentions", "disableDiscoverPeople", "enableCopyComment",
-                        "disableDoubleTapLike", "enableCaptionCopy", "enablePhotoZoom", "bypassChannelRestrictions"
+                        "disableDoubleTapLike", "enableCaptionCopy", "enablePhotoZoom"
                 )),
-                createSwitch(R.drawable.ic_story_ring, "#BF5AF2", getString(R.string.ig_dialog_misc_disable_story_autoswipe), "disableStoryFlipping"),
-                createSwitch(R.drawable.ic_movie, "#BF5AF2", getString(R.string.ig_dialog_misc_disable_video_autoplay), "disableVideoAutoPlay"),
-                createSwitch(R.drawable.ic_timer, "#BF5AF2", getString(R.string.ig_dialog_misc_spoof_last_seen), "spoofLastSeen"),
-                createSwitch(R.drawable.ic_block, "#BF5AF2", getString(R.string.ig_dialog_misc_disable_repost), "disableRepost"),
-                createSwitch(R.drawable.ic_notification, "#BF5AF2", getString(R.string.ig_dialog_misc_show_follower_toast), "showFollowerToast"),
-                createSwitch(R.drawable.ic_notification, "#BF5AF2", getString(R.string.ig_dialog_misc_show_feature_toasts), "showFeatureToasts"),
-                createSwitch(R.drawable.ic_at, "#BF5AF2", getString(R.string.ig_dialog_misc_view_story_mentions), "enableStoryMentions"),
-                createSwitch(R.drawable.ic_block, "#BF5AF2", getString(R.string.ig_dialog_misc_disable_discover_people), "disableDiscoverPeople"),
-                createSwitch(R.drawable.ic_content_copy, "#BF5AF2", getString(R.string.ig_dialog_misc_copy_comment), "enableCopyComment"),
-                createSwitch(R.drawable.ic_heart, "#BF5AF2", getString(R.string.ig_dialog_misc_disable_double_tap_like), "disableDoubleTapLike"),
-                createSwitch(R.drawable.ic_content_copy, "#BF5AF2", getString(R.string.ig_dialog_misc_copy_caption), "enableCaptionCopy"),
-                createSwitch(R.drawable.ic_search, "#BF5AF2", getString(R.string.ig_dialog_misc_photo_zoom), "enablePhotoZoom"),
-                createSwitch(R.drawable.ic_shield, "#BF5AF2", getString(R.string.ig_dialog_misc_bypass_channel_restrictions), "bypassChannelRestrictions")
+                createSwitch(R.drawable.ic_story_ring, getString(R.string.ig_dialog_misc_disable_story_autoswipe), "disableStoryFlipping"),
+                createSwitch(R.drawable.ic_movie, getString(R.string.ig_dialog_misc_disable_video_autoplay), "disableVideoAutoPlay"),
+                createSwitch(R.drawable.ic_timer, getString(R.string.ig_dialog_misc_spoof_last_seen), "spoofLastSeen"),
+                createSwitch(R.drawable.ic_block, getString(R.string.ig_dialog_misc_disable_repost), "disableRepost"),
+                createSwitch(R.drawable.ic_notification, getString(R.string.ig_dialog_misc_show_follower_toast), "showFollowerToast"),
+                createSwitch(R.drawable.ic_notification, getString(R.string.ig_dialog_misc_show_feature_toasts), "showFeatureToasts"),
+                createSwitch(R.drawable.ic_at, getString(R.string.ig_dialog_misc_view_story_mentions), "enableStoryMentions"),
+                createSwitch(R.drawable.ic_block, getString(R.string.ig_dialog_misc_disable_discover_people), "disableDiscoverPeople"),
+                createSwitch(R.drawable.ic_content_copy, getString(R.string.ig_dialog_misc_copy_comment), "enableCopyComment"),
+                createSwitch(R.drawable.ic_heart, getString(R.string.ig_dialog_misc_disable_double_tap_like), "disableDoubleTapLike"),
+                createSwitch(R.drawable.ic_content_copy, getString(R.string.ig_dialog_misc_copy_caption), "enableCaptionCopy"),
+                createSwitch(R.drawable.ic_search, getString(R.string.ig_dialog_misc_photo_zoom), "enablePhotoZoom")
         ));
 
         showMenu(getString(R.string.ig_dialog_section_misc), defs);
@@ -907,10 +1052,11 @@ public class FeaturesFragment extends Fragment {
     }
 
     private void loadLocationMenu() {
+        menuAccent = FeatureAccents.color(FeatureAccents.LOCATION);
         List<Object> defs = new ArrayList<>();
 
         defs.add(getString(R.string.feat_features));
-        defs.add(Arrays.asList(createSwitch(R.drawable.ic_pin, "#FFD60A", getString(R.string.ig_dialog_location_spoof_enable), "spoofLocation")));
+        defs.add(Arrays.asList(createSwitch(R.drawable.ic_pin, getString(R.string.ig_dialog_location_spoof_enable), "spoofLocation")));
 
         double lat = 0.0, lng = 0.0;
         try { lat = Double.parseDouble(localCache.getString("spoofLat", "0")); } catch (Throwable ignored) {}
@@ -920,7 +1066,7 @@ public class FeaturesFragment extends Fragment {
                 : getString(R.string.ig_dialog_location_current, lat, lng);
 
         defs.add(getString(R.string.feat_options));
-        defs.add(Arrays.asList(createClickable(R.drawable.ic_pin, "#FFD60A",
+        defs.add(Arrays.asList(createClickable(R.drawable.ic_pin,
                 getString(R.string.ig_dialog_location_pick) + " — " + coordLabel, () -> {
                     double curLat = 0.0, curLng = 0.0;
                     try { curLat = Double.parseDouble(localCache.getString("spoofLat", "0")); } catch (Throwable ignored) {}
@@ -945,11 +1091,12 @@ public class FeaturesFragment extends Fragment {
     }
 
     private void loadQualityMenu() {
+        menuAccent = FeatureAccents.color(FeatureAccents.QUALITY);
         List<Object> defs = new ArrayList<>();
         int current = localCache.getInt("forceReelQuality", 0);
 
         defs.add(getString(R.string.feat_features));
-        defs.add(Arrays.asList(createClickable(R.drawable.ic_movie, "#32D74B",
+        defs.add(Arrays.asList(createClickable(R.drawable.ic_movie,
                 getString(R.string.ig_dialog_quality_force_reels) + ": " + qualityLabel(current), () -> pickQuality(current))));
 
         showMenu(getString(R.string.ig_dialog_section_quality), defs);
@@ -986,6 +1133,7 @@ public class FeaturesFragment extends Fragment {
     }
 
     private void loadDownloaderMenu() {
+        menuAccent = FeatureAccents.color(FeatureAccents.DOWNLOADER);
         List<Object> defs = new ArrayList<>();
 
         defs.add(getString(R.string.feat_features));
@@ -993,19 +1141,19 @@ public class FeaturesFragment extends Fragment {
                 createMasterSwitch(getString(R.string.ig_dialog_enable_disable_all), Arrays.asList(
                         "enablePostDownload", "enableStoryDownload", "enableReelDownload", "enableProfileDownload", "enableVoiceDownload"
                 )),
-                createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_posts), "enablePostDownload"),
-                createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_stories), "enableStoryDownload"),
-                createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_reels), "enableReelDownload"),
-                createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_profiles), "enableProfileDownload"),
-                createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_voice), "enableVoiceDownload"),
-                createSwitch(R.drawable.ic_download, "#FF9F0A", getString(R.string.ig_dialog_downloader_batch), "enableBatchDownload")
+                createSwitch(R.drawable.ic_download, getString(R.string.ig_dialog_downloader_posts), "enablePostDownload"),
+                createSwitch(R.drawable.ic_download, getString(R.string.ig_dialog_downloader_stories), "enableStoryDownload"),
+                createSwitch(R.drawable.ic_download, getString(R.string.ig_dialog_downloader_reels), "enableReelDownload"),
+                createSwitch(R.drawable.ic_download, getString(R.string.ig_dialog_downloader_profiles), "enableProfileDownload"),
+                createSwitch(R.drawable.ic_download, getString(R.string.ig_dialog_downloader_voice), "enableVoiceDownload"),
+                createSwitch(R.drawable.ic_download, getString(R.string.ig_dialog_downloader_batch), "enableBatchDownload")
         ));
 
         defs.add(getString(R.string.feat_options));
         defs.add(Arrays.asList(
-                createSwitch(R.drawable.ic_folder, "#FF9F0A", getString(R.string.ig_dialog_downloader_username_subfolder), "downloaderUsernameFolder"),
-                createSwitch(R.drawable.ic_timer, "#FF9F0A", getString(R.string.ig_dialog_downloader_add_timestamp), "downloaderAddTimestamp"),
-                createClickable(R.drawable.ic_download, "#FF9F0A", getString(R.string.feat_downloader_view_history), this::openDownloadHistory)
+                createSwitch(R.drawable.ic_folder, getString(R.string.ig_dialog_downloader_username_subfolder), "downloaderUsernameFolder"),
+                createSwitch(R.drawable.ic_timer, getString(R.string.ig_dialog_downloader_add_timestamp), "downloaderAddTimestamp"),
+                createClickable(R.drawable.ic_download, getString(R.string.feat_downloader_view_history), this::openDownloadHistory)
         ));
 
         String customPath = localCache.getString("downloaderCustomPath", "");
@@ -1015,8 +1163,8 @@ public class FeaturesFragment extends Fragment {
 
         defs.add(getString(R.string.feat_download_folder));
         defs.add(Arrays.asList(
-                createClickable(R.drawable.ic_folder, "#FF9F0A", folderTitle, this::pickDownloadFolder),
-                createClickable(R.drawable.ic_delete, "#FF453A", getString(R.string.feat_downloader_reset_folder), this::resetDownloadFolder)
+                createClickable(R.drawable.ic_folder, folderTitle, this::pickDownloadFolder),
+                createClickable(R.drawable.ic_delete, getString(R.string.feat_downloader_reset_folder), this::resetDownloadFolder)
         ));
 
         showMenu(getString(R.string.ig_dialog_section_downloader), defs);
@@ -1176,9 +1324,17 @@ public class FeaturesFragment extends Fragment {
         for (Map.Entry<String, Boolean> entry : stagedChanges.entrySet()) {
             sendBoolPref(entry.getKey(), entry.getValue(), updatedAt);
         }
+        FeatureFlags.colorfulFeatureIcons = localCache.getBoolean("colorfulFeatureIcons", false);
         stagedChanges.clear();
         fabSave.hide();
         Toast.makeText(requireContext(), getString(R.string.ig_toast_settings_applied), Toast.LENGTH_SHORT).show();
+        if ("main".equals(currentMenu)) {
+            loadMainMenu();
+        } else if ("icon_style".equals(currentMenu)) {
+            loadIconStyleMenu();
+        } else if (adapter != null) {
+            adapter.notifyDataSetChanged();
+        }
     }
 
     private boolean getCurrentState(String prefKey) {

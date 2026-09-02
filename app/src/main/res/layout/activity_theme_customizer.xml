@@ -12,7 +12,7 @@
         <LinearLayout android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:paddingBottom="32.0dp">
 
-            <!-- Master enable switch -->
+            
             <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_margin="16.0dp" app:cardCornerRadius="16.0dp" app:cardElevation="0.0dp" app:strokeWidth="1.0dp" app:strokeColor="?colorOutlineVariant">
                 <LinearLayout android:orientation="horizontal" android:gravity="center_vertical" android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -24,7 +24,7 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Presets section -->
+            
             <LinearLayout android:id="@+id/theme_presets_header" android:orientation="horizontal" android:gravity="center_vertical"
                 android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="20.0dp" android:paddingEnd="20.0dp"
                 android:paddingTop="8.0dp" android:paddingBottom="8.0dp" android:background="?selectableItemBackground" android:clickable="true" android:focusable="true">
@@ -64,7 +64,7 @@
                     android:paddingStart="12.0dp" android:paddingEnd="12.0dp" android:clipToPadding="false" android:nestedScrollingEnabled="false" />
             </LinearLayout>
 
-            <!-- Custom colors section -->
+            
             <LinearLayout android:id="@+id/theme_custom_header" android:orientation="horizontal" android:gravity="center_vertical"
                 android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="20.0dp" android:paddingEnd="20.0dp"
                 android:paddingTop="16.0dp" android:paddingBottom="8.0dp" android:background="?selectableItemBackground" android:clickable="true" android:focusable="true">

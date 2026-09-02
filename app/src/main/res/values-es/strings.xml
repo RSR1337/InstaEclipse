@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- aplicación -->
+    
     <string name="app_name">InstaEclipse</string>
     <string name="home">Inicio</string>
     <string name="features">Características</string>
     <string name="help">Ayuda</string>
 
-    <!-- inicio -->
+    
     <string name="instagram_version">Versión</string>
     <string name="module_disabled">El módulo no está habilitado. Por favor, actívalo.</string>
 
@@ -36,22 +36,20 @@
     <string name="contributors">Contribuidores</string>
     <string name="special_thanks">Agradecimientos Especiales</string>
 
-    <!-- Don't translate! -->
+    
 
-
-    <!-- ayuda -->
+    
     <string name="help_amp_troubleshooting">Ayuda y Solución de Problemas</string>
     <string name="find_updates_and_documentation">Encuentra actualizaciones y documentación.</string>
     <string name="go_to_github">Ir a GitHub</string>
     <string name="find_support">Encuentra soporte.</string>
     <string name="go_to_telegram">Ir a Telegram</string>
 
-    <!-- No traducir -->
+    
     <string name="github">GitHub</string>
     <string name="telegram">Telegram</string>
 
-
-    <!-- FAQ -->
+    
     <string name="frequently_asked_questions">Preguntas Frecuentes</string>
     <string name="faq_1">1. ¿No funciona o se cierra con la versión de Google Play?\n- Usa los APKs de APKMirror.</string>
     <string name="faq_2">2. ¿El módulo no está habilitado?\n- Desactiva y vuelve a habilitar el módulo en LSPosed.</string>
@@ -60,7 +58,7 @@
     <string name="faq_5">5. ¿Las opciones de desarrollador tienen etiquetas o números extraños?\n- Usa versiones Beta o Alpha, ya que las versiones estables tienen ofuscación.</string>
     <string name="faq_6">6. ¿Modo Sin Distracciones activado pero aún aparece contenido?\n- Fuerza el cierre de Instagram y borra su caché.</string>
 
-    <!-- características -->
+    
     <string name="developer_options">Opciones de Desarrollador</string>
     <string name="ghost_mode">Modo Fantasma</string>
     <string name="distraction_free">Sin Distracciones</string>
@@ -69,9 +67,9 @@
 
     <string name="enable_disable_all">Activar/Desactivar Todo</string>
 
-    <!-- No traducir -->
+    
 
-    <!-- modo fantasma -->
+    
     <string name="ghost_mode_options">Opciones de Modo Fantasma</string>
     <string name="typing">Escribiendo</string>
     <string name="story">Historia</string>
@@ -80,7 +78,7 @@
     <string name="direct_messages">Mensajes Directos</string>
     <string name="disable_typing">Desactivar escribiendo</string>
 
-    <!-- opciones de desarrollador -->
+    
     <string name="screen_shot">La captura de pantalla</string>
     <string name="developer_options_guide">Guía de Opciones de Desarrollador</string>
     <string name="dev_options_version_req">¡Úsalo solo en versiones Beta/Alpha!</string>
@@ -91,9 +89,9 @@
     <string name="dev_options_3">3. Busca \'Employee\' y habilita las siguientes opciones:</string>
     <string name="dev_options_4">4. Finalmente, desactiva las Opciones de Desarrollador desde el módulo para evitar fallos.</string>
 
-    <!-- No traducir -->
+    
 
-    <!-- sin distracciones -->
+    
     <string name="distraction_free_options">Opciones Sin Distracciones</string>
     <string name="disable_stories">Desactivar Historias</string>
     <string name="disable_feed">Desactivar Feed</string>
@@ -101,20 +99,20 @@
     <string name="disable_explore">Desactivar Explorar</string>
     <string name="disable_comments">Desactivar Comentarios</string>
 
-    <!-- Miscellaneous -->
+    
     <string name="misc">Varios</string>
     <string name="miscellaneous_options">Opciones Variadas</string>
     <string name="story_flipping">Desactivar el Cambio de Historia</string>
     <string name="video_autoplay">Desactivar Reproducción Automática de Video</string>
 
-    <!-- tarjeta de contribuidor -->
+    
     <string name="hooked_methods_toast">Funciones habilitadas</string>
     <string name="contributor_name">Nombre del Contribuidor</string>
 
-    <!-- Toast -->
+    
     <string name="follower_toast">Estado de seguimiento</string>
 
-    <!-- Dialog strings -->
+    
     <string name="ig_dialog_close">Cerrar</string>
     <string name="ig_dialog_enable_disable_all">Activar/Desactivar todo</string>
     <string name="ig_dialog_error">Error</string>
@@ -161,7 +159,7 @@
     <string name="ig_toast_config_imported">✅ Configuración importada.</string>
     <string name="ig_toast_config_import_failed">❌ Error al importar la configuración.</string>
 
-    <!-- JsonImportActivity -->
+    
     <string name="json_select_config">Seleccionar config JSON</string>
     <string name="json_target_not_specified">❌ Paquete de destino no especificado.</string>
     <string name="json_sent">✅ Enviado a Instagram.</string>
@@ -212,7 +210,7 @@
     <string name="ig_dialog_misc_copy_comment">Copiar comentario</string>
     <string name="ig_dialog_misc_disable_double_tap_like">Desactivar doble toque para dar like</string>
 
-    <!-- Comment Copy dialog -->
+    
     <string name="ig_comment_copy_title">Copiar comentario</string>
     <string name="ig_comment_copy_full">Copiar comentario completo</string>
     <string name="ig_comment_select_part">Seleccionar parte para copiar</string>
@@ -242,29 +240,29 @@
     <string name="ig_dialog_restart_not_found">No se pudo encontrar la aplicación para reiniciar.</string>
     <string name="ig_dialog_restart_failed">Error al reiniciar: %1$s</string>
 
-    <!-- Toast: Ghost mode -->
+    
     <string name="ig_toast_ghost_no_options">¡No se seleccionaron opciones de Modo Fantasma!</string>
     <string name="ig_toast_ghost_enabled">Modo Fantasma activado</string>
     <string name="ig_toast_ghost_disabled">Modo Fantasma desactivado</string>
     <string name="ig_toast_seen_sent">✅ Visto enviado</string>
     <string name="ig_toast_channel_seen_sent">✅ Canal visto enviado</string>
 
-    <!-- Toast: Follower status -->
+    
     <string name="ig_toast_follows_you">te sigue ✅</string>
     <string name="ig_toast_not_follows_you">no te sigue ❌</string>
 
-    <!-- Toast: App settings -->
+    
     <string name="ig_toast_settings_applied">¡Configuración aplicada!</string>
     <string name="ig_toast_restart_manual">Por favor, cierra Instagram manualmente para que los cambios surtan efecto.</string>
     <string name="ig_toast_settings_restored">Configuración restaurada correctamente.</string>
     <string name="ig_toast_restore_failed">Error al restaurar: %1$s</string>
 
-    <!-- Toast: Download folder -->
+    
     <string name="ig_toast_download_folder_set">Carpeta de descarga: %1$s</string>
     <string name="ig_toast_download_folder_updated">¡Carpeta de descarga actualizada!</string>
     <string name="ig_toast_download_folder_reset">Carpeta de descarga restablecida</string>
 
-    <!-- Toast: Downloader -->
+    
     <string name="ig_toast_downloading">Descargando…</string>
     <string name="ig_toast_downloading_video">Descargando vídeo…</string>
     <string name="ig_toast_downloading_photo">Descargando foto…</string>
@@ -286,7 +284,6 @@
     <string name="ig_toast_downloading_profile_pic">Descargando foto de perfil…</string>
     <string name="ig_toast_profile_pic_saved">¡Foto de perfil guardada!</string>
     <string name="ig_toast_profile_pic_url_not_found">No se pudo obtener la URL de la foto de perfil</string>
-    <string name="ig_toast_merging_video_audio">Fusionando vídeo y audio…</string>
     <string name="ig_toast_downloading_n_items">Descargando %1$d elementos…</string>
     <string name="ig_toast_downloading_all_n_items">Descargando todos los %1$d elementos…</string>
     <string name="ig_toast_all_items_saved">Los %1$d elementos guardados en la carpeta InstaEclipse</string>
@@ -303,7 +300,7 @@
     <string name="back">Atrás</string>
     <string name="apply_changes">Aplicar cambios</string>
 
-    <!-- features fragment section headers -->
+    
     <string name="feat_categories">Categorías:</string>
     <string name="feat_tools">Herramientas:</string>
     <string name="feat_features">Funciones:</string>
@@ -316,16 +313,16 @@
     <string name="feat_downloader_selected">Seleccionada: %1$s</string>
     <string name="feat_downloader_reset_folder">Restablecer carpeta de descarga</string>
 
-    <!-- multiple versions -->
+    
     <string name="multiple_versions_detected">⚠️ Varias versiones detectadas</string>
 
-    <!-- Story mentions dialog -->
+    
     <string name="ig_mention_dialog_title">Menciones de historia</string>
     <string name="ig_mention_subtitle">%1$d mención(es) • toca para abrir el perfil</string>
     <string name="ig_mention_no_mentions">No se encontraron menciones en esta historia</string>
     <string name="ig_mention_copy_all">Copiar todo</string>
 
-    <!-- Toast: Downloader (service) -->
+    
     <string name="ig_toast_no_download_folder">No se ha definido la carpeta de descarga</string>
     <string name="ig_toast_file_saved">Guardado: %1$s</string>
     <string name="ig_toast_features_loaded">InstaEclipse cargado 🎯</string>
@@ -334,13 +331,13 @@
     <string name="ig_toast_features_on_off_count">%1$d activas · %2$d desactivadas</string>
     <string name="ig_toast_features_status_full">%1$d activas · %2$d pendientes · %3$d desactivadas</string>
 
-    <!-- Update check dialog -->
+    
     <string name="ig_update_title">Actualización disponible</string>
     <string name="ig_update_message">Una nueva versión (%1$s) está disponible. ¿Deseas actualizar ahora?</string>
     <string name="ig_update_button">Actualizar</string>
     <string name="ig_update_later">Más tarde</string>
     <string name="ig_update_error_message">Error al comprobar actualizaciones. Inténtalo de nuevo más tarde.</string>
-    <!-- Custom Theme -->
+    
     <string name="ig_dialog_menu_theme">Tema Personalizado</string>
     <string name="theme_title">Tema Personalizado</string>
     <string name="theme_enable">Activar Tema Personalizado</string>

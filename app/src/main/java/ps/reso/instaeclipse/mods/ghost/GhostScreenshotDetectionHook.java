@@ -41,7 +41,7 @@ public class GhostScreenshotDetectionHook {
         }
 
         try {
-            // Step 1: Find class referencing "ScreenshotNotificationManager"
+
             List<ClassData> classes = bridge.findClass(FindClass.create()
                     .matcher(ClassMatcher.create().usingStrings("ScreenshotNotificationManager")));
 
@@ -58,7 +58,6 @@ public class GhostScreenshotDetectionHook {
             for (ClassData classData : classes) {
                 String className = classData.getName();
 
-                // Step 2: Find all methods in that class
                 List<MethodData> methods = bridge.findMethod(FindMethod.create()
                         .matcher(MethodMatcher.create().declaredClass(className)));
 
@@ -66,7 +65,6 @@ public class GhostScreenshotDetectionHook {
                     ClassDataList paramTypes = method.getParamTypes();
                     String returnType = String.valueOf(method.getReturnType());
 
-                    // Match: void method(long)
                     if (returnType.contains("void") &&
                             paramTypes.size() >= 1 &&
                             paramTypes.size() <= 2 &&

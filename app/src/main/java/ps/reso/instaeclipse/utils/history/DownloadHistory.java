@@ -19,15 +19,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * Records every media download across all download hooks (post/reel, story, profile pic)
- * in one place, since they all funnel through FeedVideoDownloadHook.downloadAndSave().
- * Runs in the hooked Instagram process — the companion app reads it via broadcast,
- * mirroring Logging's IPC pattern (see LoggingFragment / ACTION_REQUEST_LOGS).
- *
- * File writes happen on a background HandlerThread (like Logging) since record() is
- * called from hot download-completion code paths and must not block the caller.
- */
 public final class DownloadHistory {
 
     private static final int MAX_ENTRIES = 300;
@@ -110,7 +101,6 @@ public final class DownloadHistory {
         }
     }
 
-    /** Newest-first JSON array snapshot for IPC to the companion app. */
     public static String snapshotJson() {
         synchronized (LOCK) {
             JSONArray arr = new JSONArray();

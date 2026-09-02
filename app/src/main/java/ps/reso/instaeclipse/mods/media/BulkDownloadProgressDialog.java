@@ -52,7 +52,6 @@ final class BulkDownloadProgressDialog {
         this.actionButton = actionButton;
     }
 
-    /** Builds and shows the dialog; falls back to a headless no-op controller if the host window can't host it. */
     static BulkDownloadProgressDialog show(Context ctx, Handler mainHandler, int total) {
         try {
             Context dialogCtx = FeedVideoDownloadHook.resolveDialogContext(ctx);

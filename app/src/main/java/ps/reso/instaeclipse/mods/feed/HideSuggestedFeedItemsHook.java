@@ -29,10 +29,7 @@ public class HideSuggestedFeedItemsHook {
                 Object result = param.getResult();
                 if (result == null) return;
 
-                // The parsed FeedItem is a large union type — exactly one of its many
-                // optional fields is populated per server-sent unit. A real post always
-                // has its Media field set; every suggestion/injection type (clips netego,
-                // suggested users, Threads cross-promo units, ...) leaves it null.
+                
                 boolean hasMedia = false;
                 boolean isThreadsUnit = false;
                 for (Field f : result.getClass().getDeclaredFields()) {
@@ -43,10 +40,8 @@ public class HideSuggestedFeedItemsHook {
                             if (f.get(result) != null) { hasMedia = true; break; }
                         } catch (Throwable ignored) {}
                     } else if (typeName.contains("Threads") || typeName.startsWith("TextApp") || typeName.startsWith("XDTTextApp")) {
-                        // Threads-in-feed cross-promo unit types (ThreadsInFeedUnit...,
-                        // TextApp...UnitDictImpl, XDTTextApp...UnitDictImpl) — matched by
-                        // simple name since these are stable, unobfuscated GraphQL-generated
-                        // class names, unlike the surrounding obfuscated field names.
+                        
+                        
                         try {
                             f.setAccessible(true);
                             if (f.get(result) != null) isThreadsUnit = true;
@@ -54,7 +49,7 @@ public class HideSuggestedFeedItemsHook {
                     }
                 }
 
-                if (hasMedia) return; // real post — never hide
+                if (hasMedia) return; 
 
                 boolean shouldHide = isThreadsUnit ? FeatureFlags.hideThreadsSuggestions
                                                     : FeatureFlags.hideSuggestionsInFeed;
@@ -144,11 +139,7 @@ public class HideSuggestedFeedItemsHook {
         }
     }
 
-    // Mark the feature(s) as hooked as soon as the filter is successfully attached, rather
-    // than waiting for a matching feed item to actually be filtered at runtime. The status
-    // toast is built ~1.5s after the main activity's onCreate — whether a suggestion/Threads
-    // unit has scrolled into the feed by then is essentially random, so gating the status on
-    // that produced a false ❌ even when the hook was installed and working correctly.
+    
     private void markHookedForEnabledFlags() {
         if (FeatureFlags.hideSuggestionsInFeed) FeatureStatusTracker.setHooked("HideSuggestionsInFeed");
         if (FeatureFlags.hideThreadsSuggestions) FeatureStatusTracker.setHooked("HideThreadsSuggestions");

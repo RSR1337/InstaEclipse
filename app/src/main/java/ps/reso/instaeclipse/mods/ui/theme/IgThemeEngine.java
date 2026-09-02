@@ -14,12 +14,7 @@ import ps.reso.instaeclipse.utils.core.CommonUtils;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/**
- * Maps Instagram's theme attrs and color resources to one of {@link IgThemePalette}'s 15 slots
- * by matching on the resource's own NAME (e.g. "igds_color_primary_background"), not its
- * numeric ID or declaring class — Instagram's design-system resource names are stable across
- * versions even though the obfuscated classes referencing them are not.
- */
+
 public final class IgThemeEngine {
 
     private static volatile IgThemePalette activePalette;
@@ -29,6 +24,53 @@ public final class IgThemeEngine {
     private static volatile boolean initialized;
 
     private static final Pattern PRISM_TONE = Pattern.compile("gr[ae]y_(\\d{4})");
+
+    static final String[] CORE_COLOR_NAMES = {
+            "badge_color", "emphasized_action_color", "bottom_sheet_undo_redo_color",
+            "bds_black", "bds_white",
+            "bds_blue_0", "bds_blue_1", "bds_blue_2", "bds_blue_3", "bds_blue_4", "bds_blue_6", "bds_blue_7", "bds_blue_8",
+            "bds_green_5", "bds_green_6", "bds_green_7",
+            "bds_grey_0", "bds_grey_1", "bds_grey_2", "bds_grey_3", "bds_grey_4", "bds_grey_6", "bds_grey_7",
+            "bds_grey_8", "bds_grey_9", "bds_grey_10", "bds_grey_11", "bds_grey_12", "bds_grey_13",
+            "bds_grey_16", "bds_grey_18", "bds_grey_21", "bds_grey_22", "bds_grey_24",
+            "bds_red_5", "bds_red_6", "bds_red_10", "bds_red_11",
+            "igds_primary_background", "igds_secondary_background", "igds_elevated_background",
+            "igds_elevated_highlight_background", "igds_elevated_separator",
+            "igds_primary_text", "igds_primary_text_disabled", "igds_secondary_text",
+            "igds_primary_button", "igds_primary_icon", "igds_secondary_icon",
+            "igds_separator", "igds_stroke", "igds_link", "igds_error_or_destructive", "igds_success",
+            "igds_photo_border", "igds_photo_placeholder", "igds_selected_text_background",
+            "igds_tag_or_toast_background", "igds_context_menu_background_color",
+            "igds_context_menu_item_background_color", "igds_creation_menu_background",
+            "igds_creation_button_destructive", "igds_pill_active_text",
+            "igds_secondary_button_elevated_pressed_panavision",
+            "igds_secondary_media_button_onblack_panavision_updated",
+            "igds_prism_black",
+            "igds_prism_gray_00", "igds_prism_gray_01", "igds_prism_gray_02", "igds_prism_gray_03",
+            "igds_prism_gray_04", "igds_prism_gray_0400", "igds_prism_gray_05", "igds_prism_gray_0500",
+            "igds_prism_gray_06", "igds_prism_gray_06_ax", "igds_prism_gray_07", "igds_prism_gray_0700",
+            "igds_prism_gray_08", "igds_prism_gray_0800", "igds_prism_gray_09", "igds_prism_gray_0900",
+            "igds_prism_gray_10", "igds_prism_gray_1000", "igds_prism_gray_11", "igds_prism_gray_1100",
+            "igds_prism_gray_13", "igds_prism_gray_14", "igds_prism_gray_1500", "igds_prism_gray_1550",
+            "igds_prism_blue_00", "igds_prism_blue_0000", "igds_prism_blue_01", "igds_prism_blue_0100",
+            "igds_prism_blue_02", "igds_prism_blue_03", "igds_prism_blue_04", "igds_prism_blue_0400",
+            "igds_prism_blue_05", "igds_prism_blue_06", "igds_prism_blue_07", "igds_prism_blue_0700",
+            "igds_prism_blue_08", "igds_prism_blue_0800", "igds_prism_blue_1100", "igds_prism_blue_1200",
+            "igds_prism_blue_1300",
+            "igds_prism_indigo_000", "igds_prism_indigo_01", "igds_prism_indigo_0100", "igds_prism_indigo_02",
+            "igds_prism_indigo_0300", "igds_prism_indigo_050", "igds_prism_indigo_06", "igds_prism_indigo_0600",
+            "igds_prism_indigo_07", "igds_prism_indigo_0700", "igds_prism_indigo_08", "igds_prism_indigo_0800",
+            "igds_prism_indigo_0900", "igds_prism_indigo_1000", "igds_prism_indigo_1100", "igds_prism_indigo_1200",
+            "igds_prism_indigo_400", "igds_prism_indigo_borderless_button_link",
+            "igds_prism_primary_borderless_button_indigo", "igds_prism_primary_button_background_indigo",
+            "igds_prism_primary_button_label_indigo", "igds_prism_v2_indigo_borderless_button_link",
+            "igds_prism_v2_primary_borderless_button_indigo",
+            "igds_prism_green_05", "igds_prism_green_06", "igds_prism_green_07",
+            "igds_prism_red_05", "igds_prism_red_06", "igds_prism_red_1000",
+            "igds_prism_tooltip_dark_bg",
+            "igds_prism_secondary_button_background_filled", "igds_prism_secondary_button_label_A",
+            "igds_prism_secondary_borderless_button_label_A"
+    };
 
     private IgThemeEngine() {}
 
@@ -140,121 +182,85 @@ public final class IgThemeEngine {
 
     private static void mapCoreAttrs(SparseIntArray map, Resources res, String pkg) {
         String[] names = {
-                // Core backgrounds & app chrome
                 "igds_color_primary_background", "igds_color_media_background", "igds_color_clips_tab_bar_background",
                 "igds_color_elevated_background", "igds_color_elevated_background_dark", "igds_color_elevated_background_intent_card",
                 "igds_color_elevated_background_prompt_suggestion", "igds_color_highlight_background", "igds_color_highlight_media_background",
-                "igds_color_elevated_highlight_background", "igds_color_elevated_highlight_background_night",
-                "igds_color_secondary_background", "igds_color_secondary_background_on_media", "igds_color_secondary_background_strong",
-                "igds_color_tertiary_background", "igds_color_banner_background", "igds_color_banner_stroke_background",
-                "igds_color_cta_banner_background", "igds_color_notification_background", "igds_color_toast_background",
-                "igds_color_toast_95_alpha_background", "igds_color_tag_or_toast_background", "igds_color_error_background",
-                "igds_color_media_thumbnail_tray_background", "igds_color_stories_loading_background", "igds_color_reels_end_scene_background",
-                "igds_color_prism_card_background", "igds_color_meta_ai_card_background", "igds_color_sticker_background",
-                "igds_color_sticker_subtle_background", "igds_color_stamp_background", "igds_color_reels_afi_button_dark_background",
-                "actionBarBackgroundColor", "tabBarBackgroundColor", "modalActionBarBackground", "directThreadActionBarBackgroundColor",
-                "statusBarBackgroundColor", "sc_card_background_flat", "fbpay_background_color", "permissionBannerBackground",
-                "igdsPrimaryBackground", "status_bar_background", "android:colorBackground", "android:windowBackground",
-                "android:navigationBarColor", "callout_background", "creationTertiaryBackground",
-                "igds_color_form_field_background_default_color", "igds_color_form_field_background_disabled_color",
-                "igds_color_form_field_background_focussed_color", "igds_color_generic_xma_background_color",
+                "igds_color_elevated_highlight_background", "igds_color_elevated_highlight_background_night", "igds_color_secondary_background",
+                "igds_color_secondary_background_on_media", "igds_color_secondary_background_strong", "igds_color_tertiary_background",
+                "igds_color_banner_background", "igds_color_banner_stroke_background", "igds_color_cta_banner_background",
+                "igds_color_notification_background", "igds_color_toast_background", "igds_color_toast_95_alpha_background",
+                "igds_color_tag_or_toast_background", "igds_color_error_background", "igds_color_media_thumbnail_tray_background",
+                "igds_color_stories_loading_background", "igds_color_reels_end_scene_background", "igds_color_prism_card_background",
+                "igds_color_meta_ai_card_background", "igds_color_sticker_background", "igds_color_sticker_subtle_background",
+                "igds_color_stamp_background", "igds_color_reels_afi_button_dark_background", "actionBarBackgroundColor",
+                "tabBarBackgroundColor", "modalActionBarBackground", "directThreadActionBarBackgroundColor",
+                "statusBarBackgroundColor", "sc_card_background_flat", "fbpay_background_color",
+                "permissionBannerBackground", "igdsPrimaryBackground", "status_bar_background",
+                "android:colorBackground", "android:windowBackground", "android:navigationBarColor",
+                "callout_background", "creationTertiaryBackground", "igds_color_form_field_background_default_color",
+                "igds_color_form_field_background_disabled_color", "igds_color_form_field_background_focussed_color", "igds_color_generic_xma_background_color",
                 "igds_composer_background", "igds_search_bar_background", "igds_nav3_background",
                 "igds_bottom_sheet_background", "igds_modal_background", "igds_input_background",
                 "igds_comment_composer_background", "igds_direct_inbox_background", "igds_profile_background",
-                "igdsPrimaryBackground", "colorPrimary", "colorPrimaryDark", "colorSurface",
-                "android:colorBackground", "android:colorPrimary", "android:colorPrimaryDark", "android:colorAccent",
-                "android:navigationBarColor", "android:statusBarColor", "android:colorControlActivated",
-                "android:colorControlNormal", "android:textColorLink", "igds_notes_background",
-                "igds_color_bottom_sheet_background", "igds_color_modal_background", "igds_color_search_background",
-                "igds_color_composer_background", "igds_color_input_background", "igds_color_direct_background",
-                // Pills / chips / badges / reactions
-                "igds_color_pill_background", "igds_color_pill_background_pressed", "igds_color_pill_active_background",
-                "igds_color_pill_active_background_pressed", "igds_color_pill_active_text", "igds_color_pill_active_text_pressed",
-                "igds_color_selected_pill_text", "igds_color_prism_pill_active_background", "igds_color_prism_pill_active_text",
-                "igds_color_prism_chip_background", "igds_color_prism_chip_background_pressed", "igds_color_prism_chip_background_selected",
-                "igds_color_prism_chip_background_stroke", "igds_color_prism_chip_label_disabled",
-                "igds_color_bio_pill_active_background", "igds_color_bio_pill_active_text", "igds_color_bio_pill_text",
-                "igds_color_instream_pill_background", "igds_color_carrera_selected_pill_bg", "igds_color_carrera_selected_pill_bg_pressed",
-                "igds_color_carrera_selected_pill_text", "igds_color_status_pill", "igds_color_status_pill_ripple",
-                "igds_color_clips_reply_bar_pill", "igds_color_attribution_pill_background_fill", "igds_color_attribution_pill_background_stroke",
-                "igds_color_icon_badge", "igds_color_new_badge", "igds_color_list_badge", "igds_color_thumbnail_badge_background",
-                "igds_color_active_badge", "igds_color_active_badge_step_1", "igds_color_active_badge_step_2", "igds_color_active_badge_step_3",
+                "colorPrimary", "colorPrimaryDark", "colorSurface",
+                "android:colorPrimary", "android:colorPrimaryDark", "android:colorAccent",
+                "android:statusBarColor", "android:colorControlActivated", "android:colorControlNormal",
+                "android:textColorLink", "igds_notes_background", "igds_color_bottom_sheet_background",
+                "igds_color_modal_background", "igds_color_search_background", "igds_color_composer_background",
+                "igds_color_input_background", "igds_color_direct_background", "igds_color_comment_composer_background",
+                "igds_color_notes_background", "igds_color_nav3_background", "igds_color_pill_background",
+                "igds_color_pill_background_pressed", "igds_color_pill_active_background", "igds_color_pill_active_background_pressed",
+                "igds_color_pill_active_text", "igds_color_pill_active_text_pressed", "igds_color_selected_pill_text",
+                "igds_color_prism_pill_active_background", "igds_color_prism_pill_active_text", "igds_color_prism_chip_background",
+                "igds_color_prism_chip_background_pressed", "igds_color_prism_chip_background_selected", "igds_color_prism_chip_background_stroke",
+                "igds_color_prism_chip_label_disabled", "igds_color_bio_pill_active_background", "igds_color_bio_pill_active_text",
+                "igds_color_bio_pill_text", "igds_color_instream_pill_background", "igds_color_carrera_selected_pill_bg",
+                "igds_color_carrera_selected_pill_bg_pressed", "igds_color_carrera_selected_pill_text", "igds_color_status_pill",
+                "igds_color_status_pill_ripple", "igds_color_clips_reply_bar_pill", "igds_color_attribution_pill_background_fill",
+                "igds_color_attribution_pill_background_stroke", "igds_color_icon_badge", "igds_color_new_badge",
+                "igds_color_list_badge", "igds_color_thumbnail_badge_background", "igds_color_active_badge",
+                "igds_color_active_badge_step_1", "igds_color_active_badge_step_2", "igds_color_active_badge_step_3",
                 "igds_color_active_badge_step_4", "igds_color_active_badge_step_5", "igds_color_active_badge_step_6",
                 "igds_color_reaction_background", "igds_color_reaction_selected_background", "igds_color_close_friends",
-                // Text
                 "igds_color_primary_text", "igds_color_primary_text_on_media", "igds_color_primary_text_pressed",
                 "igds_color_primary_text_disabled", "igds_color_primary_text_pill_redesign", "igds_color_primary_text_story_pill",
                 "igds_color_primary_text_story_pill_redesign", "igds_color_secondary_text", "igds_color_secondary_text_on_media",
                 "igds_color_secondary_selectable_text", "igds_color_text_on_color", "igds_color_text_on_white",
                 "igds_color_selected_text_background", "igds_color_temporary_highlight", "igds_color_reply_bar_hint_text",
-                "igdsPrimaryText", "glyphColorPrimary", "glyphColorSecondaryActive", "fbpay_primary_text_color",
-                "tabSelectedTextColor", "android:textColorPrimary", "snackbar_text_color", "android:textColorSecondary",
-                "reportSubtitleTextColor", "igds_color_floating_cta_text", "igds_color_clips_up_next_banner_text",
-                // Buttons / accents / links
-                "igds_color_primary_button", "igds_color_primary_button_on_media", "igds_color_primary_button_pressed",
-                "igds_color_primary_button_icon", "igds_color_primary_button_indigo", "igds_color_secondary_button_on_media",
-                "igds_color_secondary_button_background_strong", "igds_color_secondary_button_elevated_panavision",
-                "igds_color_secondary_button_elevated_pressed_panavision", "igds_color_secondary_button_selected_panavision",
+                "igdsPrimaryText", "glyphColorPrimary", "glyphColorSecondaryActive",
+                "fbpay_primary_text_color", "tabSelectedTextColor", "android:textColorPrimary",
+                "snackbar_text_color", "android:textColorSecondary", "reportSubtitleTextColor",
+                "igds_color_floating_cta_text", "igds_color_clips_up_next_banner_text", "igds_color_primary_button",
+                "igds_color_primary_button_on_media", "igds_color_primary_button_pressed", "igds_color_primary_button_icon",
+                "igds_color_primary_button_indigo", "igds_color_secondary_button_on_media", "igds_color_secondary_button_background_strong",
+                "igds_color_secondary_button_elevated_panavision", "igds_color_secondary_button_elevated_pressed_panavision", "igds_color_secondary_button_selected_panavision",
                 "igds_color_data_visualization_primary", "igds_color_data_visualization_secondary", "igds_color_gradient_blue",
-                "colorControlActivated", "igds_color_creation_tools_blue", "fbpay_focus_color", "igds_color_success",
-                "igds_color_stories_progress_bar", "igds_color_feed_seekbar_knob_inner_circle",
-                "igds_color_feed_seekbar_knob_outer_circle_active",
-                // Icons
-                "igds_color_primary_icon", "igds_color_secondary_icon", "igds_color_primary_icon_pill_redesign",
-                "igds_color_primary_icon_story_pill", "igds_color_primary_icon_story_pill_redesign", "igds_color_icon_on_color",
-                "igds_color_icon_on_media", "igds_color_icon_on_white", "igds_color_actionbar_drawable_primary",
-                "igds_color_actionbar_drawable_secondary", "igds_color_clips_tab_bar_icon", "colorControlNormal",
-                "igds_color_form_field_list_icon_color",
-                // Dividers / borders / strokes
-                "igds_color_divider", "igds_color_elevated_separator", "igds_color_separator",
-                "igds_color_separator_or_stroke_on_media", "igds_color_search_typeahead_separator",
-                "igds_color_reels_tab_bar_separator", "igds_color_clips_cta_separator", "igds_color_quick_send_divider_background",
-                "igds_color_border_secondary", "igds_color_border_secondary_background", "igds_color_border_tertiary",
-                "igds_color_stroke", "igds_color_photo_border", "igds_color_inbox_filter_chip_outline",
-                // Status / nav chrome & links
-                "android:statusBarColor", "igds_color_drawer_status_bar_background", "igds_color_transparent_navigation_bar",
-                "igds_color_text_link", "igds_color_link", "igds_color_link_on_color", "igds_color_link_on_media",
-                "igds_color_link_on_white", "android:textColorLink", "igds_color_action_cell_emphasized_text",
-                "fbpay_link_text_color", "igds_color_error_or_destructive",
-                "nav3_dark_active_tab_bar_icon", "nav3_inactive_tab_bar_icon", "igds_color_prism_indigo_accent"
+                "colorControlActivated", "igds_color_creation_tools_blue", "fbpay_focus_color",
+                "igds_color_success", "igds_color_stories_progress_bar", "igds_color_feed_seekbar_knob_inner_circle",
+                "igds_color_feed_seekbar_knob_outer_circle_active", "igds_color_primary_icon", "igds_color_secondary_icon",
+                "igds_color_primary_icon_pill_redesign", "igds_color_primary_icon_story_pill", "igds_color_primary_icon_story_pill_redesign",
+                "igds_color_icon_on_color", "igds_color_icon_on_media", "igds_color_icon_on_white",
+                "igds_color_actionbar_drawable_primary", "igds_color_actionbar_drawable_secondary", "igds_color_clips_tab_bar_icon",
+                "colorControlNormal", "igds_color_form_field_list_icon_color", "igds_color_divider",
+                "igds_color_elevated_separator", "igds_color_separator", "igds_color_separator_or_stroke_on_media",
+                "igds_color_search_typeahead_separator", "igds_color_reels_tab_bar_separator", "igds_color_clips_cta_separator",
+                "igds_color_quick_send_divider_background", "igds_color_border_secondary", "igds_color_border_secondary_background",
+                "igds_color_border_tertiary", "igds_color_stroke", "igds_color_photo_border",
+                "igds_color_inbox_filter_chip_outline", "igds_color_drawer_status_bar_background", "igds_color_transparent_navigation_bar",
+                "igds_color_text_link", "igds_color_link", "igds_color_link_on_color",
+                "igds_color_link_on_media", "igds_color_link_on_white", "igds_color_action_cell_emphasized_text",
+                "fbpay_link_text_color", "igds_color_error_or_destructive", "nav3_dark_active_tab_bar_icon",
+                "nav3_inactive_tab_bar_icon", "igds_color_prism_indigo_accent"
         };
         for (String name : names) mapAttrByName(map, res, pkg, name);
     }
 
     private static void mapCoreColors(SparseIntArray map, Resources res, String pkg) {
-        String[] names = {"bds_black", "igds_prism_black", "bds_white", "igds_prism_gray_00", "bds_grey_0", "bds_grey_1",
-                "bds_grey_2", "bds_grey_3", "bds_grey_4", "bds_grey_6", "bds_grey_7", "bds_grey_8", "bds_grey_9", "bds_grey_10",
-                "bds_grey_11", "bds_grey_12", "bds_grey_16", "bds_grey_18", "bds_grey_21", "bds_grey_22", "bds_grey_24",
-                "igds_prism_gray_08", "igds_prism_gray_10",                 "igds_prism_gray_0000", "igds_prism_gray_0100", "igds_prism_gray_0200", "igds_prism_gray_0300",
-                "igds_prism_gray_0400", "igds_prism_gray_0500", "igds_prism_gray_0600", "igds_prism_gray_0700",
-                "igds_prism_gray_0800", "igds_prism_gray_0900", "igds_prism_gray_1000", "igds_prism_gray_1100",
-                "igds_prism_gray_1200", "igds_prism_gray_1300", "igds_prism_gray_1400", "igds_prism_gray_1500",
-                "igds_prism_gray_1600",
-                "emphasized_action_color", "badge_color", "igds_prism_indigo_1000",
-                "bds_blue_1", "bds_blue_2", "bds_red_5", "bds_red_6", "igds_primary_background", "bottom_sheet_undo_redo_color",
-                // Instagram 444+ semantic colors (resources renamed igds_color_* → igds_*)
-                "igds_primary_text", "igds_primary_text_disabled", "igds_secondary_text", "igds_secondary_background",
-                "igds_primary_button", "igds_primary_icon", "igds_secondary_icon", "igds_separator", "igds_stroke",
-                "igds_link", "igds_error_or_destructive", "igds_elevated_background", "igds_elevated_separator",
-                "igds_elevated_highlight_background", "igds_photo_border", "igds_photo_placeholder", "igds_selected_text_background",
-                "igds_tag_or_toast_background", "igds_context_menu_background_color", "igds_context_menu_item_background_color",
-                "igds_creation_menu_background", "igds_creation_button_destructive", "igds_icon_on_color", "igds_link_on_color",
-                "igds_pill_active_text", "igds_success", "igds_secondary_button_on_media",
-                "igds_secondary_button_elevated_pressed_panavision", "igds_secondary_media_button_onblack_panavision_updated",
-                "igds_composer_background", "igds_search_bar_background", "igds_nav3_background",
-                "igds_bottom_sheet_background", "igds_modal_background", "igds_input_background",
-                "igds_comment_composer_background", "igds_direct_inbox_background", "igds_notes_background",
-                "igds_prism_indigo_900", "igds_prism_indigo_1100", "igds_link_on_media"};
-        for (String name : names) mapColorByName(map, res, pkg, name);
         String[] packages = {pkg, CommonUtils.IG_PACKAGE_NAME};
         for (String p : packages) {
             if (p == null || p.isEmpty()) continue;
-            for (String name : names) {
-                int id = res.getIdentifier(name, "color", p);
-                if (id != 0) {
-                    int slot = slotForColorName(name);
-                    if (slot >= 0) map.put(id, slot);
-                }
+            for (String name : CORE_COLOR_NAMES) {
+                mapColorByName(map, res, p, name);
             }
         }
     }

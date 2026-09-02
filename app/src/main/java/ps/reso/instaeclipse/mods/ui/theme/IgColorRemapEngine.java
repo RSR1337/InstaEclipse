@@ -5,23 +5,19 @@ import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.util.SparseIntArray;
 import android.view.View;
+import android.view.ViewGroup;
 
 import androidx.core.view.ViewCompat;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/**
- * Two-tier color substitution: an exact/RGB lookup table built from every color the palette
- * actually touches, plus a luminance/hue "fuzzy" classifier for any color that slips through
- * (so arbitrary colors baked into Instagram's own drawables/bitmaps still land on a roughly
- * plausible slot instead of staying unthemed).
- */
 public final class IgColorRemapEngine {
 
     private static final ThreadLocal<Integer> BYPASS_DEPTH = ThreadLocal.withInitial(() -> 0);
@@ -29,11 +25,34 @@ public final class IgColorRemapEngine {
     private static final int CACHE_MISS = Integer.MIN_VALUE;
     private static final int FUZZY_CACHE_LIMIT = 1024;
 
+    static final String[] COMPOSE_PALETTE_CLASSES = {
+            "com.instagram.compose.core.theme.BaseColors",
+            "com.instagram.compose.core.theme.BasePrismColors",
+            "com.instagram.compose.core.theme.BasePrismColorsV2"
+    };
+
     private static volatile boolean built;
     private static volatile SparseIntArray exactTable;
     private static volatile SparseIntArray rgbTable;
     private static volatile SparseIntArray fuzzyCache;
+    private static volatile SparseIntArray moduleProtectedRgb;
     private static volatile int moduleUiDepth;
+    private static final Map<Field, Long> composeFieldOriginals = new LinkedHashMap<>();
+    private static volatile boolean composeFieldsApplied;
+
+    public static void registerModuleUiColors(int... colors) {
+        if (colors == null || colors.length == 0) return;
+        SparseIntArray map = new SparseIntArray(colors.length + 8);
+        for (int color : colors) {
+            map.put(color & 0x00FFFFFF, 1);
+        }
+        moduleProtectedRgb = map;
+    }
+
+    private static boolean isModuleUiColor(int color) {
+        SparseIntArray map = moduleProtectedRgb;
+        return map != null && map.get(color & 0x00FFFFFF, 0) == 1;
+    }
 
     private static volatile int fuzzyBg, fuzzySurface, fuzzyPrimary, fuzzySecondary, fuzzyButton, fuzzyLink, fuzzyDestructive;
     private static volatile boolean fuzzyDarkTheme;
@@ -42,10 +61,6 @@ public final class IgColorRemapEngine {
 
     public static boolean isBypassing() {
         return BYPASS_DEPTH.get() > 0 || moduleUiDepth > 0;
-    }
-
-    public static int getModuleUiDepth() {
-        return moduleUiDepth;
     }
 
     public static boolean shouldSkipRemap(Object hookTarget) {
@@ -65,6 +80,17 @@ public final class IgColorRemapEngine {
 
     public static void markModuleDialogView(View view) {
         if (view != null) view.setTag(R.id.tag_module_dialog_root, Boolean.TRUE);
+    }
+
+    public static void markModuleTree(View root) {
+        if (root == null) return;
+        markModuleDialogView(root);
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                markModuleTree(group.getChildAt(i));
+            }
+        }
     }
 
     private static View parentView(View view) {
@@ -111,10 +137,13 @@ public final class IgColorRemapEngine {
     }
 
     public static void invalidate() {
-        built = false;
-        exactTable = null;
-        rgbTable = null;
-        fuzzyCache = null;
+        synchronized (IgColorRemapEngine.class) {
+            restoreComposePaletteFields();
+            built = false;
+            exactTable = null;
+            rgbTable = null;
+            fuzzyCache = null;
+        }
     }
 
     public static boolean isReady() {
@@ -125,10 +154,13 @@ public final class IgColorRemapEngine {
         if (built || context == null || !IgThemeEngine.isActive()) return;
         synchronized (IgColorRemapEngine.class) {
             if (built) return;
+            restoreComposePaletteFields();
             buildTable(context);
+            applyComposePaletteFields(context.getClassLoader());
             built = true;
             int size = (rgbTable != null ? rgbTable.size() : 0) + (exactTable != null ? exactTable.size() : 0);
-            ModuleLog.line("(InstaEclipse | Theme): color remap table size=" + size);
+            ModuleLog.line("(InstaEclipse | Theme): color remap table size=" + size
+                    + " composeFields=" + composeFieldOriginals.size());
         }
     }
 
@@ -192,16 +224,6 @@ public final class IgColorRemapEngine {
         }
         if (result == CACHE_MISS) return color;
         return result;
-    }
-
-    public static long remapComposePackedExact(long packed) {
-        if (!IgThemeEngine.isActive() || isBypassing() || packed == 0L) return packed;
-        if ((packed & 63L) != 0L) return packed;
-        int argb = (int) (packed >>> 32);
-        if (argb == 0) return packed;
-        int remapped = remapExact(argb);
-        if (remapped == argb) return packed;
-        return (((long) remapped) << 32) | (packed & 0xFFFFFFFFL);
     }
 
     public static long remapComposePacked(long packed) {
@@ -380,6 +402,7 @@ public final class IgColorRemapEngine {
     }
 
     public static boolean isPaletteColor(int color) {
+        if (isModuleUiColor(color)) return true;
         IgThemePalette palette = IgThemeEngine.getActivePalette();
         if (palette == null) return false;
         int rgb = color & 0x00FFFFFF;
@@ -468,21 +491,14 @@ public final class IgColorRemapEngine {
 
     private static void mapComposePalettes(SparseIntArray exact, SparseIntArray rgb, ClassLoader cl, IgThemePalette palette) {
         if (cl == null) return;
-        String[] classes = {
-                "com.instagram.compose.core.theme.BaseColors",
-                "com.instagram.compose.core.theme.BasePrismColors",
-                "com.instagram.compose.core.theme.BasePrismColorsV2",
-                "com.instagram.compose.core.theme.SemanticColors",
-                "com.instagram.compose.core.theme.InstagramColors",
-                "com.instagram.compose.core.ui.theme.Theme"
-        };
-        for (String className : classes) {
+        for (String className : COMPOSE_PALETTE_CLASSES) {
             try {
                 Class<?> cls = cl.loadClass(className);
                 for (Field field : cls.getDeclaredFields()) {
                     if (field.getType() != long.class || (field.getModifiers() & Modifier.STATIC) == 0) continue;
                     try {
-                        long packed = field.getLong(null);
+                        field.setAccessible(true);
+                        long packed = readComposeField(field);
                         int original = (int) (packed >>> 32);
                         if (original == 0) continue;
                         int slot = IgThemeEngine.slotForColorName(field.getName());
@@ -491,6 +507,92 @@ public final class IgColorRemapEngine {
                     } catch (Throwable ignored) {}
                 }
             } catch (Throwable ignored) {}
+        }
+    }
+
+    private static long readComposeField(Field field) throws IllegalAccessException {
+        Long saved = composeFieldOriginals.get(field);
+        if (saved != null) return saved;
+        return field.getLong(null);
+    }
+
+    private static void applyComposePaletteFields(ClassLoader cl) {
+        if (cl == null || composeFieldsApplied) return;
+        int applied = 0;
+        for (String className : COMPOSE_PALETTE_CLASSES) {
+            try {
+                Class<?> cls = cl.loadClass(className);
+                for (Field field : cls.getDeclaredFields()) {
+                    if (field.getType() != long.class || (field.getModifiers() & Modifier.STATIC) == 0) continue;
+                    try {
+                        field.setAccessible(true);
+                        clearFinal(field);
+                        long original = field.getLong(null);
+                        if (!composeFieldOriginals.containsKey(field)) {
+                            composeFieldOriginals.put(field, original);
+                        } else {
+                            original = composeFieldOriginals.get(field);
+                        }
+                        long remapped = remapComposePackedForField(original);
+                        if (remapped != original) {
+                            field.setLong(null, remapped);
+                            applied++;
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            } catch (Throwable ignored) {}
+        }
+        composeFieldsApplied = true;
+        if (applied > 0) {
+            ModuleLog.line("(InstaEclipse | Theme): Compose palette fields rewritten=" + applied);
+        }
+    }
+
+    private static long remapComposePackedForField(long packed) {
+        if (packed == 0L) return packed;
+        if ((packed & 63L) != 0L) return packed;
+        int argb = (int) (packed >>> 32);
+        if (argb == 0) return packed;
+        int remapped = remapExact(argb);
+        if (remapped == argb) {
+            remapped = remapFuzzy(argb);
+        }
+        if (remapped == argb) return packed;
+        return (((long) remapped) << 32) | (packed & 0xFFFFFFFFL);
+    }
+
+    private static void restoreComposePaletteFields() {
+        if (composeFieldOriginals.isEmpty()) {
+            composeFieldsApplied = false;
+            return;
+        }
+        int restored = 0;
+        for (Map.Entry<Field, Long> entry : composeFieldOriginals.entrySet()) {
+            try {
+                Field field = entry.getKey();
+                field.setAccessible(true);
+                clearFinal(field);
+                field.setLong(null, entry.getValue());
+                restored++;
+            } catch (Throwable ignored) {}
+        }
+        composeFieldsApplied = false;
+        if (restored > 0) {
+            ModuleLog.line("(InstaEclipse | Theme): Compose palette fields restored=" + restored);
+        }
+    }
+
+    private static void clearFinal(Field field) {
+        try {
+            Field accessFlags = Field.class.getDeclaredField("accessFlags");
+            accessFlags.setAccessible(true);
+            accessFlags.setInt(field, field.getModifiers() & ~Modifier.FINAL);
+        } catch (Throwable ignored) {
+            try {
+                Field modifiers = Field.class.getDeclaredField("modifiers");
+                modifiers.setAccessible(true);
+                modifiers.setInt(field, field.getModifiers() & ~Modifier.FINAL);
+            } catch (Throwable ignored2) {}
         }
     }
 
@@ -505,7 +607,9 @@ public final class IgColorRemapEngine {
         put(exact, rgb, -15461356, palette.surface);
         put(exact, rgb, -14605528, palette.surface);
         put(exact, rgb, -13486786, palette.surface);
+        put(exact, rgb, -14341842, palette.surface);
         put(exact, rgb, -657931, palette.primaryText);
+        put(exact, rgb, -460295, palette.primaryText);
         put(exact, rgb, -1052689, palette.secondaryText);
         put(exact, rgb, -2368549, palette.secondaryText);
         put(exact, rgb, -3684409, palette.secondaryText);
@@ -513,16 +617,25 @@ public final class IgColorRemapEngine {
         put(exact, rgb, -9211021, palette.secondaryText);
         put(exact, rgb, -11184811, palette.secondaryText);
         put(exact, rgb, -4407100, palette.secondaryText);
+        put(exact, rgb, -6116684, palette.secondaryText);
+        put(exact, rgb, -8156781, palette.secondaryText);
+        put(exact, rgb, -9472384, palette.secondaryText);
+        put(exact, rgb, -10591123, palette.secondaryText);
         put(exact, rgb, -1, palette.primaryText);
         put(exact, rgb, -16738826, palette.button);
         put(exact, rgb, -15173646, palette.button);
         put(exact, rgb, -11903495, palette.button);
         put(exact, rgb, -1226410, palette.destructive);
         put(exact, rgb, -53184, palette.destructive);
+        put(exact, rgb, -123593, palette.destructive);
+        put(exact, rgb, -1834739, palette.destructive);
+        put(exact, rgb, -2415052, palette.destructive);
         put(exact, rgb, -217321, palette.accent);
         put(exact, rgb, -14934750, palette.surface);
         put(exact, rgb, -14471112, palette.surface);
         put(exact, rgb, -1312770, palette.surface);
+        put(exact, rgb, -1446416, palette.surface);
+        put(exact, rgb, -2367516, palette.secondaryText);
         put(exact, rgb, -789001, palette.background);
         put(exact, rgb, -328966, palette.primaryText);
         put(exact, rgb, -2039584, palette.secondaryText);
@@ -550,34 +663,11 @@ public final class IgColorRemapEngine {
         put(exact, rgb, -7434610, palette.secondaryText);
         put(exact, rgb, -6710887, palette.secondaryText);
         put(exact, rgb, -13882324, palette.secondaryText);
-        put(exact, rgb, -2415052, palette.destructive);
         put(exact, rgb, -14888625, palette.accent);
     }
 
     private static void mapResourceNames(SparseIntArray exact, SparseIntArray rgb, Resources res, String pkg, IgThemePalette palette) {
-        String[] colorNames = {"bds_black", "igds_prism_black", "bds_white", "igds_prism_gray_00", "bds_grey_0", "bds_grey_1",
-                "bds_grey_2", "bds_grey_3", "bds_grey_4", "bds_grey_6", "bds_grey_7", "bds_grey_8", "bds_grey_9", "bds_grey_10",
-                "bds_grey_11", "bds_grey_12", "bds_grey_16", "bds_grey_18", "bds_grey_21", "bds_grey_22", "bds_grey_24",
-                "igds_prism_gray_08", "igds_prism_gray_10",                 "igds_prism_gray_0000", "igds_prism_gray_0100", "igds_prism_gray_0200", "igds_prism_gray_0300",
-                "igds_prism_gray_0400", "igds_prism_gray_0500", "igds_prism_gray_0600", "igds_prism_gray_0700",
-                "igds_prism_gray_0800", "igds_prism_gray_0900", "igds_prism_gray_1000", "igds_prism_gray_1100",
-                "igds_prism_gray_1200", "igds_prism_gray_1300", "igds_prism_gray_1400", "igds_prism_gray_1500",
-                "igds_prism_gray_1600",
-                "emphasized_action_color", "badge_color", "igds_prism_indigo_1000",
-                "bds_blue_1", "bds_blue_2", "bds_red_5", "bds_red_6", "igds_primary_background", "bottom_sheet_undo_redo_color",
-                // Instagram 444+ semantic colors (resources renamed igds_color_* → igds_*)
-                "igds_primary_text", "igds_primary_text_disabled", "igds_secondary_text", "igds_secondary_background",
-                "igds_primary_button", "igds_primary_icon", "igds_secondary_icon", "igds_separator", "igds_stroke",
-                "igds_link", "igds_error_or_destructive", "igds_elevated_background", "igds_elevated_separator",
-                "igds_elevated_highlight_background", "igds_photo_border", "igds_photo_placeholder", "igds_selected_text_background",
-                "igds_tag_or_toast_background", "igds_context_menu_background_color", "igds_context_menu_item_background_color",
-                "igds_creation_menu_background", "igds_creation_button_destructive", "igds_icon_on_color", "igds_link_on_color",
-                "igds_pill_active_text", "igds_success", "igds_secondary_button_on_media",
-                "igds_secondary_button_elevated_pressed_panavision", "igds_secondary_media_button_onblack_panavision_updated",
-                "igds_composer_background", "igds_search_bar_background", "igds_nav3_background",
-                "igds_bottom_sheet_background", "igds_modal_background", "igds_input_background",
-                "igds_comment_composer_background", "igds_direct_inbox_background", "igds_notes_background"};
-        for (String name : colorNames) {
+        for (String name : IgThemeEngine.CORE_COLOR_NAMES) {
             int id = res.getIdentifier(name, "color", pkg);
             if (id == 0) continue;
             int slot = IgThemeEngine.slotForColorName(name);

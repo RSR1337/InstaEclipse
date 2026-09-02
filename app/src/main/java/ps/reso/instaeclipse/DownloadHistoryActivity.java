@@ -33,10 +33,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import ps.reso.instaeclipse.utils.core.CommonUtils;
 
-/**
- * Shows the download history recorded by the hooked Instagram process, fetched via a
- * request/reply broadcast — mirrors LoggingFragment's IPC pattern for the log viewer.
- */
 public class DownloadHistoryActivity extends AppCompatActivity {
 
     private static final long REPLY_TIMEOUT_MS = 3500;
@@ -209,8 +205,6 @@ public class DownloadHistoryActivity extends AppCompatActivity {
         recycler.setVisibility(View.VISIBLE);
         adapter.setRows(rows);
     }
-
-    // ── List adapter ─────────────────────────────────────────────────────────
 
     private static final class HistoryRow {
         final String type, username, filename, time;

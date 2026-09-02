@@ -16,24 +16,6 @@ import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/**
- * Forces reel/video playback to a specific quality by hooking LiveTreeMediaDict's
- * video_versions getter and collapsing the list of available qualities down to whichever
- * one best matches the desired height — Instagram's player has no other choice left once
- * only one option remains.
- *
- * An earlier attempt at this feature rewrote raw Tigon network response bytes mid-stream,
- * but never actually fed the rewritten bytes back into what Instagram parses (the mutated
- * JSON was built and then only logged, never applied) — so it silently did nothing. This
- * version instead manipulates Instagram's own already-parsed model object, the same
- * approach HideSuggestedFeedItemsHook already uses successfully elsewhere in this codebase.
- *
- * The per-item height field is found without depending on any obfuscated name at all: the
- * concrete video-version class's height accessor calls Pando's getOptionalIntValueByHashCode
- * with a hardcoded hash constant that is simply Java's standard String.hashCode() of the
- * literal string "height" — a value fixed by the JDK spec, not by Instagram's build, so it's
- * computed locally and matched via DexKit rather than guessed from a stale reference.
- */
 public class ForceReelQualityHook {
 
     private static final String DICT_CLASS = "com.instagram.feed.media.LiveTreeMediaDict";
@@ -92,9 +74,6 @@ public class ForceReelQualityHook {
                 }
             });
 
-            // Mark hooked as soon as the hook is successfully attached, not only once a reel
-            // with multiple qualities is actually intercepted — the status toast is built
-            // ~1.5s after launch, before any video is guaranteed to have loaded yet.
             FeatureStatusTracker.setHooked("ForceReelQuality");
             ModuleLog.line("(InstaEclipse | ForceReelQuality): ✅ Hooked " + DICT_CLASS
                     + " (height=" + heightGetterName + ")");

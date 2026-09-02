@@ -1,11 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Theme.InstaEclipse" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
+    <style name="Theme.InstaEclipse" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:statusBarColor">?attr/colorSurface</item>
         <item name="android:windowLightStatusBar" tools:targetApi="23">true</item>
         <item name="android:navigationBarColor">?attr/colorSurfaceContainer</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
 
-        <item name="colorPrimary">@color/accent_blue</item>
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/inter</item>
+
+        <item name="colorPrimary">@color/corona_amber</item>
+        <item name="colorOnPrimary">@color/corona_amber_on</item>
         <item name="colorSecondary">@color/gray</item>
+        <item name="colorError">@color/error_red</item>
+
+        <item name="android:colorBackground">@color/surface_0_light</item>
+        <item name="colorSurface">@color/surface_0_light</item>
+        <item name="colorSurfaceContainerLowest">@color/surface_0_light</item>
+        <item name="colorSurfaceContainerLow">@color/surface_1_light</item>
+        <item name="colorSurfaceContainer">@color/surface_2_light</item>
+        <item name="colorSurfaceContainerHigh">@color/surface_3_light</item>
+        <item name="colorSurfaceContainerHighest">@color/surface_4_light</item>
+        <item name="colorOnSurface">@color/text_primary_light</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary_light</item>
+        <item name="colorOutline">@color/outline_light</item>
+        <item name="colorOutlineVariant">@color/outline_variant_light</item>
     </style>
 </resources>

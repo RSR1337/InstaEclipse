@@ -12,10 +12,8 @@ import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.Toast;
 
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
 import ps.reso.instaeclipse.R;
+import ps.reso.instaeclipse.utils.core.ViewAttachDispatcher;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.i18n.I18n;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
@@ -29,32 +27,24 @@ public class GhostDMMarkAsReadHook {
         this.moduleSourceDir = moduleSourceDir;
     }
 
-    // Cached once on first use — resource IDs are constant for a given app install.
     private static volatile int sCachedContainerId = 0;
 
     public void install(ClassLoader classLoader) {
         try {
-            XposedHelpers.findAndHookMethod(View.class, "onAttachedToWindow", new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) {
-                    // Bail immediately if the feature is off — this hook fires for every
-                    // view attachment in the entire app, so the fast path must be trivial.
-                    if (!FeatureFlags.isGhostSeen) return;
+            ViewAttachDispatcher.add(view -> {
+                if (!FeatureFlags.isGhostSeen) return;
 
-                    View view = (View) param.thisObject;
-
-                    if (sCachedContainerId == 0) {
-                        @SuppressLint("DiscouragedApi")
-                        int id = view.getContext().getResources().getIdentifier(
-                                "row_thread_composer_buttons_container", "id",
-                                view.getContext().getPackageName());
-                        sCachedContainerId = id;
-                    }
-
-                    if (sCachedContainerId == 0 || view.getId() != sCachedContainerId) return;
-                    if (!(view.getParent() instanceof ViewGroup parent)) return;
-                    injectIndependentButton(parent, view);
+                if (sCachedContainerId == 0) {
+                    @SuppressLint("DiscouragedApi")
+                    int id = view.getContext().getResources().getIdentifier(
+                            "row_thread_composer_buttons_container", "id",
+                            view.getContext().getPackageName());
+                    sCachedContainerId = id;
                 }
+
+                if (sCachedContainerId == 0 || view.getId() != sCachedContainerId) return;
+                if (!(view.getParent() instanceof ViewGroup parent)) return;
+                injectIndependentButton(parent, view);
             });
         } catch (Throwable t) {
             ModuleLog.line("(InstaEclipse): Ghost hook failed: " + t.getMessage());
@@ -80,10 +70,8 @@ public class GhostDMMarkAsReadHook {
 
         int size = dp(ctx, 35);
 
-        // We use FrameLayout params because most Instagram composer parents are FrameLayouts
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(size, size);
 
-        // POSITION: Left side, slightly elevated so it doesn't block the text input or mic
         lp.gravity = Gravity.CENTER_VERTICAL | Gravity.START;
         lp.setMargins(dp(ctx, 5), 25, 0, 0);
 
@@ -105,8 +93,7 @@ public class GhostDMMarkAsReadHook {
             View messageList = root.findViewById(messageListId);
 
             if (messageList instanceof ViewGroup group) {
-                // scrollBy with a large value is capped synchronously by RecyclerView's
-                // LayoutManager to the actual bottom
+
                 group.scrollBy(0, 100_000);
 
                 FeatureFlags.isGhostSeen = false;

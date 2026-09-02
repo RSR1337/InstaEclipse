@@ -39,7 +39,7 @@ public class GhostStorySeenHook {
         }
 
         try {
-            // Step 1: Find methods containing the string "media/seen/"
+
             List<MethodData> methods = bridge.findMethod(FindMethod.create()
                     .matcher(MethodMatcher.create().usingStrings("media/seen/")));
 
@@ -56,12 +56,11 @@ public class GhostStorySeenHook {
                 try {
                     reflectMethod = method.getMethodInstance(Module.hostClassLoader);
                 } catch (Throwable e) {
-                    continue; // Skip if cannot reflect
+                    continue;
                 }
 
                 int modifiers = reflectMethod.getModifiers();
 
-                // Match: final void method with no params
                 if (Modifier.isFinal(modifiers) &&
                         returnType.contains("void") &&
                         paramTypes.size() <= 1) {

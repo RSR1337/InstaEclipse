@@ -9,14 +9,11 @@ public class VersionCheck {
         update_url = updateUrl;
     }
 
-    // Getter for the latest version
     public String getLatestVersion() {
         return latest_version;
     }
 
-    // Getter for the update URL
     public String getUpdateUrl() {
         return update_url;
     }
 }
-

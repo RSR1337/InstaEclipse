@@ -51,7 +51,6 @@ public class ReelDownloadHook {
             liveTreeMediaDictClass = classLoader.loadClass("com.instagram.feed.media.LiveTreeMediaDict");
         } catch (Throwable ignored) {}
 
-        installNativeDownloadGateUnlock(bridge, classLoader);
         installStringDownloadGates(bridge, classLoader);
         installReduceOptionsListPatch(bridge, classLoader);
         installControllerHook(bridge, classLoader);
@@ -365,18 +364,6 @@ public class ReelDownloadHook {
         return new ArrayList<>(found);
     }
 
-    private static void installNativeDownloadGateUnlock(DexKitBridge bridge, ClassLoader classLoader) {
-        installGateHook(bridge, classLoader, "ReelDownloadGate_eligible",
-                36313978552585585L,
-                "com.instagram.common.session.UserSession", "com.instagram.feed.media.Media",
-                true);
-
-        installGateHook(bridge, classLoader, "ReelDownloadGate_restricted",
-                36313978552847731L,
-                "com.instagram.common.session.UserSession", "boolean",
-                false);
-    }
-
     private static void installStringDownloadGates(DexKitBridge bridge, ClassLoader classLoader) {
         XC_MethodHook forceTrue = new XC_MethodHook() {
             @Override
@@ -436,60 +423,6 @@ public class ReelDownloadHook {
             if (isMediaLike(p)) hasMedia = true;
         }
         return hasSession || hasMedia;
-    }
-
-    private static void installGateHook(DexKitBridge bridge, ClassLoader classLoader,
-                                         String cacheKey, long configId,
-                                         String param1Type, String param2Type,
-                                         boolean forcedResult) {
-        XC_MethodHook hook = new XC_MethodHook() {
-            @Override
-            protected void beforeHookedMethod(MethodHookParam param) {
-                if (FeatureFlags.enableReelDownload) param.setResult(forcedResult);
-            }
-        };
-
-        if (DexKitCache.isCacheValid()) {
-            Method cached = DexKitCache.loadMethod(cacheKey, classLoader);
-            if (cached != null) {
-                XposedBridge.hookMethod(cached, hook);
-                ModuleLog.line("(IE|Reel) ✅ Gate unlocked (cached): " +
-                        cached.getDeclaringClass().getName() + "." + cached.getName() + " -> " + forcedResult);
-                return;
-            }
-        }
-
-        try {
-            List<MethodData> methods = bridge.findMethod(FindMethod.create()
-                    .matcher(MethodMatcher.create()
-                            .paramTypes(param1Type, param2Type)
-                            .returnType("boolean")
-                            .usingNumbers(configId)));
-
-            if (methods.isEmpty()) {
-                methods = bridge.findMethod(FindMethod.create()
-                        .matcher(MethodMatcher.create()
-                                .paramTypes(param1Type, param2Type)
-                                .returnType("boolean")
-                                .usingNumbers(List.of(configId))));
-            }
-
-            if (methods.isEmpty()) {
-                ModuleLog.line("(IE|Reel) ⚠️ Gate method not found for config " + configId);
-                return;
-            }
-
-            Method target = methods.get(0).getMethodInstance(classLoader);
-            target.setAccessible(true);
-            XposedBridge.hookMethod(target, hook);
-            DexKitCache.saveMethod(cacheKey, target);
-            FeatureStatusTracker.setHooked("ReelDownload");
-            ModuleLog.line("(IE|Reel) ✅ Gate unlocked: " +
-                    target.getDeclaringClass().getName() + "." + target.getName() + " -> " + forcedResult);
-
-        } catch (Throwable t) {
-            ModuleLog.line("(IE|Reel) ❌ installGateHook(" + cacheKey + "): " + t);
-        }
     }
 
     private static int findReelCarouselIndex(Object controller) {

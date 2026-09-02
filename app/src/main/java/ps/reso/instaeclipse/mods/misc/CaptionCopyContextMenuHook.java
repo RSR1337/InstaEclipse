@@ -38,10 +38,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Set;
-import java.util.WeakHashMap;
+import java.util.Map;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -54,25 +53,10 @@ import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.i18n.I18n;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/**
- * Injects a "Copy Caption" entry into the feed-post three-dots (⋮) menu, reusing the same
- * row-injection mechanism as the Download feature (Instagram has no native "copy caption"
- * MediaOption$Option, so we repurpose one of its employee/internal-only debug options as the
- * carrier — those are permanently filtered out for regular users by Instagram's own code, so
- * there's no risk of colliding with real native behavior).
- *
- * Caption text extraction: Media -> LiveTreeMediaDict (found by type) -> caption object
- * (LiveTreeMediaDict's zero-arg method guarded by the "caption" string) -> longest plausible
- * String returned by any of the caption object's own zero-arg getters (same heuristic
- * CommentCopyHook uses for comment text, adapted to methods since the caption object is an
- * interface-typed reference with no directly-scannable fields).
- */
 public class CaptionCopyContextMenuHook {
 
-    // ── Resolved at install time ──────────────────────────────────────────────
-
     private static Class<?> mediaOptionEnumClass;
-    private static Object   copyCaptionOptionValue; // repurposed employee-only-gated option
+    private static Object   copyCaptionOptionValue;
 
     private static Class<?> menuCreatorClass;
     private static Method   addButtonMethod;
@@ -84,31 +68,24 @@ public class CaptionCopyContextMenuHook {
     private static int idxText   = 3;
     private static int idxList   = 4;
 
-    private static Method captionGetter; // LiveTreeMediaDict -> caption object
-
-    // ── Guards ────────────────────────────────────────────────────────────────
+    private static Method captionGetter;
 
     private static final ThreadLocal<Boolean> sAddingCaptionRow =
             ThreadLocal.withInitial(() -> Boolean.FALSE);
 
-    private static final Set<Object> processedCreators =
-            Collections.newSetFromMap(new WeakHashMap<>());
+    private static final int PROCESSED_LIMIT = 32;
+    private static final Map<Object, Boolean> processedCreators = new IdentityHashMap<>();
 
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static volatile Activity currentActivity = null;
 
-    // Candidates that are gated behind Instagram's own employee/internal-build check
-    // (LX/EpO;->A00 denylist, discovered while fixing the post-download allowlist) — never
-    // shown to regular users natively, so safe to repurpose as our carrier.
     private static final String[] CARRIER_CANDIDATES = {
             "DEBUG_MEDIA", "CONTENT_DEEP_DIVE", "DEBUG_BASEL_MEDIA_INFO",
             "DEBUG_MEDIA_ON_DEVICE_CBR", "PROMOTE_DEBUG"
     };
 
-    // ── Entry point ──────────────────────────────────────────────────────────
-
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
-        // Track current Activity for showing the copy dialog
+
         try {
             installActivityTracker();
         } catch (Throwable ignored) {}
@@ -140,8 +117,6 @@ public class CaptionCopyContextMenuHook {
         });
     }
 
-    // ── Step 1: MediaOption$Option carrier value ────────────────────────────
-
     private static void loadMediaOptionEnum(ClassLoader cl) {
         try {
             mediaOptionEnumClass = cl.loadClass(
@@ -162,8 +137,6 @@ public class CaptionCopyContextMenuHook {
             ModuleLog.line("(IE|Caption) ❌ loadMediaOptionEnum: " + t);
         }
     }
-
-    // ── Step 2: caption getter (LiveTreeMediaDict -> caption object) ────────
 
     private static void resolveCaptionGetter(DexKitBridge bridge, ClassLoader classLoader) {
         if (DexKitCache.isCacheValid()) {
@@ -255,10 +228,6 @@ public class CaptionCopyContextMenuHook {
             return null;
         }
     }
-
-    // ── Step 3: find MediaOptionsOverflowMenuCreator + its add-button method ─
-    // (same discovery strategy as PostDownloadContextMenuHook — kept independent so this
-    // feature works regardless of whether the download feature is enabled)
 
     private static void findCreatorClassAndAddButtonMethod(DexKitBridge bridge,
                                                              ClassLoader classLoader) {
@@ -381,8 +350,6 @@ public class CaptionCopyContextMenuHook {
         } catch (Throwable ignored) {}
     }
 
-    // ── Hook A: intercept every addButton call, inject Copy Caption once per menu ─
-
     private static void installAddButtonHook() {
         if (addButtonMethod == null || copyCaptionOptionValue == null || enumNormalValue == null) {
             ModuleLog.line("(IE|Caption) ❌ Cannot install addButton hook — prerequisites missing");
@@ -400,8 +367,13 @@ public class CaptionCopyContextMenuHook {
                 Object self = param.args[idxSelf];
                 boolean alreadyProcessed;
                 synchronized (processedCreators) {
-                    alreadyProcessed = processedCreators.contains(self);
-                    if (!alreadyProcessed) processedCreators.add(self);
+                    alreadyProcessed = processedCreators.containsKey(self);
+                    if (!alreadyProcessed) {
+                        processedCreators.put(self, Boolean.TRUE);
+                        if (processedCreators.size() > PROCESSED_LIMIT) {
+                            processedCreators.remove(processedCreators.keySet().iterator().next());
+                        }
+                    }
                 }
                 if (alreadyProcessed) return;
 
@@ -425,8 +397,6 @@ public class CaptionCopyContextMenuHook {
         FeatureStatusTracker.setHooked("CaptionCopy");
         ModuleLog.line("(IE|Caption) ✅ Caption copy menu hook installed");
     }
-
-    // ── Hook B: click handler ─────────────────────────────────────────────────
 
     private static void installClickHandlerHook(DexKitBridge bridge, ClassLoader classLoader) {
         XC_MethodHook clickHook = new XC_MethodHook() {
@@ -487,10 +457,6 @@ public class CaptionCopyContextMenuHook {
         }
     }
 
-    // ── Hook C: allowlist patch ─────────────────────────────────────────────────
-    // Same "SimplifiedMediaOverflowBottomSheet" allowlist patched for Download — also needs
-    // to include our carrier option so it isn't filtered out on newer builds.
-
     private static void installAllowlistPatchHook(DexKitBridge bridge, ClassLoader classLoader) {
         XC_MethodHook allowlistHook = new XC_MethodHook() {
             @Override
@@ -530,7 +496,7 @@ public class CaptionCopyContextMenuHook {
                             .addUsingField(prefix + "HIDE_OPTIONS:" + typeDesc)
                             .addUsingField(prefix + "GEN_AI_INFO:" + typeDesc)));
 
-            if (results.isEmpty()) return; // menu may not be filtered on this build — fine
+            if (results.isEmpty()) return;
 
             Method target = results.get(0).getMethodInstance(classLoader);
             target.setAccessible(true);
@@ -541,13 +507,6 @@ public class CaptionCopyContextMenuHook {
         }
     }
 
-    // ── Reel options-list patch ─────────────────────────────────────────────────
-    //
-    // Reels use a completely separate, simplified overflow menu whose option list is
-    // built by a different method entirely (found in ReelDownloadHook via field-usage
-    // matching on PLAYBACK_CONTROLS + UNSAVE). Append our carrier there too so "Copy
-    // Caption" also shows up on reels — same shared row renderer, so the click-handler
-    // hook above already covers whatever dispatches the click.
     private static void installReelOptionsListPatch(DexKitBridge bridge, ClassLoader classLoader) {
         if (copyCaptionOptionValue == null) return;
 
@@ -596,28 +555,6 @@ public class CaptionCopyContextMenuHook {
         }
     }
 
-    // ── Step 8: reel row label override ─────────────────────────────────────
-    // Reels resolve each menu row's label natively (no text parameter like the post menu
-    // has), so our injected carrier row shows Instagram's own internal/debug label instead
-    // of "Copy Caption". Three earlier attempts were reverted or dead-ended: hooking
-    // Resources.getString(int) globally crashed unrelated layout inflation; a
-    // param-shape-only DexKit query once matched the wrong method after Instagram
-    // auto-updated mid-session; and the row constructor this now also hooks (QnK's 3-arg
-    // ctor, reached from one row-adder variant, X.5RK.A0O) turned out not to be on the code
-    // path the actual on-device reel viewer uses — live stack traces showed the real path
-    // goes through a sibling variant, X.5RK.A0P, which builds its row via a different
-    // native call (LX/QIa;->A04(Context,OnClickListener,String,String,F,I,I,Z,Z,Z,Z)V)
-    // instead of constructing a QnK row object directly.
-    // Rather than bet on a single variant again, every row-adder method found (there are
-    // several — one per menu-surface variant) is probed for BOTH known row-building shapes,
-    // and any match found is hooked. Discovery is call-graph anchored, not shape-only:
-    //   1) label resolver   — found via the unique string it references
-    //   2) row-adder methods — methods that INVOKE the label resolver (call-graph, not shape)
-    //   3) row-building call — the QnK-style ctor OR the QIa.A04-style method CALLED BY #2
-    // Every hook installed only fires when the row's click-listener wraps our exact carrier
-    // enum singleton (extracted by scanning its fields by type), so each is a no-op for
-    // every other menu row, native or otherwise — misidentifying a target here means the
-    // fix silently doesn't apply, not that behavior changes for anything else.
     private static void installReelLabelOverrideHook(DexKitBridge bridge, ClassLoader classLoader) {
         if (mediaOptionEnumClass == null || copyCaptionOptionValue == null) return;
 
@@ -676,7 +613,7 @@ public class CaptionCopyContextMenuHook {
 
             boolean hookedAny = false;
             for (Method rowAdder : adderCandidates) {
-                // Variant A: row-adder directly constructs a (OnClickListener, CharSequence, String) row.
+
                 try {
                     List<MethodData> ctorResults = bridge.findMethod(FindMethod.create()
                             .matcher(MethodMatcher.create()
@@ -697,8 +634,6 @@ public class CaptionCopyContextMenuHook {
                     }
                 } catch (Throwable ignored) {}
 
-                // Variant B: row-adder calls a QIa-style (Context, OnClickListener, String, String,
-                // float, int, int, boolean, boolean, boolean, boolean) row-add method.
                 try {
                     List<MethodData> addResults = bridge.findMethod(FindMethod.create()
                             .matcher(MethodMatcher.create()
@@ -734,8 +669,7 @@ public class CaptionCopyContextMenuHook {
         Class<?> cls = listener.getClass();
         while (cls != null && cls != Object.class) {
             for (Field f : cls.getDeclaredFields()) {
-                // Wrapper classes (e.g. CV4) often store the option in a generically-typed
-                // Object field, so match by runtime value type, not declared field type.
+
                 if (!mediaOptionEnumClass.isAssignableFrom(f.getType()) && f.getType() != Object.class)
                     continue;
                 try {
@@ -749,7 +683,6 @@ public class CaptionCopyContextMenuHook {
         return null;
     }
 
-    // Variant A target: (View.OnClickListener listener, CharSequence label, String subtitle)
     private static XC_MethodHook makeCtorLabelHook() {
         return new XC_MethodHook() {
             @Override
@@ -768,7 +701,6 @@ public class CaptionCopyContextMenuHook {
         };
     }
 
-    // Variant B target: (Context ctx, OnClickListener listener, String title, String subtitle, ...)
     private static XC_MethodHook makeAddMethodLabelHook() {
         return new XC_MethodHook() {
             @Override
@@ -788,8 +720,6 @@ public class CaptionCopyContextMenuHook {
         };
     }
 
-    // ── Click dispatch ────────────────────────────────────────────────────────
-
     private static void onOptionClicked(XC_MethodHook.MethodHookParam param) {
         try {
             if (Boolean.TRUE.equals(sAddingCaptionRow.get())) return;
@@ -802,7 +732,7 @@ public class CaptionCopyContextMenuHook {
             }
             if (clicked == null || copyCaptionOptionValue == null || clicked != copyCaptionOptionValue) return;
 
-            param.setResult(null); // consume the event
+            param.setResult(null);
 
             Object thisObj = param.thisObject;
             Context ctx = findContext(thisObj);
@@ -830,8 +760,6 @@ public class CaptionCopyContextMenuHook {
             ModuleLog.line("(IE|Caption) ❌ onOptionClicked: " + t);
         }
     }
-
-    // ── Media resolution (mirrors PostDownloadContextMenuHook's fix for stale profile data) ─
 
     private static Object findMediaViaMenuCreator(Object clickHandler) {
         if (clickHandler == null || menuCreatorClass == null) return null;
@@ -917,8 +845,6 @@ public class CaptionCopyContextMenuHook {
         }
         return null;
     }
-
-    // ── Copy popup (same look as CommentCopyHook) ───────────────────────────────
 
     private static boolean isDarkTheme(Context ctx) {
         return (ctx.getResources().getConfiguration().uiMode

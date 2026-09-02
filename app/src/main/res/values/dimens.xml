@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="card_radius">12dp</dimen>
+    <dimen name="card_radius_large">16dp</dimen>
+    <dimen name="tile_radius">20dp</dimen>
+    <dimen name="tile_gap">8dp</dimen>
+    <dimen name="tile_min_height">108dp</dimen>
+    <dimen name="tile_icon_size">30dp</dimen>
+    <dimen name="button_corner">14dp</dimen>
+    <dimen name="chip_corner">12dp</dimen>
+    <dimen name="segment_gap">2dp</dimen>
+</resources>

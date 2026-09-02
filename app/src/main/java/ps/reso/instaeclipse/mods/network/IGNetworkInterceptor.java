@@ -19,7 +19,7 @@ public class IGNetworkInterceptor {
         try {
             ClassLoader classLoader = lpparam.classLoader;
 
-            // Locate the TigonServiceLayer class dynamically
+            
             Class<?> tigonClass = classLoader.loadClass("com.instagram.api.tigon.TigonServiceLayer");
             Method[] methods = tigonClass.getDeclaredMethods();
 
@@ -28,7 +28,7 @@ public class IGNetworkInterceptor {
             Class<?> random_param_3 = null;
             String uriFieldName = null;
 
-            // Analyze methods in TigonServiceLayer
+            
             for (Method method : methods) {
                 if (method.getName().equals("startRequest") && method.getParameterCount() == 3) {
                     Class<?>[] paramTypes = method.getParameterTypes();
@@ -39,7 +39,7 @@ public class IGNetworkInterceptor {
                 }
             }
 
-            // Dynamically identify the URI field in the request object
+            
             if (random_param_1 != null) {
                 for (Field field : random_param_1.getDeclaredFields()) {
                     if (field.getType().equals(URI.class)) {
@@ -49,7 +49,7 @@ public class IGNetworkInterceptor {
                 }
             }
 
-            // If classes and fields are resolved, hook the method
+            
             if (random_param_1 != null && random_param_2 != null && random_param_3 != null && uriFieldName != null) {
                 String finalUriFieldName = uriFieldName;
                 XposedHelpers.findAndHookMethod("com.instagram.api.tigon.TigonServiceLayer", classLoader, "startRequest",
@@ -62,13 +62,9 @@ public class IGNetworkInterceptor {
                                 if (uri != null && uri.getPath() != null) {
                                     boolean shouldDrop = false;
 
-                                    // Ghost Mode URIs
+                                    
                                     if (FeatureFlags.isGhostSeen) {
                                         shouldDrop |= uri.getPath().contains("/threads/") && uri.getPath().contains("/opened");
-                                    }
-                                    if (FeatureFlags.isGhostVoiceSeen) {
-                                        shouldDrop |= uri.getPath().contains("audio_played") || uri.getPath().contains("voice_played");
-                                        FeatureStatusTracker.setHooked("GhostVoiceSeen");
                                     }
                                     if (FeatureFlags.keepEphemeralMessages) {
                                         shouldDrop |= uri.getPath().contains("/mark_ephemeral_item_ranges_viewed");
@@ -89,7 +85,7 @@ public class IGNetworkInterceptor {
                                         FeatureStatusTracker.setHooked("GhostLive");
                                     }
 
-                                    // Distraction Free
+                                    
                                     if (FeatureFlags.disableStories) {
                                         shouldDrop |= uri.getPath().contains("/feed/reels_tray/")
                                                 || uri.getPath().contains("feed/get_latest_reel_media/")
@@ -126,7 +122,7 @@ public class IGNetworkInterceptor {
                                         shouldDrop |= uri.getPath().contains("/api/v1/media/") && uri.getPath().contains("comments/");
                                     }
 
-                                    // Ads
+                                    
                                     if (FeatureFlags.isAdBlockEnabled) {
                                         shouldDrop |= uri.getPath().contains("profile_ads/get_profile_ads/")
                                                 || uri.getPath().contains("/async_ads/")
@@ -134,14 +130,14 @@ public class IGNetworkInterceptor {
                                                 || uri.getPath().equals("/api/v1/ads/graphql/");
                                     }
 
-                                    // Analytics
+                                    
                                     if (FeatureFlags.isAnalyticsBlocked) {
                                         shouldDrop |= uri.getHost().contains("graph.instagram.com")
                                                 || uri.getHost().contains("graph.facebook.com")
                                                 || uri.getPath().contains("/logging_client_events");
                                     }
 
-                                    // Misc
+                                    
                                     if (FeatureFlags.spoofLastSeen) {
                                         String p = uri.getPath();
                                         shouldDrop |= p.contains("/push/setForegroundState/")
@@ -170,7 +166,7 @@ public class IGNetworkInterceptor {
                                         } catch (Exception ignored) {}
                                     }
 
-                                    // Follow status
+                                    
                                     if (FeatureFlags.showFollowerToast) {
                                         FeatureStatusTracker.setHooked("FollowerToast");
                                         FollowStatusHook.handleRequest(uri, param.args);

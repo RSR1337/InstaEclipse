@@ -20,28 +20,14 @@ import ps.reso.instaeclipse.utils.i18n.I18n;
 import ps.reso.instaeclipse.utils.toast.CustomToast;
 import ps.reso.instaeclipse.utils.tracker.FollowIndicatorTracker;
 
-/**
- * Handles the follow-status (follower toast) feature.
- *
- * IGNetworkInterceptor hooks TigonServiceLayer.startRequest and delegates here
- * whenever a /friendships/show/ request is detected. This class owns all the
- * callback registration, response parsing, and toast display logic.
- */
 public class FollowStatusHook {
 
-    /** identity-hash of a pending success-callback → userId being checked */
     private static final ConcurrentHashMap<Integer, String> sPendingCallbacks =
             new ConcurrentHashMap<>();
 
-    /** callback class names that have already been hooked (hook once per class) */
     private static final Set<String> sHookedCallbackClasses =
             Collections.synchronizedSet(new HashSet<>());
 
-    /**
-     * Entry point called from IGNetworkInterceptor for every TigonServiceLayer request.
-     * If the request is a /friendships/show/ call, captures the userId and registers
-     * response callbacks so the follow status can be parsed when the response arrives.
-     */
     public static void handleRequest(URI uri, Object[] args) {
         String path = uri.getPath();
         if (!path.startsWith("/api/v1/friendships/show/")) return;
@@ -56,11 +42,6 @@ public class FollowStatusHook {
         if (args.length > 2) registerCallback(args[2], capturedId);
     }
 
-    /**
-     * Lazily hooks all non-static, non-nullary methods of {@code cb}'s class and
-     * stores the identity-hash → userId mapping so we can parse the response when
-     * the callback fires.
-     */
     private static void registerCallback(Object cb, String userId) {
         if (cb == null) return;
         sPendingCallbacks.put(System.identityHashCode(cb), userId);
@@ -80,7 +61,6 @@ public class FollowStatusHook {
                         String uid = sPendingCallbacks.get(hash);
                         if (uid == null) return;
 
-                        // Check args first
                         for (Object arg : p.args) {
                             Boolean followedBy = parseFollowedBy(arg);
                             if (followedBy != null) {
@@ -90,8 +70,6 @@ public class FollowStatusHook {
                             }
                         }
 
-                        // TigonServiceLayer often stores the response body as a field on
-                        // the callback instance rather than passing it as an argument.
                         Boolean followedByFromObj = parseFollowedBy(p.thisObject);
                         if (followedByFromObj != null) {
                             sPendingCallbacks.remove(hash);
@@ -103,13 +81,8 @@ public class FollowStatusHook {
         }
     }
 
-    /**
-     * Attempts to find and return the "followed_by" boolean from {@code arg},
-     * which may be a String, byte[], or object with a body-accessor method.
-     * Returns null if the argument doesn't contain friendship data.
-     */
     private static Boolean parseFollowedBy(Object arg) {
-        // Depth 3: Callback -> Response Wrapper -> Payload/Body
+
         String body = toJsonString(arg, 3);
         if (body == null || !body.contains("\"followed_by\"")) return null;
         try {
@@ -119,11 +92,6 @@ public class FollowStatusHook {
         }
     }
 
-    /**
-     * Converts {@code obj} to a JSON string containing "followed_by", or null.
-     * Checks the value itself, common accessor methods, and up to 2 levels of
-     * declared fields — covers both arg-based and thisObject-based responses.
-     */
     private static String toJsonString(Object obj) {
         return toJsonString(obj, 2);
     }
@@ -131,7 +99,6 @@ public class FollowStatusHook {
     private static String toJsonString(Object obj, int depth) {
         if (obj == null || depth < 0) return null;
 
-        // Direct ByteBuffer handling
         if (obj instanceof java.nio.ByteBuffer) {
             try {
                 java.nio.ByteBuffer dup = ((java.nio.ByteBuffer) obj).duplicate();
@@ -149,7 +116,6 @@ public class FollowStatusHook {
             } catch (Throwable ignored) {}
         }
 
-        // Recursive field scanning to find the body inside wrapper objects
         if (depth > 0) {
             Class<?> cls = obj.getClass();
             while (cls != null && cls != Object.class) {
@@ -170,7 +136,6 @@ public class FollowStatusHook {
         return null;
     }
 
-    /** Shows the follow-status toast on the main thread if userId is still pending. */
     private static void showFollowToast(String userId, boolean followedBy) {
         new Handler(Looper.getMainLooper()).post(() -> {
             try {
@@ -184,7 +149,6 @@ public class FollowStatusHook {
 
                 CustomToast.showCustomToast(ctx, "(" + userId + ") " + statusStr);
 
-                // Clear tracker so we don't process duplicate callback triggers
                 FollowIndicatorTracker.currentlyViewedUserId = null;
             } catch (Throwable ignored) {}
         });

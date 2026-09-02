@@ -22,7 +22,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.WeakHashMap;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -47,8 +46,14 @@ public class StoryDownloadHook {
     private static Class<?> reelClass;
     private static Class<?> userSessionClass;
     private static volatile String injectedDownloadLabel;
+    private static final int REEL_CACHE_LIMIT = 16;
     private static final Map<Object, List<Object>> reelItemsCache =
-            Collections.synchronizedMap(new WeakHashMap<>());
+            Collections.synchronizedMap(new LinkedHashMap<Object, List<Object>>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<Object, List<Object>> eldest) {
+                    return size() > REEL_CACHE_LIMIT;
+                }
+            });
     private static volatile List<Object> lastStorySequence = new ArrayList<>();
 
     private volatile String currentStoryUsername = null;
@@ -733,6 +738,7 @@ public class StoryDownloadHook {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) {
+                if (!FeatureFlags.enableStoryDownload) return;
                 rememberReelItems(param.thisObject, param.getResult());
             }
         };

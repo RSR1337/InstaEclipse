@@ -13,12 +13,6 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-/**
- * Shared rounded-card look for the bulk-download confirmation and progress dialogs.
- * Uses a fixed palette rather than the host (Instagram) theme's background/accent attrs —
- * those vary wildly per-screen (feed vs. story vs. profile overlays) and can resolve to
- * unusable colors there, so a predictable first-party palette is safer for injected UI.
- */
 final class BulkDownloadDialogStyle {
 
     private static final int ACCENT = 0xFF3797EF;
@@ -58,7 +52,6 @@ final class BulkDownloadDialogStyle {
         return (color & 0x00FFFFFF) | (alpha << 24);
     }
 
-    /** Replaces the dialog window's frame with a rounded floating card. */
     static void applyCardWindow(AlertDialog dialog, Context ctx) {
         try {
             GradientDrawable card = new GradientDrawable();
@@ -70,7 +63,6 @@ final class BulkDownloadDialogStyle {
         } catch (Throwable ignored) {}
     }
 
-    /** Bold title row with a small accent-tinted icon badge, used via setCustomTitle(). */
     static View buildTitleView(Context ctx, String text) {
         boolean dark = isDarkMode(ctx);
         LinearLayout row = new LinearLayout(ctx);
@@ -103,7 +95,6 @@ final class BulkDownloadDialogStyle {
         return row;
     }
 
-    /** Full-width filled pill button (primary action). */
     static View buildFilledButton(Context ctx, String text, Runnable onClick) {
         TextView btn = new TextView(ctx);
         btn.setText(text);
@@ -116,7 +107,6 @@ final class BulkDownloadDialogStyle {
         return btn;
     }
 
-    /** Full-width outlined pill button (secondary action). */
     static View buildOutlinedButton(Context ctx, String text, Runnable onClick) {
         TextView btn = new TextView(ctx);
         btn.setText(text);
@@ -130,7 +120,6 @@ final class BulkDownloadDialogStyle {
         return btn;
     }
 
-    /** Plain centered text link (tertiary / dismiss action). */
     static View buildTextButton(Context ctx, String text, boolean dark, Runnable onClick) {
         TextView btn = new TextView(ctx);
         btn.setText(text);

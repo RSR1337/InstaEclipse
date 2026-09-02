@@ -10,31 +10,6 @@ import java.util.List;
 import de.robv.android.xposed.XposedBridge;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
-/**
- * Caches DexKit-resolved method signatures in SharedPreferences, keyed by
- * Instagram's version code. On the first run (or after an IG update), DexKit
- * runs as normal and saves each resolved {@link Method} descriptor. On every
- * subsequent launch of the same IG version, the saved descriptor is used to
- * look up the {@link Method} via reflection — skipping DexKit entirely.
- *
- * <h3>Usage pattern (single method)</h3>
- * <pre>
- *   if (DexKitCache.isCacheValid()) {
- *       Method m = DexKitCache.loadMethod("MyHook", classLoader);
- *       if (m != null) { hookIt(m); return; }
- *   }
- *   // DexKit path
- *   Method m = findViaDexKit(bridge);
- *   if (m != null) {
- *       DexKitCache.saveMethod("MyHook", m);
- *       hookIt(m);
- *   }
- * </pre>
- *
- * <h3>Separator</h3>
- * Method descriptors are encoded as {@code className + NUL + methodName + NUL + descriptor}.
- * The NUL character ({@code \u0000}) never appears in class/method names or JVM descriptors.
- */
 public class DexKitCache {
 
     private static final String PREF_NAME  = "instaeclipse_dexkit_cache";
@@ -44,13 +19,6 @@ public class DexKitCache {
     private static SharedPreferences prefs;
     private static boolean cacheValid = false;
 
-    // ── Lifecycle ────────────────────────────────────────────────────────────
-
-    /**
-     * Must be called once per app-attach, before any hooks run.
-     * Compares {@code igVersion} (e.g. the IG long version code as a string)
-     * with the stored version; clears the cache when they differ.
-     */
     public static void init(Context context, String igVersion) {
         prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
         String stored = prefs.getString(KEY_VER, "");
@@ -64,15 +32,10 @@ public class DexKitCache {
         }
     }
 
-    /** Returns {@code true} when the stored cache was built for the currently-running IG version. */
     public static boolean isCacheValid() {
         return cacheValid;
     }
 
-    /**
-     * Wipes all cached descriptors and marks the cache invalid for this session.
-     * DexKit will re-run its full search on the next Instagram restart.
-     */
     public static void clearCache() {
         if (prefs == null) return;
         prefs.edit().clear().apply();
@@ -80,21 +43,16 @@ public class DexKitCache {
         ModuleLog.line("(DexKitCache) Cache manually cleared — DexKit will re-run on next launch");
     }
 
-    // ── Single method ────────────────────────────────────────────────────────
-
     public static void saveMethod(String key, Method m) {
         if (prefs == null || m == null) return;
         prefs.edit().putString("m_" + key, encode(m)).apply();
     }
 
-    /** Returns {@code null} on any decode failure (treat as a cache miss). */
     public static Method loadMethod(String key, ClassLoader loader) {
         if (prefs == null) return null;
         String val = prefs.getString("m_" + key, null);
         return val != null ? decode(val, loader) : null;
     }
-
-    // ── Multiple methods ─────────────────────────────────────────────────────
 
     public static void saveMethods(String key, List<Method> methods) {
         if (prefs == null || methods == null) return;
@@ -106,10 +64,6 @@ public class DexKitCache {
         ed.apply();
     }
 
-    /**
-     * Returns the cached list, or {@code null} if any entry is missing / cannot
-     * be decoded (so the whole DexKit search is re-run in that case).
-     */
     public static List<Method> loadMethods(String key, ClassLoader loader) {
         if (prefs == null) return null;
         int count = prefs.getInt("mc_" + key, -1);
@@ -125,8 +79,6 @@ public class DexKitCache {
         return result;
     }
 
-    // ── Arbitrary strings (class names, etc.) ────────────────────────────────
-
     public static void saveString(String key, String value) {
         if (prefs == null) return;
         prefs.edit().putString("s_" + key, value).apply();
@@ -136,8 +88,6 @@ public class DexKitCache {
         if (prefs == null) return null;
         return prefs.getString("s_" + key, null);
     }
-
-    // ── Encoding / Decoding ──────────────────────────────────────────────────
 
     private static String encode(Method m) {
         return m.getDeclaringClass().getName() + SEP + m.getName() + SEP + descriptor(m);
@@ -162,7 +112,6 @@ public class DexKitCache {
         return null;
     }
 
-    /** Builds a JVM method descriptor string, e.g. {@code (Ljava/lang/String;I)V}. */
     private static String descriptor(Method m) {
         StringBuilder sb = new StringBuilder("(");
         for (Class<?> p : m.getParameterTypes()) typeDesc(sb, p);

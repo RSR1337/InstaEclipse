@@ -50,6 +50,11 @@
             android:exported="true"
             android:theme="@style/Theme.InstaEclipse" />
 
+        <activity
+            android:name=".VerifyHooksActivity"
+            android:exported="true"
+            android:theme="@style/Theme.InstaEclipse" />
+
         <!-- Companion-app service: receives downloaded file (via ParcelFileDescriptor) from the
              Xposed module (running in Instagram's process) and writes it to the SAF folder
              whose permission belongs to the companion app. -->
