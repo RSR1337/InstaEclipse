@@ -347,7 +347,7 @@
     <string name="ig_dialog_distraction_extreme_title">Activate Extreme Mode?</string>
     <string name="ig_dialog_distraction_extreme_message">Once activated, you cannot disable Distraction-Free Mode until you reinstall the app. Continue?</string>
 
-    <string name="ig_dialog_clean_feed_hide_suggested">Hide Suggestions in Feed</string>
+    <string name="ig_dialog_clean_feed_hide_suggested">Hide Suggestions in Feed &amp; Reels</string>
     <string name="ig_dialog_clean_feed_hide_threads">Hide Threads Suggestions</string>
 
     <string name="ig_dialog_misc_disable_story_autoswipe">Disable Story Auto-Swipe</string>
