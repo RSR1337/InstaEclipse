@@ -20,6 +20,7 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class IGMantleCrashHook {
 
@@ -103,7 +104,7 @@ public class IGMantleCrashHook {
 
     private static void hookDexKitExact(DexKitBridge bridge, ClassLoader classLoader, List<Method> hooked) {
         try {
-            List<MethodData> methods = bridge.findMethod(FindMethod.create()
+            List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create().name(METHOD_NAME)));
             for (MethodData data : methods) {
                 try {
@@ -120,7 +121,7 @@ public class IGMantleCrashHook {
 
     private static void hookDexKitByClassString(DexKitBridge bridge, ClassLoader classLoader, List<Method> hooked) {
         try {
-            List<ClassData> classes = bridge.findClass(FindClass.create()
+            List<ClassData> classes = IgDex.findClass(bridge, FindClass.create()
                     .matcher(ClassMatcher.create().usingStrings(METHOD_NAME)));
             for (ClassData classData : classes) {
                 try {

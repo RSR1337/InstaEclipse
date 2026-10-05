@@ -28,6 +28,7 @@ import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.i18n.I18n;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class PostDownloadContextMenuHook {
 
@@ -122,12 +123,12 @@ public class PostDownloadContextMenuHook {
         }
 
         try {
-            List<ClassData> pass1 = bridge.findClass(FindClass.create()
+            List<ClassData> pass1 = IgDex.findClass(bridge, FindClass.create()
                     .matcher(ClassMatcher.create()
                             .usingStrings("MediaOptionsOverflowMenuCreator")));
 
             if (pass1.isEmpty()) {
-                pass1 = bridge.findClass(FindClass.create()
+                pass1 = IgDex.findClass(bridge, FindClass.create()
                         .matcher(ClassMatcher.create()
                                 .usingStrings("OverflowMenuCreator")));
             }
@@ -140,11 +141,12 @@ public class PostDownloadContextMenuHook {
             String creatorClassName = pass1.get(0).getName();
             menuCreatorClass = classLoader.loadClass(creatorClassName);
 
-            List<MethodData> pass2 = bridge.findMethod(FindMethod.create()
+            List<MethodData> pass2 = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .declaredClass(creatorClassName)
                             .returnType("void")));
 
+            pass2.sort((x, y) -> Boolean.compare(!hasLabelParam(x), !hasLabelParam(y)));
             for (MethodData md : pass2) {
                 try {
                     Method m = md.getMethodInstance(classLoader);
@@ -285,7 +287,7 @@ public class PostDownloadContextMenuHook {
         try {
             String optionClassName = "com.instagram.feed.media.mediaoption.MediaOption$Option";
 
-            List<MethodData> results = bridge.findMethod(FindMethod.create()
+            List<MethodData> results = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .returnType("void")
                             .paramTypes(optionClassName)));
@@ -357,7 +359,7 @@ public class PostDownloadContextMenuHook {
             String typeDesc = "L" + optionClassName.replace('.', '/') + ";";
             String prefix = typeDesc + "->";
 
-            List<MethodData> results = bridge.findMethod(FindMethod.create()
+            List<MethodData> results = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .paramTypes("boolean")
                             .returnType("java.util.List")
@@ -366,7 +368,7 @@ public class PostDownloadContextMenuHook {
                             .addUsingField(prefix + "GEN_AI_INFO:" + typeDesc)));
 
             if (results.isEmpty()) {
-                results = bridge.findMethod(FindMethod.create()
+                results = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create()
                                 .paramTypes("boolean")
                                 .returnType("java.util.List")
@@ -375,7 +377,7 @@ public class PostDownloadContextMenuHook {
                                 .addUsingField(prefix + "WHY_AM_I_SEEING_THIS:" + typeDesc)));
             }
 
-            List<MethodData> filterMethods = bridge.findMethod(FindMethod.create()
+            List<MethodData> filterMethods = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .paramCount(2)
                             .returnType("java.util.List")
@@ -590,5 +592,12 @@ public class PostDownloadContextMenuHook {
             }
         }
         return null;
+    }
+
+    private static boolean hasLabelParam(MethodData md) {
+        for (String type : md.getParamTypeNames()) {
+            if ("java.lang.CharSequence".equals(type) || "java.lang.String".equals(type)) return true;
+        }
+        return false;
     }
 }

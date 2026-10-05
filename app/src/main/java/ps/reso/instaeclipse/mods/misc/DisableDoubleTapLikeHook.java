@@ -25,10 +25,13 @@ import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class DisableDoubleTapLikeHook {
 
     private final Set<String> hookedMethods = new HashSet<>();
+    private static final Set<Class<?>> TRUSTED_GESTURE_CLASSES =
+            java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
 
     private static final XC_MethodHook HOOK = new XC_MethodHook() {
         @Override
@@ -59,11 +62,13 @@ public class DisableDoubleTapLikeHook {
         boolean cachedReelsHooked = false;
         if (DexKitCache.isCacheValid()) {
             Method feedCached = DexKitCache.loadMethod("DoubleTapLike", classLoader);
+            List<Method> feedListCached = DexKitCache.loadMethods("DoubleTapLikeFeed", classLoader);
             Method reelsCached = DexKitCache.loadMethod("DoubleTapLikeReels", classLoader);
             List<Method> reelsGestureCached = DexKitCache.loadMethods("DoubleTapLikeReelsGestures", classLoader);
 
-            cachedFeedHooked = hookMethod(feedCached, HOOK);
+            cachedFeedHooked = hookMethod(feedCached, HOOK) | hookMethods(feedListCached, HOOK) > 0;
             boolean cachedLegacyReelsHooked = hookMethod(reelsCached, HOOK);
+            trust(reelsGestureCached);
             boolean cachedGestureReelsHooked = hookMethods(reelsGestureCached, REELS_GESTURE_HOOK) > 0;
             cachedReelsHooked = cachedLegacyReelsHooked || cachedGestureReelsHooked;
 
@@ -85,24 +90,32 @@ public class DisableDoubleTapLikeHook {
         boolean reelsHooked = reelsAlreadyHooked;
 
         if (!feedHooked) {
-            List<MethodData> feedMethods = bridge.findMethod(FindMethod.create()
+            List<MethodData> feedMethods = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .usingStrings("double_tap_on_liked", "used_double_tap")
                     )
             );
+            boolean split = feedMethods.isEmpty();
+            if (split) {
+                for (String marker : new String[]{"used_double_tap", "double_tap_on_liked"}) {
+                    feedMethods.addAll(IgDex.findMethodsUsingAll(bridge, classLoader, marker));
+                }
+            }
+            List<Method> feedHookedMethods = new ArrayList<>();
             for (MethodData md : feedMethods) {
                 try {
                     Method method = md.getMethodInstance(classLoader);
-                    DexKitCache.saveMethod("DoubleTapLike", method);
                     if (hookMethod(method, HOOK)) {
+                        feedHookedMethods.add(method);
                         feedHooked = true;
                         ModuleLog.line("(InstaEclipse | DoubleTapLike): Feed hooked on " + md.getClassName() + "." + md.getMethodName());
-                        break;
+                        if (!split) break;
                     }
                 } catch (Exception e) {
                     ModuleLog.line("(InstaEclipse | DoubleTapLike): Feed: " + e.getMessage());
                 }
             }
+            if (!feedHookedMethods.isEmpty()) DexKitCache.saveMethods("DoubleTapLikeFeed", feedHookedMethods);
         }
 
         List<Method> reelsGestureMethods = findReelsGestureMethods(bridge, classLoader);
@@ -112,13 +125,13 @@ public class DisableDoubleTapLikeHook {
             ModuleLog.line("(InstaEclipse | DoubleTapLike): Reels gesture callbacks hooked: " + reelsGestureMethods.size());
         }
 
-        List<ClassData> reelsClasses = bridge.findClass(FindClass.create()
+        List<ClassData> reelsClasses = IgDex.findClass(bridge, FindClass.create()
                 .matcher(ClassMatcher.create()
                         .usingStrings("clips_doubletap", "LIKE_FIRED")
                 )
         );
         for (ClassData cd : reelsClasses) {
-            List<MethodData> ecgMethods = bridge.findMethod(FindMethod.create()
+            List<MethodData> ecgMethods = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .declaredClass(cd.getName())
                             .usingStrings("clips_doubletap")
@@ -144,10 +157,25 @@ public class DisableDoubleTapLikeHook {
         }
     }
 
+    private static void trust(List<Method> methods) {
+        if (methods == null) return;
+        for (Method m : methods) TRUSTED_GESTURE_CLASSES.add(m.getDeclaringClass());
+    }
+
     private List<Method> findReelsGestureMethods(DexKitBridge bridge, ClassLoader classLoader) {
         List<Method> methods = new ArrayList<>();
         try {
-            List<MethodData> callbacks = bridge.findMethod(FindMethod.create()
+            for (MethodData md : IgDex.findMethodsUsingAll(bridge, classLoader, "ClipsItemGestureDetector_onDoubleTap")) {
+                if (!"onDoubleTap".equals(md.getName())) continue;
+                Method method = md.getMethodInstance(classLoader);
+                methods.add(method);
+                TRUSTED_GESTURE_CLASSES.add(method.getDeclaringClass());
+            }
+        } catch (Throwable e) {
+            ModuleLog.line("(InstaEclipse | DoubleTapLike): ClipsItemGestureDetector search failed: " + e.getMessage());
+        }
+        try {
+            List<MethodData> callbacks = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .name("onDoubleTap")
                             .paramTypes("android.view.MotionEvent")
@@ -157,7 +185,7 @@ public class DisableDoubleTapLikeHook {
             for (MethodData md : callbacks) {
                 try {
                     Method method = md.getMethodInstance(classLoader);
-                    if (isLikelyClipsGestureClass(method.getDeclaringClass())) {
+                    if (!methods.contains(method) && isLikelyClipsGestureClass(method.getDeclaringClass())) {
                         methods.add(method);
                     }
                 } catch (Throwable e) {
@@ -225,6 +253,9 @@ public class DisableDoubleTapLikeHook {
     private static boolean looksLikeClipsDoubleTapGesture(Object target) {
         if (target == null) return false;
         Class<?> clazz = target.getClass();
+        for (Class<?> trusted : TRUSTED_GESTURE_CLASSES) {
+            if (trusted.isAssignableFrom(clazz)) return true;
+        }
         if (isLikelyClipsGestureClass(clazz)) return true;
         for (Class<?> current = clazz; current != null && current != Object.class; current = current.getSuperclass()) {
             for (Field field : current.getDeclaredFields()) {

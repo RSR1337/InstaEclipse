@@ -15,6 +15,7 @@ import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class ForceReelQualityHook {
 
@@ -75,7 +76,8 @@ public class ForceReelQualityHook {
             });
 
             FeatureStatusTracker.setHooked("ForceReelQuality");
-            ModuleLog.line("(InstaEclipse | ForceReelQuality): ✅ Hooked " + DICT_CLASS
+            ModuleLog.line("(InstaEclipse | ForceReelQuality): ✅ Hooked "
+                    + videoVersionsGetter.getDeclaringClass().getName() + "." + videoVersionsGetter.getName()
                     + " (height=" + heightGetterName + ")");
         } catch (Throwable t) {
             ModuleLog.line("(InstaEclipse | ForceReelQuality): ❌ install – " + t);
@@ -84,14 +86,14 @@ public class ForceReelQualityHook {
 
     private static Method resolveVideoVersionsGetter(DexKitBridge bridge, ClassLoader classLoader) {
         try {
-            List<MethodData> results = bridge.findMethod(FindMethod.create()
+            List<MethodData> results = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .declaredClass(DICT_CLASS)
                             .paramCount(0)
                             .usingEqStrings(List.of("video_versions"))));
 
             if (results.isEmpty()) {
-                results = bridge.findMethod(FindMethod.create()
+                results = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create()
                                 .paramCount(0)
                                 .usingEqStrings(List.of("video_versions"))));
@@ -112,13 +114,14 @@ public class ForceReelQualityHook {
 
     private static String resolveHeightGetterName(DexKitBridge bridge, ClassLoader classLoader) {
         String[] versionClasses = {
+                "com.instagram.api.schemas.ImmutablePandoVideoVersion",
                 VIDEO_VERSION_CLASS,
                 "com.instagram.model.mediasize.VideoVersionIntf",
                 "com.instagram.api.schemas.VideoVersionIntf"
         };
         for (String className : versionClasses) {
             try {
-                List<MethodData> results = bridge.findMethod(FindMethod.create()
+                List<MethodData> results = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create()
                                 .declaredClass(className)
                                 .paramCount(0)
@@ -128,7 +131,7 @@ public class ForceReelQualityHook {
             } catch (Throwable ignored) {}
         }
         try {
-            List<MethodData> results = bridge.findMethod(FindMethod.create()
+            List<MethodData> results = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .paramCount(0)
                             .returnType("java.lang.Integer")

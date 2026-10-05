@@ -23,6 +23,7 @@ import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class DevOptionsUnlockHook {
 
@@ -61,7 +62,7 @@ public class DevOptionsUnlockHook {
 
     private void findAndHookDynamicMethod(DexKitBridge bridge) {
         try {
-            List<ClassData> classes = bridge.findClass(FindClass.create()
+            List<ClassData> classes = IgDex.findClass(bridge, FindClass.create()
                     .matcher(ClassMatcher.create().usingStrings("is_employee"))
             );
 
@@ -71,7 +72,7 @@ public class DevOptionsUnlockHook {
                     String className = classData.getName();
                     if (!className.startsWith("X.")) continue;
 
-                    List<MethodData> methods = bridge.findMethod(FindMethod.create()
+                    List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                             .matcher(MethodMatcher.create()
                                     .declaredClass(className)
                                     .usingStrings("is_employee"))
@@ -103,7 +104,7 @@ public class DevOptionsUnlockHook {
 
             if (!found) {
                 for (long configId : IS_EMPLOYEE_CONFIG_IDS) {
-                    List<MethodData> idMethods = bridge.findMethod(FindMethod.create()
+                    List<MethodData> idMethods = IgDex.findMethod(bridge, FindMethod.create()
                             .matcher(MethodMatcher.create()
                                     .usingNumbers(configId)
                                     .returnType("boolean")
@@ -123,7 +124,7 @@ public class DevOptionsUnlockHook {
 
             if (!found) {
                 ModuleLog.line("(InstaEclipse | DevOptionsEnable): ❌ Tier 3 failed. Debugging global references...");
-                List<MethodData> debugMethods = bridge.findMethod(FindMethod.create()
+                List<MethodData> debugMethods = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create().usingStrings("is_employee")));
                 for (MethodData m : debugMethods) {
                     ModuleLog.line("(InstaEclipse | DevOptionsDebug): String 'is_employee' found in: " + m.getClassName() + "." + m.getName());
@@ -137,7 +138,7 @@ public class DevOptionsUnlockHook {
 
     private MethodData resolveEmployeeGateStructurally(DexKitBridge bridge) {
         try {
-            List<MethodData> getters = bridge.findMethod(FindMethod.create()
+            List<MethodData> getters = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .declaredClass(MOBILECONFIG_GETTER_CLASS)
                             .returnType("boolean")
@@ -149,7 +150,7 @@ public class DevOptionsUnlockHook {
                 getterInvoke.add(MethodMatcher.create(getter.getDescriptor()));
             }
 
-            List<MethodData> candidates = bridge.findMethod(FindMethod.create()
+            List<MethodData> candidates = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .returnType("boolean")
                             .paramTypes(USER_SESSION_CLASS)
@@ -257,7 +258,7 @@ public class DevOptionsUnlockHook {
 
     private void hookAllBooleanMethodsInClass(DexKitBridge bridge, String className) {
         try {
-            List<MethodData> methods = bridge.findMethod(FindMethod.create()
+            List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create().declaredClass(className))
             );
 

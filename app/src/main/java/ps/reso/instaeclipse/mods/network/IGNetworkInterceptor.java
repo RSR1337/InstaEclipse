@@ -27,6 +27,7 @@ public class IGNetworkInterceptor {
             Class<?> random_param_2 = null;
             Class<?> random_param_3 = null;
             String uriFieldName = null;
+            java.util.List<Field> uriFields = new java.util.ArrayList<>();
 
             
             for (Method method : methods) {
@@ -42,9 +43,11 @@ public class IGNetworkInterceptor {
             
             if (random_param_1 != null) {
                 for (Field field : random_param_1.getDeclaredFields()) {
+                    if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) continue;
                     if (field.getType().equals(URI.class)) {
-                        uriFieldName = field.getName();
-                        break;
+                        if (uriFieldName == null) uriFieldName = field.getName();
+                        field.setAccessible(true);
+                        uriFields.add(field);
                     }
                 }
             }
@@ -162,7 +165,9 @@ public class IGNetworkInterceptor {
                                     if (shouldDrop) {
                                         try {
                                             URI fakeUri = new URI("https", "127.0.0.1", "/404", null);
-                                            XposedHelpers.setObjectField(requestObj, finalUriFieldName, fakeUri);
+                                            for (Field f : uriFields) {
+                                                if (uri.equals(f.get(requestObj))) f.set(requestObj, fakeUri);
+                                            }
                                         } catch (Exception ignored) {}
                                     }
 

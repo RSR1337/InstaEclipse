@@ -34,6 +34,7 @@ import ps.reso.instaeclipse.utils.ghost.GhostModeUtils;
 import ps.reso.instaeclipse.utils.i18n.I18n;
 import ps.reso.instaeclipse.utils.toast.CustomToast;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class UIHookManager {
 
@@ -161,7 +162,7 @@ public class UIHookManager {
 
     private void hookMainActivityLifecycle(ClassLoader classLoader, String activityClass) {
         try {
-            var methods = Module.dexKitBridge.findMethod(create()
+            var methods = IgDex.findMethod(Module.dexKitBridge, create()
                     .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
                             .declaredClass(activityClass)
                             .name("onCreate")
@@ -170,7 +171,7 @@ public class UIHookManager {
                     )
             );
             if (methods.isEmpty()) {
-                methods = Module.dexKitBridge.findMethod(create()
+                methods = IgDex.findMethod(Module.dexKitBridge, create()
                         .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
                                 .declaredClass(activityClass)
                                 .paramTypes("android.os.Bundle")
@@ -237,7 +238,7 @@ public class UIHookManager {
         }
 
         try {
-            List<MethodData> candidates = Module.dexKitBridge.findMethod(org.luckypray.dexkit.query.FindMethod.create()
+            List<MethodData> candidates = IgDex.findMethod(Module.dexKitBridge, org.luckypray.dexkit.query.FindMethod.create()
                     .matcher(org.luckypray.dexkit.query.matchers.MethodMatcher.create()
                             .declaredClass(activityClass)
                             .modifiers(java.lang.reflect.Modifier.PUBLIC)

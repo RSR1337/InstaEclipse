@@ -16,6 +16,7 @@ import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 
 public class GhostEphemeralKeepHook {
@@ -45,14 +46,14 @@ public class GhostEphemeralKeepHook {
         }
 
         try {
-            List<MethodData> methods = bridge.findMethod(FindMethod.create()
+            List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .usingStrings("igThreadIgid")
                             .paramTypes("com.instagram.model.direct.DirectThreadKey", "boolean")
                             .returnType("void")));
 
             if (methods.isEmpty()) {
-                methods = bridge.findMethod(FindMethod.create()
+                methods = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create()
                                 .usingStrings("igThreadIgid")
                                 .paramCount(2)
@@ -91,7 +92,7 @@ public class GhostEphemeralKeepHook {
         }
 
         try {
-            List<MethodData> methods = bridge.findMethod(FindMethod.create()
+            List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .usingStrings("mark_ephemeral_item_ranges_viewed")));
 
@@ -137,9 +138,7 @@ public class GhostEphemeralKeepHook {
         }
 
         try {
-            List<MethodData> methods = bridge.findMethod(FindMethod.create()
-                    .matcher(MethodMatcher.create()
-                            .usingStrings("message_expiration_timestamp_ms")));
+            List<MethodData> methods = IgDex.findMethodsUsingAll(bridge, classLoader, "message_expiration_timestamp_ms");
 
             List<Method> hooked = new java.util.ArrayList<>();
             for (MethodData md : methods) {
@@ -163,6 +162,8 @@ public class GhostEphemeralKeepHook {
 
     private static void clearExpiryTimestamp(Object obj) {
         if (obj == null) return;
+        String owner = obj.getClass().getName();
+        if (!owner.startsWith("X.") && !owner.startsWith("com.instagram.")) return;
         long now = System.currentTimeMillis();
         long year2100 = 4_102_444_800_000L;
         try {

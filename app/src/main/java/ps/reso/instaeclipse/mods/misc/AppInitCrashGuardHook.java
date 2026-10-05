@@ -16,8 +16,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
+import ps.reso.instaeclipse.Xposed.Module;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class AppInitCrashGuardHook {
 
@@ -350,7 +352,7 @@ public class AppInitCrashGuardHook {
             List<Method> discoveredPando = new ArrayList<>();
 
             try {
-                List<ClassData> pluginInitClasses = bridge.findClass(FindClass.create()
+                List<ClassData> pluginInitClasses = IgDex.findClass(bridge, FindClass.create()
                         .matcher(ClassMatcher.create().usingStrings("PluginInitializer")));
                 for (ClassData cd : pluginInitClasses) {
                     try {
@@ -366,7 +368,7 @@ public class AppInitCrashGuardHook {
             } catch (Throwable ignored) {}
 
             try {
-                List<ClassData> pandoClasses = bridge.findClass(FindClass.create()
+                List<ClassData> pandoClasses = IgDex.findClass(bridge, FindClass.create()
                         .matcher(ClassMatcher.create().usingStrings("PandoGraphQLInitializer")));
                 for (ClassData cd : pandoClasses) {
                     try {
@@ -395,45 +397,21 @@ public class AppInitCrashGuardHook {
         }
     }
 
+    private static boolean isIgMajor(String major) {
+        return Module.igVersionName.startsWith(major + ".");
+    }
+
     private static boolean hookDirectClasses(ClassLoader classLoader) {
         boolean hookedAny = false;
+        if (isIgMajor("444")) hookedAny |= hookDirect444(classLoader);
+        if (isIgMajor("445")) hookedAny |= hookDirect445(classLoader);
 
-        hookedAny |= hookRunMethods(classLoader, CLASS_NEED_INIT_444, "E69", 0, E69_GUARD_HOOK);
-        hookedAny |= hookRunMethods(classLoader, CLASS_WORKER_TASK_444, "run", 0, WORKER_RUNNABLE_GUARD_HOOK);
-        hookedAny |= hookRunMethods(classLoader, CLASS_THREAD_WRAPPER_444, "run", 0, WORKER_RUNNABLE_GUARD_HOOK);
-        hookedAny |= hookAllZeroArg(classLoader, CLASS_PLUGIN_INIT_444, PLUGIN_INIT_GUARD_HOOK);
-        hookedAny |= hookAllZeroArg(classLoader, CLASS_PLUGIN_HELPER_444, PLUGIN_INIT_GUARD_HOOK);
-        for (String className : KNOWN_GKO_CLASSES_444) {
-            hookedAny |= hookRunMethods(classLoader, className, "GKo", 0, GKO_NULL_GUARD_HOOK);
-        }
-
-        hookedAny |= hookRunMethods(classLoader, CLASS_WORKER_TASK_445, "run", 0, WORKER_RUNNABLE_GUARD_HOOK);
-        hookedAny |= hookRunMethods(classLoader, CLASS_THREAD_WRAPPER_445, "run", 0, WORKER_RUNNABLE_GUARD_HOOK);
-        hookedAny |= hookRunMethods(classLoader, CLASS_ORDERED_TASK_445, "E87", 0, WORKER_RUNNABLE_GUARD_HOOK);
-        hookedAny |= hookRunMethods(classLoader, CLASS_FUTURE_CALLABLE_445, "call", 0, CALLABLE_GUARD_HOOK);
-        hookedAny |= hookRunMethods(classLoader, CLASS_PANDO_INIT_445, "GC7", 3, PANDO_INIT_GUARD_HOOK);
-        hookedAny |= hookNamed(classLoader, CLASS_GRAPHQL_FACTORY_445, "A06", GRAPHQL_STRING_NULL_GUARD);
         hookedAny |= hookNamed(classLoader, CLASS_REPLAY_RECEIVER, "A00", INTENT_ACTION_NULL_GUARD);
         hookedAny |= hookNamed(classLoader, CLASS_REPLAY_RECEIVER, "doReceive", INTENT_ACTION_NULL_GUARD);
         hookedAny |= hookNamed(classLoader, CLASS_LAUNCHER_SYNC_RECEIVER, "onReceive", INTENT_ACTION_NULL_GUARD);
         hookedAny |= hookNamed(classLoader, CLASS_FBNS_INIT_RECEIVER, "onReceive", INTENT_ACTION_NULL_GUARD);
-        hookedAny |= hookNamed(classLoader, "X.1Nl", "A01", NULL_STRING_FALSE_GUARD);
-        hookedAny |= hookNamed(classLoader, "X.Aay", "processOnReceive", INTENT_ACTION_NULL_GUARD);
-        hookedAny |= hookNamed(classLoader, "X.Aay", "onReceive", INTENT_ACTION_NULL_GUARD);
-        hookedAny |= hookNamed(classLoader, "X.6hA", "BBq", PANDO_SERVICE_NULL_GUARD);
-        hookedAny |= hookNamed(classLoader, "X.6hA", "BBn", PANDO_SERVICE_NULL_GUARD);
-        hookedAny |= hookRunMethods(classLoader, CLASS_REPLAY_RUNNABLE_445, "run", 0, REPLAY_RUNNABLE_GUARD);
         hookedAny |= hookHttpHeaderGuards(classLoader);
-        hookedAny |= hookNamed(classLoader, CLASS_HTTP_URL_BUILDER_445, "A00", SCHEDULER_TASK_GUARD);
-        hookedAny |= hookNamed(classLoader, "X.3Qe", "getBoolean", PREFS_NULL_KEY_GUARD);
-        hookedAny |= hookNamed(classLoader, "X.3Qe", "getString", PREFS_NULL_KEY_GUARD);
-        hookedAny |= hookNamed(classLoader, "X.3Qe", "getInt", PREFS_NULL_KEY_GUARD);
-        hookedAny |= hookNamed(classLoader, "X.3Qe", "getLong", PREFS_NULL_KEY_GUARD);
-        hookedAny |= hookNamed(classLoader, "X.3Qe", "getFloat", PREFS_NULL_KEY_GUARD);
-        hookedAny |= hookNamed(classLoader, "X.3Qe", "contains", PREFS_NULL_KEY_GUARD);
         hookedAny |= hookNamed(classLoader, "com.facebook.graphql.calls.GraphQlCallInput", "put", ANALYTICS_NULL_KEY_GUARD);
-        hookedAny |= hookNamed(classLoader, "X.2mu", "AQY", ANALYTICS_NULL_KEY_GUARD);
-        hookedAny |= hookNamed(classLoader, "X.0to", "A0q", ANALYTICS_NULL_KEY_GUARD);
 
         try {
             Method encode = java.net.URLEncoder.class.getDeclaredMethod("encode", String.class, String.class);
@@ -446,6 +424,45 @@ public class AppInitCrashGuardHook {
             hookedAny = true;
         } catch (Throwable ignored) {}
 
+        return hookedAny;
+    }
+
+    private static boolean hookDirect444(ClassLoader classLoader) {
+        boolean hookedAny = false;
+        hookedAny |= hookRunMethods(classLoader, CLASS_NEED_INIT_444, "E69", 0, E69_GUARD_HOOK);
+        hookedAny |= hookRunMethods(classLoader, CLASS_WORKER_TASK_444, "run", 0, WORKER_RUNNABLE_GUARD_HOOK);
+        hookedAny |= hookRunMethods(classLoader, CLASS_THREAD_WRAPPER_444, "run", 0, WORKER_RUNNABLE_GUARD_HOOK);
+        hookedAny |= hookAllZeroArg(classLoader, CLASS_PLUGIN_INIT_444, PLUGIN_INIT_GUARD_HOOK);
+        hookedAny |= hookAllZeroArg(classLoader, CLASS_PLUGIN_HELPER_444, PLUGIN_INIT_GUARD_HOOK);
+        for (String className : KNOWN_GKO_CLASSES_444) {
+            hookedAny |= hookRunMethods(classLoader, className, "GKo", 0, GKO_NULL_GUARD_HOOK);
+        }
+        return hookedAny;
+    }
+
+    private static boolean hookDirect445(ClassLoader classLoader) {
+        boolean hookedAny = false;
+        hookedAny |= hookRunMethods(classLoader, CLASS_WORKER_TASK_445, "run", 0, WORKER_RUNNABLE_GUARD_HOOK);
+        hookedAny |= hookRunMethods(classLoader, CLASS_THREAD_WRAPPER_445, "run", 0, WORKER_RUNNABLE_GUARD_HOOK);
+        hookedAny |= hookRunMethods(classLoader, CLASS_ORDERED_TASK_445, "E87", 0, WORKER_RUNNABLE_GUARD_HOOK);
+        hookedAny |= hookRunMethods(classLoader, CLASS_FUTURE_CALLABLE_445, "call", 0, CALLABLE_GUARD_HOOK);
+        hookedAny |= hookRunMethods(classLoader, CLASS_PANDO_INIT_445, "GC7", 3, PANDO_INIT_GUARD_HOOK);
+        hookedAny |= hookNamed(classLoader, CLASS_GRAPHQL_FACTORY_445, "A06", GRAPHQL_STRING_NULL_GUARD);
+        hookedAny |= hookNamed(classLoader, "X.1Nl", "A01", NULL_STRING_FALSE_GUARD);
+        hookedAny |= hookNamed(classLoader, "X.Aay", "processOnReceive", INTENT_ACTION_NULL_GUARD);
+        hookedAny |= hookNamed(classLoader, "X.Aay", "onReceive", INTENT_ACTION_NULL_GUARD);
+        hookedAny |= hookNamed(classLoader, "X.6hA", "BBq", PANDO_SERVICE_NULL_GUARD);
+        hookedAny |= hookNamed(classLoader, "X.6hA", "BBn", PANDO_SERVICE_NULL_GUARD);
+        hookedAny |= hookRunMethods(classLoader, CLASS_REPLAY_RUNNABLE_445, "run", 0, REPLAY_RUNNABLE_GUARD);
+        hookedAny |= hookNamed(classLoader, CLASS_HTTP_URL_BUILDER_445, "A00", SCHEDULER_TASK_GUARD);
+        hookedAny |= hookNamed(classLoader, "X.3Qe", "getBoolean", PREFS_NULL_KEY_GUARD);
+        hookedAny |= hookNamed(classLoader, "X.3Qe", "getString", PREFS_NULL_KEY_GUARD);
+        hookedAny |= hookNamed(classLoader, "X.3Qe", "getInt", PREFS_NULL_KEY_GUARD);
+        hookedAny |= hookNamed(classLoader, "X.3Qe", "getLong", PREFS_NULL_KEY_GUARD);
+        hookedAny |= hookNamed(classLoader, "X.3Qe", "getFloat", PREFS_NULL_KEY_GUARD);
+        hookedAny |= hookNamed(classLoader, "X.3Qe", "contains", PREFS_NULL_KEY_GUARD);
+        hookedAny |= hookNamed(classLoader, "X.2mu", "AQY", ANALYTICS_NULL_KEY_GUARD);
+        hookedAny |= hookNamed(classLoader, "X.0to", "A0q", ANALYTICS_NULL_KEY_GUARD);
         return hookedAny;
     }
 

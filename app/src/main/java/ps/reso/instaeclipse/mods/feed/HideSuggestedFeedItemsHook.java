@@ -23,6 +23,7 @@ import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class HideSuggestedFeedItemsHook {
 
@@ -87,7 +88,7 @@ public class HideSuggestedFeedItemsHook {
         }
 
         try {
-            List<MethodData> methods = bridge.findMethod(
+            List<MethodData> methods = IgDex.findMethod(bridge, 
                     FindMethod.create().matcher(
                             MethodMatcher.create().usingStrings(
                                     "clips_netego", "suggested_users", "Unknown FeedItem Type"
@@ -96,7 +97,7 @@ public class HideSuggestedFeedItemsHook {
             );
 
             if (methods.isEmpty()) {
-                methods = bridge.findMethod(
+                methods = IgDex.findMethod(bridge, 
                         FindMethod.create().matcher(
                                 MethodMatcher.create().usingStrings("clips_netego", "media_or_ad")
                         )
@@ -104,7 +105,7 @@ public class HideSuggestedFeedItemsHook {
             }
 
             if (methods.isEmpty()) {
-                methods = bridge.findMethod(
+                methods = IgDex.findMethod(bridge, 
                         FindMethod.create().matcher(
                                 MethodMatcher.create().usingStrings("clips_netego", "stories_netego", "bloks_netego")
                         )
@@ -112,7 +113,7 @@ public class HideSuggestedFeedItemsHook {
             }
 
             if (methods.isEmpty()) {
-                methods = bridge.findMethod(
+                methods = IgDex.findMethod(bridge, 
                         FindMethod.create().matcher(
                                 MethodMatcher.create().usingStrings("bloks_netego", "media_or_ad")
                         )
@@ -120,7 +121,7 @@ public class HideSuggestedFeedItemsHook {
             }
 
             if (methods.isEmpty()) {
-                methods = bridge.findMethod(
+                methods = IgDex.findMethod(bridge, 
                         FindMethod.create().matcher(
                                 MethodMatcher.create().usingStrings("Unknown FeedItem Type")
                         )
@@ -191,7 +192,7 @@ public class HideSuggestedFeedItemsHook {
 
             // Strategy 1: Method containing ClipsItemsListResponseRest marker
             try {
-                List<MethodData> methods = bridge.findMethod(
+                List<MethodData> methods = IgDex.findMethod(bridge, 
                         FindMethod.create().matcher(
                                 MethodMatcher.create().addUsingString("ClipsItemsListResponseRest", StringMatchType.Contains)
                         )
@@ -206,7 +207,7 @@ public class HideSuggestedFeedItemsHook {
             // Strategy 2: Method containing getClipsItemsOrEmpty marker
             if (targetClasses.isEmpty()) {
                 try {
-                    List<MethodData> methods = bridge.findMethod(
+                    List<MethodData> methods = IgDex.findMethod(bridge, 
                             FindMethod.create().matcher(
                                     MethodMatcher.create().addUsingString("getClipsItemsOrEmpty", StringMatchType.Contains)
                             )
@@ -220,7 +221,7 @@ public class HideSuggestedFeedItemsHook {
             // Strategy 3: Method containing getMediasForCarrera marker
             if (targetClasses.isEmpty()) {
                 try {
-                    List<MethodData> methods = bridge.findMethod(
+                    List<MethodData> methods = IgDex.findMethod(bridge, 
                             FindMethod.create().matcher(
                                     MethodMatcher.create().addUsingString("getMediasForCarrera", StringMatchType.Contains)
                             )
@@ -239,7 +240,7 @@ public class HideSuggestedFeedItemsHook {
                 for (Class<?> itf : cls.getInterfaces()) {
                     if (hasListReturningMethod(itf)) {
                         try {
-                            List<ClassData> implementers = bridge.findClass(
+                            List<ClassData> implementers = IgDex.findClass(bridge, 
                                     FindClass.create().matcher(
                                             ClassMatcher.create().addInterface(itf.getName())
                                     )

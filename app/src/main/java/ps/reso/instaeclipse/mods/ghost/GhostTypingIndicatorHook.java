@@ -17,6 +17,7 @@ import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class GhostTypingIndicatorHook {
 
@@ -40,11 +41,11 @@ public class GhostTypingIndicatorHook {
 
         try {
 
-            List<MethodData> methods = bridge.findMethod(FindMethod.create()
+            List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create().usingStrings("is_typing_indicator_enabled")));
 
             if (methods.isEmpty()) {
-                methods = bridge.findMethod(FindMethod.create()
+                methods = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create().usingStrings("typing_indicator")));
             }
 

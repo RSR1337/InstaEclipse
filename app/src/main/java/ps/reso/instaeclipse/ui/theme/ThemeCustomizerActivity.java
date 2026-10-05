@@ -127,8 +127,9 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements ColorP
         colorSlots.setLayoutManager(new LinearLayoutManager(this));
         colorSlots.setAdapter(slotAdapter);
 
-        categoryGroup.setOnCheckedChangeListener((group, checkedId) -> {
-            if (checkedId == View.NO_ID) return;
+        categoryGroup.setOnCheckedStateChangeListener((group, checkedIds) -> {
+            if (checkedIds.isEmpty()) return;
+            int checkedId = checkedIds.get(0);
             if (checkedId == R.id.theme_cat_amoled) selectedCategory = ThemePresetCategory.AMOLED;
             else if (checkedId == R.id.theme_cat_mine) selectedCategory = ThemePresetCategory.MY_PRESETS;
             else selectedCategory = ThemePresetCategory.DARK;

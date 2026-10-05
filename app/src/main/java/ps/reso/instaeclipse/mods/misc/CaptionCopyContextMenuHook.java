@@ -52,6 +52,7 @@ import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.i18n.I18n;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class CaptionCopyContextMenuHook {
 
@@ -148,14 +149,14 @@ public class CaptionCopyContextMenuHook {
         }
 
         try {
-            List<MethodData> results = bridge.findMethod(FindMethod.create()
+            List<MethodData> results = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .declaredClass("com.instagram.feed.media.LiveTreeMediaDict")
                             .paramCount(0)
                             .usingEqStrings(List.of("caption"))));
 
             if (results.isEmpty()) {
-                results = bridge.findMethod(FindMethod.create()
+                results = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create()
                                 .paramCount(0)
                                 .usingEqStrings(List.of("caption"))));
@@ -256,12 +257,12 @@ public class CaptionCopyContextMenuHook {
         }
 
         try {
-            List<ClassData> pass1 = bridge.findClass(FindClass.create()
+            List<ClassData> pass1 = IgDex.findClass(bridge, FindClass.create()
                     .matcher(ClassMatcher.create()
                             .usingStrings("MediaOptionsOverflowMenuCreator")));
 
             if (pass1.isEmpty()) {
-                pass1 = bridge.findClass(FindClass.create()
+                pass1 = IgDex.findClass(bridge, FindClass.create()
                         .matcher(ClassMatcher.create()
                                 .usingStrings("OverflowMenuCreator")));
             }
@@ -274,11 +275,12 @@ public class CaptionCopyContextMenuHook {
             String creatorClassName = pass1.get(0).getName();
             menuCreatorClass = classLoader.loadClass(creatorClassName);
 
-            List<MethodData> pass2 = bridge.findMethod(FindMethod.create()
+            List<MethodData> pass2 = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .declaredClass(creatorClassName)
                             .returnType("void")));
 
+            pass2.sort((x, y) -> Boolean.compare(!hasLabelParam(x), !hasLabelParam(y)));
             for (MethodData md : pass2) {
                 try {
                     Method m = md.getMethodInstance(classLoader);
@@ -418,7 +420,7 @@ public class CaptionCopyContextMenuHook {
         try {
             String optionClassName = "com.instagram.feed.media.mediaoption.MediaOption$Option";
 
-            List<MethodData> results = bridge.findMethod(FindMethod.create()
+            List<MethodData> results = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .returnType("void")
                             .paramTypes(optionClassName)));
@@ -488,7 +490,7 @@ public class CaptionCopyContextMenuHook {
             String typeDesc = "L" + optionClassName.replace('.', '/') + ";";
             String prefix = typeDesc + "->";
 
-            List<MethodData> results = bridge.findMethod(FindMethod.create()
+            List<MethodData> results = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .paramTypes("boolean")
                             .returnType("java.util.List")
@@ -586,7 +588,7 @@ public class CaptionCopyContextMenuHook {
         }
 
         try {
-            List<MethodData> resolverResults = bridge.findMethod(FindMethod.create()
+            List<MethodData> resolverResults = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .usingEqStrings(List.of(
                                     "Unsupported text row for Clips Viewer Overflow menu."))));
@@ -596,7 +598,7 @@ public class CaptionCopyContextMenuHook {
             }
             Method labelResolver = resolverResults.get(0).getMethodInstance(classLoader);
 
-            List<MethodData> adderResults = bridge.findMethod(FindMethod.create()
+            List<MethodData> adderResults = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .returnType("void")
                             .addInvoke(MethodMatcher.create(labelResolver))));
@@ -615,7 +617,7 @@ public class CaptionCopyContextMenuHook {
             for (Method rowAdder : adderCandidates) {
 
                 try {
-                    List<MethodData> ctorResults = bridge.findMethod(FindMethod.create()
+                    List<MethodData> ctorResults = IgDex.findMethod(bridge, FindMethod.create()
                             .matcher(MethodMatcher.create()
                                     .paramTypes("android.view.View$OnClickListener",
                                             "java.lang.CharSequence", "java.lang.String")
@@ -635,7 +637,7 @@ public class CaptionCopyContextMenuHook {
                 } catch (Throwable ignored) {}
 
                 try {
-                    List<MethodData> addResults = bridge.findMethod(FindMethod.create()
+                    List<MethodData> addResults = IgDex.findMethod(bridge, FindMethod.create()
                             .matcher(MethodMatcher.create()
                                     .paramTypes("android.content.Context",
                                             "android.view.View$OnClickListener",
@@ -1092,5 +1094,12 @@ public class CaptionCopyContextMenuHook {
         } catch (Throwable t) {
             ModuleLog.line("(IE|Caption) ❌ Copy: " + t);
         }
+    }
+
+    private static boolean hasLabelParam(MethodData md) {
+        for (String type : md.getParamTypeNames()) {
+            if ("java.lang.CharSequence".equals(type) || "java.lang.String".equals(type)) return true;
+        }
+        return false;
     }
 }

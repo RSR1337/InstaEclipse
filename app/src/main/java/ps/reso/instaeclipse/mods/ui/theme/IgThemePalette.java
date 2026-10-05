@@ -275,9 +275,8 @@ public class IgThemePalette {
             else if (o.has(SLOT_DIVIDER)) palette.border = o.getInt(SLOT_DIVIDER);
             if (o.has(SLOT_STATUS_BAR)) palette.statusBar = o.getInt(SLOT_STATUS_BAR);
             else if (o.has(SLOT_NAVIGATION)) palette.statusBar = o.getInt(SLOT_NAVIGATION);
-            if (o.has(SLOT_STATUS_BAR) && o.has(SLOT_NAVIGATION)) palette.navigation = o.getInt(SLOT_NAVIGATION);
+            if (o.has(SLOT_NAVIGATION)) palette.navigation = o.getInt(SLOT_NAVIGATION);
             else if (o.has(SLOT_BACKGROUND)) palette.navigation = o.getInt(SLOT_BACKGROUND);
-            else if (o.has(SLOT_NAVIGATION)) palette.navigation = o.getInt(SLOT_NAVIGATION);
             if (o.has(SLOT_LINK)) palette.link = o.getInt(SLOT_LINK);
             if (o.has(SLOT_ERROR)) palette.error = o.getInt(SLOT_ERROR);
             else if (o.has(SLOT_DESTRUCTIVE)) palette.error = o.getInt(SLOT_DESTRUCTIVE);

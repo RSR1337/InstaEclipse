@@ -20,6 +20,7 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class StaleStateCrashGuardHook {
 
@@ -177,7 +178,7 @@ public class StaleStateCrashGuardHook {
         }
         if (bridge != null) {
             try {
-                List<MethodData> candidates = bridge.findMethod(
+                List<MethodData> candidates = IgDex.findMethod(bridge, 
                         FindMethod.create().matcher(
                                 MethodMatcher.create()
                                         .declaredClass(activityClass)
@@ -187,7 +188,7 @@ public class StaleStateCrashGuardHook {
                         )
                 );
                 if (candidates == null || candidates.isEmpty()) {
-                    candidates = bridge.findMethod(
+                    candidates = IgDex.findMethod(bridge, 
                             FindMethod.create().matcher(
                                     MethodMatcher.create()
                                             .declaredClass(activityClass)

@@ -14,6 +14,7 @@ import ps.reso.instaeclipse.Xposed.Module;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class DisableVideoAutoPlayHook {
 
@@ -34,14 +35,14 @@ public class DisableVideoAutoPlayHook {
 
     private void findAndHookDynamicMethod(DexKitBridge bridge) {
         try {
-            List<MethodData> methods = bridge.findMethod(FindMethod.create()
+            List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .usingStrings("ig_disable_video_autoplay")
                     )
             );
 
             if (methods.isEmpty()) {
-                methods = bridge.findMethod(FindMethod.create()
+                methods = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create()
                                 .usingStrings("disable_video_autoplay")
                         )

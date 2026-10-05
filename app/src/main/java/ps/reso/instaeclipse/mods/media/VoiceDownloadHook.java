@@ -107,6 +107,7 @@ public class VoiceDownloadHook {
                 if (!classHooked) {
                     for (Method m : cls.getDeclaredMethods()) {
                         if (m.getParameterTypes().length != 0 || m.getReturnType() != String.class) continue;
+                        if ("getTypeName".equals(m.getName()) || "toString".equals(m.getName())) continue;
                         XposedBridge.hookMethod(m, hook);
                         ModuleLog.line("(InstaEclipse | VoiceDownload): ✅ Hooked URL capture: " + cn + "." + m.getName() + "()");
                         hookedAny = true;

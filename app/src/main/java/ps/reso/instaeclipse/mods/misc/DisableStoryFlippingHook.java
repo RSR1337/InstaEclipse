@@ -14,6 +14,7 @@ import ps.reso.instaeclipse.Xposed.Module;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class DisableStoryFlippingHook {
 
@@ -43,7 +44,7 @@ public class DisableStoryFlippingHook {
     private void findAndHookMethod(DexKitBridge bridge) {
         try {
 
-            List<MethodData> methods = bridge.findMethod(
+            List<MethodData> methods = IgDex.findMethod(bridge, 
                     FindMethod.create().matcher(
                             MethodMatcher.create()
                                     .declaredClass("instagram.features.stories.fragment.ReelViewerFragment")
@@ -54,7 +55,7 @@ public class DisableStoryFlippingHook {
             );
 
             if (methods.isEmpty()) {
-                methods = bridge.findMethod(
+                methods = IgDex.findMethod(bridge, 
                         FindMethod.create().matcher(
                                 MethodMatcher.create()
                                         .usingStrings("end_scene", "userSession")
@@ -65,7 +66,7 @@ public class DisableStoryFlippingHook {
             }
 
             if (methods.isEmpty()) {
-                methods = bridge.findMethod(
+                methods = IgDex.findMethod(bridge, 
                         FindMethod.create().matcher(
                                 MethodMatcher.create()
                                         .usingStrings("end_scene")
@@ -76,14 +77,14 @@ public class DisableStoryFlippingHook {
             }
 
             if (methods.isEmpty()) {
-                List<org.luckypray.dexkit.result.ClassData> reelClasses = bridge.findClass(
+                List<org.luckypray.dexkit.result.ClassData> reelClasses = IgDex.findClass(bridge, 
                         org.luckypray.dexkit.query.FindClass.create().matcher(
                                 org.luckypray.dexkit.query.matchers.ClassMatcher.create()
                                         .usingStrings("ReelViewerFragment")
                         )
                 );
                 for (org.luckypray.dexkit.result.ClassData classData : reelClasses) {
-                    methods = bridge.findMethod(
+                    methods = IgDex.findMethod(bridge, 
                             FindMethod.create().matcher(
                                     MethodMatcher.create()
                                             .declaredClass(classData.getName())

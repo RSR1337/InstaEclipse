@@ -140,7 +140,7 @@ public class DialogUtils {
             if (currentDialog == d) currentDialog = null;
         });
         dialog.setOnShowListener(d -> markDialogDecor(dialog));
-        dialog.show();
+        IgColorRemapEngine.withBypass(dialog::show);
     }
 
     private static void markDialogDecor(AlertDialog dialog) {

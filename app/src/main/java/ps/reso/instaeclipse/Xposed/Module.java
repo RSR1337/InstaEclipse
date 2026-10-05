@@ -59,7 +59,6 @@ import ps.reso.instaeclipse.mods.misc.DisableVideoAutoPlayHook;
 import ps.reso.instaeclipse.mods.misc.StoryMentionHook;
 import ps.reso.instaeclipse.mods.network.IGNetworkInterceptor;
 import ps.reso.instaeclipse.mods.ui.UIHookManager;
-import ps.reso.instaeclipse.mods.ui.theme.IgThemeEngine;
 import ps.reso.instaeclipse.mods.ui.theme.IgThemeHook;
 import ps.reso.instaeclipse.utils.core.CommonUtils;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
@@ -77,6 +76,7 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
     public static ClassLoader hostClassLoader;
     public static String moduleSourceDir;
     public static Context hostAppContext;
+    public static volatile String igVersionName = "";
 
     @Override
     public void initZygote(StartupParam startupParam) {
@@ -134,6 +134,7 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                         android.content.pm.PackageInfo pi =
                                 context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
                         long vc = pi.getLongVersionCode();
+                        igVersionName = pi.versionName != null ? pi.versionName : "";
                         DexKitCache.init(context, String.valueOf(vc));
                     } catch (Throwable e) {
                         ModuleLog.line("(DexKitCache) ❌ init failed: " + e.getMessage());
@@ -417,7 +418,6 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
 
                     SettingsManager.loadAllFlags(ctx);
                     FeatureManager.refreshFeatureStatus();
-                    IgThemeEngine.invalidate();
                     IgThemeHook.refreshCurrentActivity();
 
                 } else if ("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING".equals(action)) {
@@ -434,7 +434,6 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                             .commit();
 
                     SettingsManager.loadAllFlags(ctx);
-                    IgThemeEngine.invalidate();
                     IgThemeHook.refreshCurrentActivity();
 
                 } else if ("ps.reso.instaeclipse.ACTION_UPDATE_PREF_INT".equals(action)) {
@@ -452,7 +451,6 @@ public class Module implements IXposedHookLoadPackage, IXposedHookZygoteInit {
 
                     SettingsManager.loadAllFlags(ctx);
                     FeatureManager.refreshFeatureStatus();
-                    IgThemeEngine.invalidate();
                     IgThemeHook.refreshCurrentActivity();
 
                 } else if (CommonUtils.ACTION_REQUEST_LOGS.equals(action)) {

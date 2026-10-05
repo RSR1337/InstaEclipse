@@ -80,6 +80,7 @@ import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.i18n.I18n;
 import ps.reso.instaeclipse.utils.users.UserUtils;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class FeedVideoDownloadHook {
 
@@ -136,6 +137,7 @@ public class FeedVideoDownloadHook {
 
     private static Class<?> userClass;
     private static Method   dictUserGetter;
+    private static Method   mediaUserGetter;
 
     private static final class UrlEntry {
         final String url; final long time;
@@ -1290,7 +1292,7 @@ public class FeedVideoDownloadHook {
         try {
             List<ClassData> classes = new ArrayList<>();
             for (String cn : VIDEO_VERSION_INTF_CLASSES) {
-                classes = bridge.findClass(FindClass.create()
+                classes = IgDex.findClass(bridge, FindClass.create()
                         .matcher(ClassMatcher.create()
                                 .addInterface(cn, StringMatchType.Equals, false)));
                 if (!classes.isEmpty()) break;
@@ -1301,7 +1303,7 @@ public class FeedVideoDownloadHook {
             List<Method> hooked = new ArrayList<>();
             for (ClassData classData : classes) {
                 try {
-                    List<MethodData> methods = bridge.findMethod(FindMethod.create()
+                    List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                             .matcher(MethodMatcher.create()
                                     .declaredClass(classData.getName())
                                     .name("getUrl")
@@ -1350,7 +1352,7 @@ public class FeedVideoDownloadHook {
         }
 
         try {
-            List<MethodData> userMethods = bridge.findMethod(FindMethod.create()
+            List<MethodData> userMethods = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .usingStrings("username_missing_during_update")));
 
@@ -1364,7 +1366,7 @@ public class FeedVideoDownloadHook {
             ModuleLog.line("(IE|DL|Username) userClass=" + userClass.getName());
 
             try {
-                List<MethodData> ugMethods = bridge.findMethod(FindMethod.create()
+                List<MethodData> ugMethods = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create()
                                 .declaredClass("com.instagram.user.model.User")
                                 .returnType("java.lang.String")
@@ -1390,7 +1392,11 @@ public class FeedVideoDownloadHook {
     }
 
     private static void resolveDictUserGetter(DexKitBridge bridge, ClassLoader classLoader) {
-        if (mutableMediaDictIntfClass == null || userClass == null) return;
+        if (userClass == null) return;
+        if (mutableMediaDictIntfClass == null) {
+            resolveMediaUserGetter(bridge, classLoader);
+            return;
+        }
 
         if (DexKitCache.isCacheValid()) {
             Method cached = DexKitCache.loadMethod("DictUserGetter", classLoader);
@@ -1421,7 +1427,7 @@ public class FeedVideoDownloadHook {
         }
 
         try {
-            List<MethodData> results = bridge.findMethod(FindMethod.create()
+            List<MethodData> results = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .declaredClass("com.instagram.feed.media.LiveTreeMediaDict")
                             .paramCount(0)
@@ -1429,7 +1435,7 @@ public class FeedVideoDownloadHook {
                             .usingEqStrings(java.util.List.of("user"))));
 
             if (results.isEmpty()) {
-                results = bridge.findMethod(FindMethod.create()
+                results = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create()
                                 .paramCount(0)
                                 .returnType(userClass)
@@ -1464,6 +1470,46 @@ public class FeedVideoDownloadHook {
         ModuleLog.line("(IE|DL|Username) ❌ Failed to resolve dictUserGetter in hierarchy");
     }
 
+    private static void resolveMediaUserGetter(DexKitBridge bridge, ClassLoader classLoader) {
+        if (DexKitCache.isCacheValid()) {
+            Method cached = DexKitCache.loadMethod("MediaUserGetter", classLoader);
+            if (cached != null) {
+                mediaUserGetter = cached;
+                return;
+            }
+        }
+        if (bridge == null || mediaClass == null) return;
+        try {
+            List<MethodData> results = IgDex.findMethod(bridge, FindMethod.create()
+                    .matcher(MethodMatcher.create()
+                            .declaredClass(mediaClass.getName())
+                            .paramCount(0)
+                            .returnType(userClass)
+                            .usingEqStrings(java.util.List.of("user"))));
+            if (results.isEmpty()) {
+                ModuleLog.line("(IE|DL|Username) ❌ Media owner getter not found");
+                return;
+            }
+            Method m = results.get(0).getMethodInstance(classLoader);
+            m.setAccessible(true);
+            mediaUserGetter = m;
+            DexKitCache.saveMethod("MediaUserGetter", m);
+            ModuleLog.line("(IE|DL|Username) ✅ Resolved Media owner getter: " + m.getName());
+        } catch (Throwable t) {
+            ModuleLog.line("(IE|DL|Username) ❌ Media owner getter lookup: " + t);
+        }
+    }
+
+    static Object mediaOwner(Object media) {
+        Method getter = mediaUserGetter;
+        if (getter == null || media == null || !getter.getDeclaringClass().isInstance(media)) return null;
+        try {
+            return getter.invoke(media);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     @SuppressLint("DiscouragedApi")
     private String getUsernameFromView(View likeBtn) {
         if (likeBtn == null || mediaClass == null) return null;
@@ -1486,6 +1532,12 @@ public class FeedVideoDownloadHook {
         }
 
         if (media == null) return null;
+
+        Object owner = mediaOwner(media);
+        if (owner != null) {
+            String name = UserUtils.callUsernameGetter(owner);
+            if (name != null) return name;
+        }
 
         if (dictUserGetter != null && mutableMediaDictIntfClass != null) {
             try {
@@ -2566,6 +2618,12 @@ public class FeedVideoDownloadHook {
     static String extractUsernameFromMediaObject(Object media) {
         if (media == null) return null;
         ensureUserClass(media);
+
+        Object owner = mediaOwner(media);
+        if (owner != null) {
+            String name = UserUtils.callUsernameGetter(owner);
+            if (name != null) return name;
+        }
 
         List<Object> hosts = new ArrayList<>();
         hosts.add(media);

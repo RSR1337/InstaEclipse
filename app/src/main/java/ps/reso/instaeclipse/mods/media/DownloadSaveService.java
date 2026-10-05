@@ -408,17 +408,7 @@ public class DownloadSaveService extends Service {
 
     private Notification buildProgressNotification(String text, int progress, int max,
                                                     boolean indeterminate) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            return new Notification.Builder(this, CHANNEL_ID)
-                    .setContentTitle("InstaEclipse")
-                    .setContentText(text)
-                    .setSmallIcon(android.R.drawable.stat_sys_download)
-                    .setProgress(max, progress, indeterminate)
-                    .setOngoing(true)
-                    .build();
-        }
-
-        return new Notification.Builder(this)
+        return new Notification.Builder(this, CHANNEL_ID)
                 .setContentTitle("InstaEclipse")
                 .setContentText(text)
                 .setSmallIcon(android.R.drawable.stat_sys_download)
@@ -446,13 +436,7 @@ public class DownloadSaveService extends Service {
                     this, DONE_NOTIF_BASE + startId, viewIntent, piFlags);
         }
 
-        Notification.Builder builder;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            builder = new Notification.Builder(this, CHANNEL_ID);
-        } else {
-
-            builder = new Notification.Builder(this);
-        }
+        Notification.Builder builder = new Notification.Builder(this, CHANNEL_ID);
         builder.setContentTitle("InstaEclipse")
                .setContentText(text)
                .setSmallIcon(icon)

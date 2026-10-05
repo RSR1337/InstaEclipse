@@ -29,6 +29,7 @@ import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.i18n.I18n;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class ReelDownloadHook {
 
@@ -122,7 +123,7 @@ public class ReelDownloadHook {
 
         for (String marker : markers) {
             try {
-                List<ClassData> classHits = bridge.findClass(FindClass.create()
+                List<ClassData> classHits = IgDex.findClass(bridge, FindClass.create()
                         .matcher(ClassMatcher.create().usingStrings(marker)));
                 for (ClassData cd : classHits) {
                     Class<?> cls = loadNonFrameworkClass(classLoader, cd.getName());
@@ -131,7 +132,7 @@ public class ReelDownloadHook {
             } catch (Throwable ignored) {}
 
             try {
-                List<MethodData> methodHits = bridge.findMethod(FindMethod.create()
+                List<MethodData> methodHits = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create().usingStrings(marker)));
                 for (MethodData md : methodHits) {
                     Class<?> cls = loadNonFrameworkClass(classLoader, md.getClassName());
@@ -165,7 +166,7 @@ public class ReelDownloadHook {
         if (targets.isEmpty()) {
             try {
                 String optionDesc = "Lcom/instagram/feed/media/mediaoption/MediaOption$Option;";
-                List<MethodData> downloadRefs = bridge.findMethod(FindMethod.create()
+                List<MethodData> downloadRefs = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create()
                                 .addUsingField(optionDesc + "->DOWNLOAD:" + optionDesc)));
                 for (MethodData md : downloadRefs) {
@@ -335,7 +336,7 @@ public class ReelDownloadHook {
                     for (String field : combo) {
                         matcher.addUsingField(optionDesc + "->" + field + ":" + optionDesc);
                     }
-                    List<MethodData> methods = bridge.findMethod(FindMethod.create().matcher(matcher));
+                    List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create().matcher(matcher));
                     for (MethodData md : methods) {
                         try {
                             Method m = md.getMethodInstance(classLoader);
@@ -349,7 +350,7 @@ public class ReelDownloadHook {
 
         for (String rt : returnTypes) {
             try {
-                List<MethodData> methods = bridge.findMethod(FindMethod.create()
+                List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create()
                                 .returnType(rt)
                                 .addUsingField(optionDesc + "->PLAYBACK_CONTROLS:" + optionDesc)));
@@ -389,7 +390,7 @@ public class ReelDownloadHook {
         LinkedHashSet<Method> hooked = new LinkedHashSet<>();
         for (String marker : markers) {
             try {
-                List<MethodData> methods = bridge.findMethod(FindMethod.create()
+                List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create()
                                 .usingStrings(marker)
                                 .returnType("boolean")));

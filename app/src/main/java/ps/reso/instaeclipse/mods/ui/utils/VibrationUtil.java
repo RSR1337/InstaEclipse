@@ -1,24 +1,17 @@
 package ps.reso.instaeclipse.mods.ui.utils;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 
-import de.robv.android.xposed.XposedBridge;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
 
 public class VibrationUtil {
-    @SuppressLint("ObsoleteSdkInt")
     public static void vibrate(Context context) {
         try {
-            Vibrator v = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
+            Vibrator v = context.getSystemService(Vibrator.class);
             if (v != null && v.hasVibrator()) {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    v.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE));
-                } else {
-                    v.vibrate(50);
-                }
+                v.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE));
             }
         } catch (Exception e) {
             ModuleLog.line("InstaEclipse (vibrate error): " + e.getMessage());

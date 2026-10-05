@@ -103,18 +103,15 @@ public class CustomToast {
     }
 
     private static void showInternal(Context context, CardFactory factory, String fallbackText) {
-        IgColorRemapEngine.enterModuleUi();
-        try {
+        IgColorRemapEngine.withBypass(() -> {
             View card = factory.create();
-            IgColorRemapEngine.markModuleDialogView(card);
+            IgColorRemapEngine.markModuleTree(card);
             Activity activity = resolveActivity(context);
             if (activity != null && !activity.isFinishing() && !activity.isDestroyed()) {
                 if (attachOverlay(activity, card)) return;
             }
             showViaToast(context, card, fallbackText);
-        } finally {
-            IgColorRemapEngine.leaveModuleUi();
-        }
+        });
     }
 
     private static boolean attachOverlay(Activity activity, View card) {
@@ -167,6 +164,7 @@ public class CustomToast {
                 .withEndAction(remove).start();
     }
 
+    @SuppressWarnings("deprecation")
     private static void showViaToast(Context context, View card, String fallbackText) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             Toast.makeText(context, fallbackText, Toast.LENGTH_SHORT).show();

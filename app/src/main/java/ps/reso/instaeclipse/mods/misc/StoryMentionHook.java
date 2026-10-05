@@ -61,6 +61,8 @@ import ps.reso.instaeclipse.mods.ui.UIHookManager;
 import ps.reso.instaeclipse.utils.i18n.I18n;
 import ps.reso.instaeclipse.utils.users.UserUtils;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
+import ps.reso.instaeclipse.utils.core.IgModelClasses;
 
 public class StoryMentionHook {
 
@@ -100,9 +102,7 @@ public class StoryMentionHook {
         try {
             userSessionClass = classLoader.loadClass("com.instagram.common.session.UserSession");
         } catch (Throwable ignored) {}
-        try {
-            reelClass = classLoader.loadClass("com.instagram.model.reels.Reel");
-        } catch (Throwable ignored) {}
+        reelClass = IgModelClasses.reel(bridge, classLoader);
         try {
             reelItemClass = classLoader.loadClass("com.instagram.model.reels.ReelItem");
         } catch (Throwable ignored) {}
@@ -121,13 +121,13 @@ public class StoryMentionHook {
         }
 
         if (rawMentionsGetter == null) try {
-            List<MethodData> getters = bridge.findMethod(FindMethod.create()
+            List<MethodData> getters = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .declaredClass("com.instagram.feed.media.LiveTreeMediaDict")
                             .paramCount(0)
                             .usingEqStrings(List.of("reel_mentions"))));
             if (getters.isEmpty()) {
-                getters = bridge.findMethod(FindMethod.create()
+                getters = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create()
                                 .paramCount(0)
                                 .usingEqStrings(List.of("reel_mentions"))));
@@ -152,7 +152,7 @@ public class StoryMentionHook {
         }
 
         if (mentionsConverter == null) try {
-            List<MethodData> converters = bridge.findMethod(FindMethod.create()
+            List<MethodData> converters = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .paramCount(1)
                             .usingEqStrings(List.of("MentionTappableObject.user is null; dropping mention sticker"))));
@@ -189,7 +189,7 @@ public class StoryMentionHook {
             } catch (Throwable ignored) {}
         }
         try {
-            List<ClassData> found = bridge.findClass(FindClass.create()
+            List<ClassData> found = IgDex.findClass(bridge, FindClass.create()
                     .matcher(ClassMatcher.create().usingStrings("MentionTappableObject")));
             for (ClassData cd : found) {
                 String cn = cd.getName();
@@ -261,7 +261,7 @@ public class StoryMentionHook {
 
         if (method == null) {
             try {
-                List<MethodData> methods = bridge.findMethod(FindMethod.create()
+                List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create()
                                 .usingStrings("[INTERNAL] Pause Playback")
                                 .paramCount(1)));
@@ -319,7 +319,7 @@ public class StoryMentionHook {
 
         if (method == null) {
             try {
-                List<MethodData> methods = bridge.findMethod(FindMethod.create()
+                List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create()
                                 .returnType("void")
                                 .usingStrings("explore_viewer",

@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <item name="tag_module_dialog_root" type="id" />
+    <item name="tag_module_root_tracked" type="id" />
+    <item name="tag_theme_layout_listener" type="id" />
+    <item name="tag_theme_sweep_gen" type="id" />
 </resources>

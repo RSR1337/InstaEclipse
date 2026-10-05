@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace 'ps.reso.instaeclipse'
+    namespace = 'ps.reso.instaeclipse'
     compileSdk 36
 
     defaultConfig {
@@ -29,12 +29,13 @@ android {
     }
 
     buildFeatures {
-        aidl true
+        aidl = true
     }
 
     packagingOptions {
         jniLibs {
-            useLegacyPackaging true
+            useLegacyPackaging = true
+            keepDebugSymbols += ['**/libdexkit.so']
         }
     }
 }

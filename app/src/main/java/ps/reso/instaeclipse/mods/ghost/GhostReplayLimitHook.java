@@ -16,6 +16,7 @@ import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class GhostReplayLimitHook {
 
@@ -40,10 +41,9 @@ public class GhostReplayLimitHook {
         }
 
         try {
-            List<MethodData> methods = bridge.findMethod(FindMethod.create()
-                    .matcher(MethodMatcher.create()
-                            .usingStrings("Entry should exist before function call",
-                                    "Visual message is missing from thread entry")));
+            List<MethodData> methods = IgDex.findMethodsUsingAll(bridge, classLoader,
+                    "Entry should exist before function call",
+                    "Visual message is missing from thread entry");
 
             for (MethodData md : methods) {
                 try {
@@ -82,7 +82,7 @@ public class GhostReplayLimitHook {
         }
 
         try {
-            List<MethodData> methods = bridge.findMethod(FindMethod.create()
+            List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .usingStrings("seen_count", "tap_models")));
 
@@ -126,7 +126,7 @@ public class GhostReplayLimitHook {
         }
 
         try {
-            List<MethodData> methods = bridge.findMethod(FindMethod.create()
+            List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .paramTypes("com.instagram.common.session.UserSession", null, null)
                             .returnType("void")));
@@ -152,6 +152,8 @@ public class GhostReplayLimitHook {
     
     private static void zeroReplayCountFields(Object obj) {
         if (obj == null) return;
+        String owner = obj.getClass().getName();
+        if (!owner.startsWith("X.") && !owner.startsWith("com.instagram.")) return;
         try {
             for (Field f : obj.getClass().getDeclaredFields()) {
                 if (f.getType() != int.class) continue;

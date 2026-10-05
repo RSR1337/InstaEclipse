@@ -77,12 +77,45 @@ public class LocationSpoofHook {
 
                 }
 
+                hookDeviceLocationGetters();
                 FeatureStatusTracker.setHooked("SpoofLocation");
                 ModuleLog.line("(InstaEclipse | SpoofLocation): ✅ Hooked LocationManager.");
             } catch (Throwable t) {
                 ModuleLog.line("(InstaEclipse | SpoofLocation): ❌ Install failed: " + t.getMessage());
             }
         }
+    }
+
+    private static void hookDeviceLocationGetters() {
+        XC_MethodHook latHook = new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                if (FeatureFlags.spoofLocation && isDeviceFix((Location) param.thisObject)) {
+                    param.setResult(FeatureFlags.spoofLat);
+                }
+            }
+        };
+        XC_MethodHook lngHook = new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                if (FeatureFlags.spoofLocation && isDeviceFix((Location) param.thisObject)) {
+                    param.setResult(FeatureFlags.spoofLng);
+                }
+            }
+        };
+        try {
+            XposedBridge.hookMethod(Location.class.getDeclaredMethod("getLatitude"), latHook);
+            XposedBridge.hookMethod(Location.class.getDeclaredMethod("getLongitude"), lngHook);
+        } catch (Throwable t) {
+            ModuleLog.line("(InstaEclipse | SpoofLocation): ⚠️ Location getter hooks failed: " + t.getMessage());
+        }
+    }
+
+    private static boolean isDeviceFix(Location location) {
+        if (location == null) return false;
+        String provider = location.getProvider();
+        return "gps".equals(provider) || "network".equals(provider)
+                || "fused".equals(provider) || "passive".equals(provider);
     }
 
     private static LocationListener findListener(Object[] args) {

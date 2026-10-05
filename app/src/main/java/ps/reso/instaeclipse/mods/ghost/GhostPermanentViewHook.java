@@ -1,8 +1,6 @@
 package ps.reso.instaeclipse.mods.ghost;
 
 import org.luckypray.dexkit.DexKitBridge;
-import org.luckypray.dexkit.query.FindMethod;
-import org.luckypray.dexkit.query.matchers.MethodMatcher;
 import org.luckypray.dexkit.result.MethodData;
 
 import java.lang.reflect.Field;
@@ -15,6 +13,7 @@ import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 
 public class GhostPermanentViewHook {
@@ -30,10 +29,12 @@ public class GhostPermanentViewHook {
         }
 
         try {
-            List<MethodData> methods = bridge.findMethod(FindMethod.create()
-                    .matcher(MethodMatcher.create()
-                            .usingStrings("archived_media_timestamp", "view_mode")
-                            .paramCount(1)));
+            List<MethodData> methods = new java.util.ArrayList<>();
+            for (MethodData md : IgDex.findMethodsUsingAll(bridge, classLoader, "archived_media_timestamp", "view_mode")) {
+                if (md.getParamTypeNames().size() == 1) methods.add(md);
+            }
+            methods.sort((a, b) -> Boolean.compare(!"unsafeParseFromJson".equals(a.getName()),
+                    !"unsafeParseFromJson".equals(b.getName())));
 
             if (methods.isEmpty()) {
                 ModuleLog.line("(IE|ViewOnceMedia) ❌ unsafeParseFromJson not found");

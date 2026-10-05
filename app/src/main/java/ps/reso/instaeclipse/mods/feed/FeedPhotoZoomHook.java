@@ -25,14 +25,17 @@ import ps.reso.instaeclipse.utils.log.ModuleLog;
 public class FeedPhotoZoomHook {
 
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
-    private static final String VIEW_CLASS = "com.instagram.feed.widget.IgProgressImageView";
+    private static final String[] VIEW_CLASSES = {
+            "com.instagram.common.ui.widget.imageview.IgProgressImageView",
+            "com.instagram.feed.widget.IgProgressImageView"
+    };
 
     
     private static volatile int sFeedLikeButtonId = 0;
 
     public void install(ClassLoader classLoader) {
         try {
-            Class<?> viewClass = classLoader.loadClass(VIEW_CLASS);
+            Class<?> viewClass = loadFirst(classLoader, VIEW_CLASSES);
 
             
             XposedHelpers.findAndHookMethod(viewClass, "onAttachedToWindow", new XC_MethodHook() {
@@ -72,6 +75,15 @@ public class FeedPhotoZoomHook {
     }
 
     
+    private static Class<?> loadFirst(ClassLoader classLoader, String[] names) throws ClassNotFoundException {
+        for (String name : names) {
+            try {
+                return classLoader.loadClass(name);
+            } catch (ClassNotFoundException ignored) {}
+        }
+        throw new ClassNotFoundException(String.join(", ", names));
+    }
+
     private static boolean isInsideFeedRow(View view) {
         if (sFeedLikeButtonId == 0) {
             sFeedLikeButtonId = view.getContext().getResources()

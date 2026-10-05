@@ -17,7 +17,6 @@ import java.util.Map;
 import de.robv.android.xposed.XSharedPreferences;
 import io.github.libxposed.service.XposedService;
 import io.github.libxposed.service.XposedServiceHelper;
-import ps.reso.instaeclipse.mods.ui.theme.IgThemeEngine;
 import ps.reso.instaeclipse.mods.ui.theme.IgThemeHook;
 import ps.reso.instaeclipse.utils.feature.FeatureManager;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
@@ -176,7 +175,6 @@ public final class LsPatchCompanionBridge {
         try {
             SettingsManager.mergeFrom(context, remote);
             FeatureManager.refreshFeatureStatus();
-            IgThemeEngine.invalidate();
             IgThemeHook.refreshCurrentActivity();
         } catch (Throwable t) {
             ModuleLog.line("(InstaEclipse | LSPatch): apply remote prefs failed: " + t.getMessage());
@@ -191,7 +189,6 @@ public final class LsPatchCompanionBridge {
                 try {
                     SettingsManager.mergeFrom(context, prefs);
                     FeatureManager.refreshFeatureStatus();
-                    IgThemeEngine.invalidate();
                     IgThemeHook.refreshCurrentActivity();
                 } catch (Throwable ignored) {}
             }));

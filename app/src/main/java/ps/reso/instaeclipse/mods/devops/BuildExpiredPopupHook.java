@@ -14,6 +14,7 @@ import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class BuildExpiredPopupHook {
 
@@ -58,7 +59,7 @@ public class BuildExpiredPopupHook {
 
         try {
 
-            List<MethodData> showMethods = bridge.findMethod(FindMethod.create()
+            List<MethodData> showMethods = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .usingStrings("lockout_active")
                             .returnType("void")));
@@ -85,7 +86,7 @@ public class BuildExpiredPopupHook {
                 ModuleLog.line("(IE|BuildExpired) ⚠️ show-popup method not found, falling back to boolean hook only");
             }
 
-            List<MethodData> checkMethods = bridge.findMethod(FindMethod.create()
+            List<MethodData> checkMethods = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .usingStrings("snooze_expiration_lockout_manager")
                             .returnType("boolean")));

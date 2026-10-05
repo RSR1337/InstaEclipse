@@ -19,6 +19,7 @@ import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class GhostScreenshotDetectionHook {
 
@@ -42,11 +43,11 @@ public class GhostScreenshotDetectionHook {
 
         try {
 
-            List<ClassData> classes = bridge.findClass(FindClass.create()
+            List<ClassData> classes = IgDex.findClass(bridge, FindClass.create()
                     .matcher(ClassMatcher.create().usingStrings("ScreenshotNotificationManager")));
 
             if (classes.isEmpty()) {
-                classes = bridge.findClass(FindClass.create()
+                classes = IgDex.findClass(bridge, FindClass.create()
                         .matcher(ClassMatcher.create().usingStrings("screenshot_notification")));
             }
 
@@ -58,7 +59,7 @@ public class GhostScreenshotDetectionHook {
             for (ClassData classData : classes) {
                 String className = classData.getName();
 
-                List<MethodData> methods = bridge.findMethod(FindMethod.create()
+                List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create().declaredClass(className)));
 
                 for (MethodData method : methods) {

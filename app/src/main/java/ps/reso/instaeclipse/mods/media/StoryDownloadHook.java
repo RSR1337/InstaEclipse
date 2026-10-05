@@ -32,6 +32,8 @@ import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.i18n.I18n;
 import ps.reso.instaeclipse.utils.users.UserUtils;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
+import ps.reso.instaeclipse.utils.core.IgModelClasses;
 
 public class StoryDownloadHook {
 
@@ -74,9 +76,7 @@ public class StoryDownloadHook {
         try {
             mediaClass = classLoader.loadClass("com.instagram.feed.media.Media");
         } catch (Throwable ignored) {}
-        try {
-            reelClass = classLoader.loadClass("com.instagram.model.reels.Reel");
-        } catch (Throwable ignored) {}
+        reelClass = IgModelClasses.reel(bridge, classLoader);
         try {
             userSessionClass = classLoader.loadClass("com.instagram.common.session.UserSession");
         } catch (Throwable ignored) {}
@@ -92,13 +92,13 @@ public class StoryDownloadHook {
 
         if (method == null) {
             try {
-                List<MethodData> methods = bridge.findMethod(FindMethod.create()
+                List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create()
                                 .usingStrings("[INTERNAL] Pause Playback")
                                 .paramCount(1)));
 
                 if (methods.isEmpty()) {
-                    methods = bridge.findMethod(FindMethod.create()
+                    methods = IgDex.findMethod(bridge, FindMethod.create()
                             .matcher(MethodMatcher.create()
                                     .usingStrings("explore_viewer")
                                     .paramCount(1)));
@@ -187,7 +187,7 @@ public class StoryDownloadHook {
 
         if (method == null) {
             try {
-                List<MethodData> methods = bridge.findMethod(FindMethod.create()
+                List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create()
                                 .returnType("void")
                                 .usingStrings("explore_viewer",
@@ -195,7 +195,7 @@ public class StoryDownloadHook {
                                         "[INTERNAL] Pause Playback")));
 
                 if (methods.isEmpty()) {
-                    methods = bridge.findMethod(FindMethod.create()
+                    methods = IgDex.findMethod(bridge, FindMethod.create()
                             .matcher(MethodMatcher.create()
                                     .returnType("void")
                                     .usingStrings("explore_viewer")));
@@ -843,7 +843,7 @@ public class StoryDownloadHook {
     private static Object findReel(Object seed) {
         if (seed == null || reelClass == null) return null;
         if (reelClass.isInstance(seed)) return seed;
-        Object direct = readFieldByTypeName(seed, "com.instagram.model.reels.Reel");
+        Object direct = readFieldByTypeName(seed, reelClass.getName());
         if (direct != null) return direct;
         Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
         return findTypedDeep(seed, reelClass, visited, 0, 3);

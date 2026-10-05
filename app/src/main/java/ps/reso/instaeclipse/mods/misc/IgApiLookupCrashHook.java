@@ -18,6 +18,7 @@ import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
+import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class IgApiLookupCrashHook {
 
@@ -130,7 +131,7 @@ public class IgApiLookupCrashHook {
                                              String marker, StringMatchType matchType,
                                              List<Method> hooked) {
         try {
-            List<ClassData> classes = bridge.findClass(FindClass.create()
+            List<ClassData> classes = IgDex.findClass(bridge, FindClass.create()
                     .matcher(ClassMatcher.create().className(marker, matchType, false)));
             for (ClassData classData : classes) {
                 try {
@@ -150,7 +151,7 @@ public class IgApiLookupCrashHook {
     private static void hookDexKitByFingerprint(DexKitBridge bridge, ClassLoader classLoader,
                                                List<Method> hooked) {
         try {
-            List<MethodData> methods = bridge.findMethod(FindMethod.create()
+            List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
                             .name(METHOD_444)
                             .paramCount(1)
