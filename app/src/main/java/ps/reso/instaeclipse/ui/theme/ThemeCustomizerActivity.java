@@ -15,18 +15,22 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.color.MaterialColors;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.shape.ShapeAppearanceModel;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,6 +68,9 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements ColorP
     private static final String STATE_CATEGORY = "preset_category";
 
     private MaterialSwitch enableSwitch;
+    private MaterialCardView enableCard;
+    private ImageView enableIcon;
+    private TextView enableSummary;
     private View presetsContent;
     private View customContent;
     private View myPresetsEmpty;
@@ -86,10 +93,19 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements ColorP
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_theme_customizer);
 
-        MaterialToolbar toolbar = findViewById(R.id.theme_toolbar);
-        toolbar.setNavigationOnClickListener(v -> finish());
+        View root = findViewById(R.id.theme_root);
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            return insets;
+        });
+        findViewById(R.id.theme_back).setOnClickListener(v -> finish());
 
         enableSwitch = findViewById(R.id.theme_enable_switch);
+        enableCard = findViewById(R.id.theme_enable_card);
+        enableIcon = findViewById(R.id.theme_enable_icon);
+        enableSummary = findViewById(R.id.theme_enable_summary);
+        enableCard.setOnClickListener(v -> enableSwitch.toggle());
         presetsContent = findViewById(R.id.theme_presets_content);
         customContent = findViewById(R.id.theme_custom_content);
         myPresetsEmpty = findViewById(R.id.theme_my_presets_empty);
@@ -117,7 +133,10 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements ColorP
         reloadPaletteState();
         boolean enabled = cache().getBoolean(KEY_ENABLED, false);
         enableSwitch.setChecked(enabled);
-        enableSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> persist(true));
+        enableSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            persist(true);
+            updateEnableCard();
+        });
 
         presetAdapter = new PresetAdapter();
         presetList.setLayoutManager(new GridLayoutManager(this, 2));
@@ -158,6 +177,30 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements ColorP
         reloadPaletteState();
         refreshPresetList();
         if (slotAdapter != null) slotAdapter.notifyDataSetChanged();
+    }
+
+    private void updateEnableCard() {
+        if (enableCard == null) return;
+        boolean on = enableSwitch.isChecked();
+        enableCard.setCardBackgroundColor(ContextCompat.getColor(this, on ? R.color.ie_accent_faint : R.color.ie_card));
+        enableCard.setStrokeColor(ContextCompat.getColor(this, on ? R.color.ie_accent_border : R.color.ie_card_stroke));
+        GradientDrawable chip = new GradientDrawable();
+        chip.setCornerRadius(dp(16));
+        chip.setColor(ContextCompat.getColor(this, on ? R.color.ie_accent_soft : R.color.ie_chip));
+        enableIcon.setBackground(chip);
+        enableIcon.setImageTintList(android.content.res.ColorStateList.valueOf(on
+                ? ContextCompat.getColor(this, R.color.corona_amber)
+                : MaterialColors.getColor(enableIcon, com.google.android.material.R.attr.colorOnSurfaceVariant)));
+        enableSummary.setText(on ? currentThemeName() : getString(R.string.feat_state_off));
+    }
+
+    private String currentThemeName() {
+        if (customMode) return getString(R.string.theme_section_custom);
+        if (selectedPresetId >= CustomThemeStore.MIN_ID) {
+            ThemePreset saved = CustomThemeStore.find(customPresetsJson(), selectedPresetId);
+            if (saved != null) return saved.name;
+        }
+        return ThemePresets.getById(selectedPresetId).name;
     }
 
     private SharedPreferences cache() {
@@ -214,7 +257,8 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements ColorP
 
     private void setSectionExpanded(View content, ImageView icon, boolean expanded) {
         content.setVisibility(expanded ? View.VISIBLE : View.GONE);
-        icon.setImageResource(expanded ? R.drawable.ic_expand_less : R.drawable.ic_expand_more);
+        if (icon.isLaidOut()) icon.animate().rotation(expanded ? 180f : 0f).setDuration(180).start();
+        else icon.setRotation(expanded ? 180f : 0f);
         icon.setContentDescription(getString(expanded ? R.string.theme_collapse_section : R.string.theme_expand_section));
     }
 
@@ -235,6 +279,7 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements ColorP
             myPresetsEmpty.setVisibility(View.GONE);
         }
         presetAdapter.setItems(items);
+        updateEnableCard();
     }
 
     private static String formatColorHex(int color) {
@@ -292,11 +337,13 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements ColorP
     private void promptSaveMyPreset() {
         EditText input = new EditText(this);
         input.setHint(R.string.theme_preset_name_hint);
-        int pad = dp(20);
-        input.setPadding(pad, pad, pad, pad);
-        new AlertDialog.Builder(this)
+        input.setSingleLine(true);
+        FrameLayout box = new FrameLayout(this);
+        box.setPadding(dp(24), dp(8), dp(24), 0);
+        box.addView(input);
+        new MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.theme_save_preset)
-                .setView(input)
+                .setView(box)
                 .setPositiveButton(R.string.theme_apply_color, (dialog, which) -> {
                     String name = input.getText() == null ? "" : input.getText().toString().trim();
                     if (name.isEmpty()) name = getString(R.string.theme_cat_my_presets) + " " + (myPresets.size() + 1);
@@ -336,7 +383,10 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements ColorP
         if (enableSwitch.isChecked()) return;
         enableSwitch.setOnCheckedChangeListener(null);
         enableSwitch.setChecked(true);
-        enableSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> persist(true));
+        enableSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            persist(true);
+            updateEnableCard();
+        });
     }
 
     @Override
@@ -402,17 +452,22 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements ColorP
             int badgeTextRes = bucket == ThemeContrastChecker.BUCKET_GOOD ? R.string.theme_contrast_good
                     : bucket == ThemeContrastChecker.BUCKET_FAIR ? R.string.theme_contrast_fair
                     : R.string.theme_contrast_low;
-            int badgeColorAttr = bucket == ThemeContrastChecker.BUCKET_GOOD ? com.google.android.material.R.attr.colorPrimary
-                    : bucket == ThemeContrastChecker.BUCKET_FAIR ? com.google.android.material.R.attr.colorOnSurfaceVariant
-                    : com.google.android.material.R.attr.colorError;
+            int dotColorRes = bucket == ThemeContrastChecker.BUCKET_GOOD ? R.color.ie_hook_ok
+                    : bucket == ThemeContrastChecker.BUCKET_FAIR ? R.color.corona_amber
+                    : R.color.ie_danger;
             holder.contrast.setText(badgeTextRes);
-            holder.contrast.setTextColor(MaterialColors.getColor(holder.contrast, badgeColorAttr));
+            GradientDrawable dot = new GradientDrawable();
+            dot.setShape(GradientDrawable.OVAL);
+            dot.setColor(ContextCompat.getColor(holder.itemView.getContext(), dotColorRes));
+            holder.contrastDot.setBackground(dot);
             boolean selected = !customMode && preset.id == selectedPresetId;
-            int stroke = selected
-                    ? MaterialColors.getColor(holder.card, com.google.android.material.R.attr.colorPrimary)
-                    : MaterialColors.getColor(holder.card, com.google.android.material.R.attr.colorOutline);
-            holder.card.setStrokeColor(stroke);
+            holder.card.setStrokeColor(ContextCompat.getColor(holder.itemView.getContext(),
+                    selected ? R.color.corona_amber : R.color.ie_card_stroke));
             holder.card.setStrokeWidth(selected ? dp(2) : dp(1));
+            holder.card.setCardBackgroundColor(ContextCompat.getColor(holder.itemView.getContext(),
+                    selected ? R.color.ie_accent_faint : R.color.ie_card));
+            holder.check.setVisibility(selected ? View.VISIBLE : View.GONE);
+            holder.card.setContentDescription(preset.name);
             holder.card.setOnClickListener(v -> selectPreset(preset));
             boolean mine = preset.category == ThemePresetCategory.MY_PRESETS;
             holder.delete.setVisibility(mine ? View.VISIBLE : View.GONE);
@@ -431,6 +486,8 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements ColorP
             final FrameLayout preview;
             final TextView name;
             final TextView contrast;
+            final View contrastDot;
+            final ImageView check;
             final ImageView delete;
 
             Holder(View itemView) {
@@ -439,6 +496,8 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements ColorP
                 preview = itemView.findViewById(R.id.theme_preset_preview);
                 name = itemView.findViewById(R.id.theme_preset_name);
                 contrast = itemView.findViewById(R.id.theme_preset_contrast);
+                contrastDot = itemView.findViewById(R.id.theme_preset_contrast_dot);
+                check = itemView.findViewById(R.id.theme_preset_check);
                 delete = itemView.findViewById(R.id.theme_preset_delete);
             }
         }
@@ -459,9 +518,27 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements ColorP
             holder.label.setText(slotLabel(position));
             holder.hex.setText(formatColorHex(color));
             GradientDrawable swatch = new GradientDrawable();
-            swatch.setCornerRadius(dp(10));
+            swatch.setCornerRadius(dp(11));
             swatch.setColor(color);
+            swatch.setStroke(dp(1), MaterialColors.getColor(holder.swatch, com.google.android.material.R.attr.colorOutline));
             holder.swatch.setBackground(swatch);
+
+            float big = dp(22);
+            float small = dp(4);
+            int last = getItemCount() - 1;
+            ShapeAppearanceModel.Builder shape = holder.card.getShapeAppearanceModel().toBuilder();
+            if (position == 0) {
+                shape.setTopLeftCornerSize(big).setTopRightCornerSize(big)
+                        .setBottomLeftCornerSize(small).setBottomRightCornerSize(small);
+            } else if (position == last) {
+                shape.setTopLeftCornerSize(small).setTopRightCornerSize(small)
+                        .setBottomLeftCornerSize(big).setBottomRightCornerSize(big);
+            } else {
+                shape.setAllCornerSizes(small);
+            }
+            holder.card.setShapeAppearanceModel(shape.build());
+            holder.card.setContentDescription(slotLabel(position) + ", " + formatColorHex(color));
+
             holder.itemView.setOnClickListener(v -> {
                 if (!customMode && selectedPresetId > 0) {
                     if (selectedPresetId >= CustomThemeStore.MIN_ID) {
@@ -481,12 +558,14 @@ public class ThemeCustomizerActivity extends AppCompatActivity implements ColorP
         }
 
         class Holder extends RecyclerView.ViewHolder {
+            final MaterialCardView card;
             final View swatch;
             final TextView label;
             final TextView hex;
 
             Holder(View itemView) {
                 super(itemView);
+                card = (MaterialCardView) itemView;
                 swatch = itemView.findViewById(R.id.theme_slot_swatch);
                 label = itemView.findViewById(R.id.theme_slot_label);
                 hex = itemView.findViewById(R.id.theme_slot_hex);

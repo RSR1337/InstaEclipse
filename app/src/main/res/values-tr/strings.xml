@@ -367,4 +367,13 @@
     <string name="theme_slot_link">Bağlantı</string>
     <string name="theme_slot_error">Hata</string>
     <string name="theme_slot_destructive">Yıkıcı</string>
+    <string name="feat_group_stories_video">Hikâyeler ve video</string>
+    <string name="feat_group_interactions">Etkileşimler</string>
+    <string name="feat_group_notifications">Bildirimler</string>
+    <string name="feat_group_privacy">Gizlilik</string>
+    <string name="unsaved_changes_title">Uygulanmamış değişiklikler</string>
+    <string name="unsaved_changes_message">Bazı değişiklikler henüz uygulanmadı. Çıkmadan önce uygulansın mı?</string>
+    <string name="unsaved_discard">Yoksay</string>
+    <string name="extreme_mode_requires_hint">Önce aşağıdan en az bir seçeneği açın</string>
+    <string name="extreme_mode_active_hint">Etkin · uygulama yeniden yüklenene kadar kilitli</string>
 </resources>

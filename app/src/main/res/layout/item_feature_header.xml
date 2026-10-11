@@ -3,10 +3,8 @@
     android:id="@+id/tv_header"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:paddingStart="16dp"
-    android:paddingEnd="16dp"
-    android:paddingTop="20dp"
-    android:paddingBottom="6dp"
-    android:textAllCaps="true"
-    android:textAppearance="@style/TextAppearance.InstaEclipse.SectionLabel"
-    android:textColor="?attr/colorOnSurfaceVariant" />
+    android:paddingStart="4dp"
+    android:paddingTop="10dp"
+    android:paddingEnd="4dp"
+    android:paddingBottom="12dp"
+    android:textAppearance="@style/TextAppearance.InstaEclipse.SectionLabel" />

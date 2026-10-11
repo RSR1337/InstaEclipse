@@ -370,4 +370,13 @@
     <string name="theme_slot_link">Link</string>
     <string name="theme_slot_error">Fehler</string>
     <string name="theme_slot_destructive">Kritisch</string>
+    <string name="feat_group_stories_video">Storys &amp; Video</string>
+    <string name="feat_group_interactions">Interaktionen</string>
+    <string name="feat_group_notifications">Benachrichtigungen</string>
+    <string name="feat_group_privacy">Datenschutz</string>
+    <string name="unsaved_changes_title">Nicht übernommene Änderungen</string>
+    <string name="unsaved_changes_message">Einige Änderungen wurden noch nicht übernommen. Vor dem Verlassen übernehmen?</string>
+    <string name="unsaved_discard">Verwerfen</string>
+    <string name="extreme_mode_requires_hint">Aktiviere zuerst mindestens eine Option unten</string>
+    <string name="extreme_mode_active_hint">Aktiv · gesperrt bis zur Neuinstallation der App</string>
 </resources>

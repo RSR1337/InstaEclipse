@@ -397,4 +397,13 @@
     <string name="theme_slot_link">קישור</string>
     <string name="theme_slot_error">שגיאה</string>
     <string name="theme_slot_destructive">הרסני</string>
+    <string name="feat_group_stories_video">סטוריז ווידאו</string>
+    <string name="feat_group_interactions">אינטראקציות</string>
+    <string name="feat_group_notifications">התראות</string>
+    <string name="feat_group_privacy">פרטיות</string>
+    <string name="unsaved_changes_title">שינויים שלא הוחלו</string>
+    <string name="unsaved_changes_message">חלק מהשינויים עדיין לא הוחלו. להחיל אותם לפני היציאה?</string>
+    <string name="unsaved_discard">בטל שינויים</string>
+    <string name="extreme_mode_requires_hint">הפעל קודם לפחות אפשרות אחת למטה</string>
+    <string name="extreme_mode_active_hint">פעיל · נעול עד להתקנה מחדש של האפליקציה</string>
 </resources>

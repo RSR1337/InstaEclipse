@@ -1,22 +1,14 @@
 package ps.reso.instaeclipse.fragments;
 
-import android.animation.ValueAnimator;
-import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
-import android.provider.Settings;
-import android.text.SpannableString;
 import android.view.LayoutInflater;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.ViewTreeObserver;
-import android.view.animation.LinearInterpolator;
-import android.widget.HorizontalScrollView;
-import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -29,39 +21,42 @@ import androidx.fragment.app.Fragment;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.color.MaterialColors;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import ps.reso.instaeclipse.MainActivity;
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.utils.core.CommonUtils;
 import ps.reso.instaeclipse.utils.core.Contributor;
 import ps.reso.instaeclipse.utils.core.ModuleHookProbe;
+import ps.reso.instaeclipse.utils.ui.EclipseRingDrawable;
 
 public class HomeFragment extends Fragment {
 
-    private static final float SCROLL_SPEED_DP_PER_SEC = 48f;
+    private enum Status { CHECKING, ACTIVE, INACTIVE, NOT_INSTALLED }
 
-    private MaterialButton launchInstagramButton;
-    private MaterialCardView instagramStatusCard;
-    private TextView instagramStatusText;
-    private TextView instagramVariantText;
-    private MaterialButton instagramMultiButton;
-    private ImageView instagramLogo, instagramInfoIcon;
-    private View moduleHookDivider;
-    private LinearLayout moduleHookRow;
-    private View moduleHookDot;
-    private TextView moduleHookText;
+    private MaterialCardView statusCard;
+    private EclipseRingDrawable statusRing;
+    private TextView statusText;
+    private TextView statusDescription;
+    private View versionChip;
+    private View hookDot;
+    private TextView variantText;
+    private TextView versionText;
+    private TextView multiButton;
+    private View actionsRow;
+    private MaterialButton launchButton;
+    private MaterialButton setupGuideButton;
 
     private String activePackage;
     private List<String> installedPackages;
     private int hookProbeGeneration;
-
-    private ValueAnimator contributorsAnimator;
-    private ValueAnimator specialThanksAnimator;
 
     @Nullable
     @Override
@@ -69,28 +64,35 @@ public class HomeFragment extends Fragment {
                              @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_home, container, false);
 
-        launchInstagramButton = view.findViewById(R.id.launch_instagram_button);
-        MaterialButton downloadButton = view.findViewById(R.id.download_instagram_button);
+        statusCard = view.findViewById(R.id.instagram_status_card);
+        statusText = view.findViewById(R.id.instagram_status_text);
+        statusDescription = view.findViewById(R.id.home_status_description);
+        versionChip = view.findViewById(R.id.instagram_version_chip);
+        hookDot = view.findViewById(R.id.module_hook_dot);
+        variantText = view.findViewById(R.id.instagram_variant_text);
+        versionText = view.findViewById(R.id.instagram_version_text);
+        multiButton = view.findViewById(R.id.instagram_multi_button);
+        actionsRow = view.findViewById(R.id.home_actions_row);
+        launchButton = view.findViewById(R.id.launch_instagram_button);
+        setupGuideButton = view.findViewById(R.id.home_setup_guide_button);
 
-        instagramStatusCard = view.findViewById(R.id.instagram_status_card);
-        instagramStatusText = view.findViewById(R.id.instagram_status_text);
-        instagramVariantText = view.findViewById(R.id.instagram_variant_text);
-        instagramMultiButton = view.findViewById(R.id.instagram_multi_button);
-        instagramLogo = view.findViewById(R.id.instagram_logo);
-        instagramInfoIcon = view.findViewById(R.id.instagram_info_icon);
-        moduleHookDivider = view.findViewById(R.id.module_hook_divider);
-        moduleHookRow = view.findViewById(R.id.module_hook_row);
-        moduleHookDot = view.findViewById(R.id.module_hook_dot);
-        moduleHookText = view.findViewById(R.id.module_hook_text);
+        float density = getResources().getDisplayMetrics().density;
+        int core = ContextCompat.getColor(requireContext(), R.color.ie_ring_core);
+        int gold = ContextCompat.getColor(requireContext(), R.color.corona_amber);
+        statusRing = new EclipseRingDrawable(core, gold, 2.5f * density, 16 * density, true)
+                .setLogo(ContextCompat.getDrawable(requireContext(), R.drawable.ic_logo));
+        ((ImageView) view.findViewById(R.id.home_status_ring)).setImageDrawable(statusRing);
+        ((ImageView) view.findViewById(R.id.home_logo_ring)).setImageDrawable(
+                new EclipseRingDrawable(core, gold, 2f * density, 8 * density, true)
+                        .setLogo(ContextCompat.getDrawable(requireContext(), R.drawable.ic_logo)));
+
+        view.findViewById(R.id.home_help_button).setOnClickListener(v -> openHelp());
+        setupGuideButton.setOnClickListener(v -> openHelp());
+        view.findViewById(R.id.download_instagram_button).setOnClickListener(v ->
+                openLink("https://www.apkmirror.com/uploads/?appcategory=instagram-instagram"));
 
         checkInstagramStatus();
-
-        downloadButton.setOnClickListener(v -> {
-            String url = "https://www.apkmirror.com/uploads/?appcategory=instagram-instagram";
-            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-        });
-
-        setupContributorsAndSpecialThanks(view);
+        setupContributors(view);
 
         return view;
     }
@@ -101,23 +103,14 @@ public class HomeFragment extends Fragment {
         if (activePackage != null) {
             probeHookStatus(activePackage);
         }
-        resumeAnimators();
     }
 
-    @Override
-    public void onPause() {
-        super.onPause();
-        pauseAnimators();
+    private void openHelp() {
+        if (getActivity() instanceof MainActivity activity) {
+            activity.openHelpTab();
+        }
     }
 
-    @Override
-    public void onDestroyView() {
-        super.onDestroyView();
-        if (contributorsAnimator != null) contributorsAnimator.cancel();
-        if (specialThanksAnimator != null) specialThanksAnimator.cancel();
-    }
-
-    @SuppressLint("SetTextI18n")
     private void checkInstagramStatus() {
         PackageManager pm = requireContext().getPackageManager();
 
@@ -131,14 +124,7 @@ public class HomeFragment extends Fragment {
         }
 
         if (installedPackages.isEmpty()) {
-            hideHookRow();
-            instagramStatusText.setText(getString(R.string.not_installed_instagram));
-            instagramStatusText.setTypeface(null, android.graphics.Typeface.BOLD);
-            instagramLogo.setImageResource(R.drawable.ic_cancel);
-            applyStatusCardColorsFromTheme(
-                    com.google.android.material.R.attr.colorErrorContainer,
-                    com.google.android.material.R.attr.colorOnErrorContainer);
-            launchInstagramButton.setEnabled(false);
+            applyStatus(Status.NOT_INSTALLED);
             return;
         }
 
@@ -146,138 +132,112 @@ public class HomeFragment extends Fragment {
                 ? CommonUtils.IG_PACKAGE_NAME
                 : installedPackages.get(0);
 
-        instagramLogo.setImageResource(R.drawable.ic_instagram_logo);
-        instagramVariantText.setVisibility(View.VISIBLE);
-
         if (installedPackages.size() > 1) {
-            instagramMultiButton.setVisibility(View.VISIBLE);
-            instagramMultiButton.setOnClickListener(v -> showDetectedVersionsDialog(pm));
+            multiButton.setVisibility(View.VISIBLE);
+            multiButton.setText(getString(R.string.multiple_versions_detected).replace("⚠️", "").trim());
+            multiButton.setOnClickListener(v -> showDetectedVersionsDialog(pm));
         } else {
-            instagramMultiButton.setVisibility(View.GONE);
+            multiButton.setVisibility(View.GONE);
         }
 
         bindPackageActions(pm, activePackage);
-        showHookChecking();
         probeHookStatus(activePackage);
     }
 
-    private void hideHookRow() {
-        if (moduleHookRow == null) return;
-        moduleHookRow.setVisibility(View.GONE);
-        if (moduleHookDivider != null) moduleHookDivider.setVisibility(View.GONE);
-    }
+    private void applyStatus(Status status) {
+        if (statusCard == null) return;
+        int gold = ContextCompat.getColor(requireContext(), R.color.corona_amber);
+        int ringOff = ContextCompat.getColor(requireContext(), R.color.ie_ring_off);
+        boolean installed = status != Status.NOT_INSTALLED;
 
-    private void showHookChecking() {
-        if (moduleHookRow == null) return;
-        moduleHookRow.setVisibility(View.VISIBLE);
-        if (moduleHookDivider != null) moduleHookDivider.setVisibility(View.VISIBLE);
-        moduleHookRow.setClickable(false);
-        moduleHookText.setText(R.string.home_hook_checking);
-        applyHookStatusCard(R.color.status_hook_check_container, R.color.status_hook_check_on);
-        moduleHookText.setTextColor(MaterialColors.getColor(moduleHookRow, com.google.android.material.R.attr.colorOnSurfaceVariant));
-        setHookDotColor(ContextCompat.getColor(requireContext(), R.color.corona_amber));
-    }
-
-    private void showHookActive() {
-        if (moduleHookRow == null) return;
-        moduleHookRow.setVisibility(View.VISIBLE);
-        if (moduleHookDivider != null) moduleHookDivider.setVisibility(View.VISIBLE);
-        moduleHookRow.setClickable(false);
-        moduleHookText.setText(R.string.home_hook_active);
-        applyHookStatusCard(R.color.status_hook_ok_container, R.color.status_hook_ok_on);
-        moduleHookText.setTextColor(MaterialColors.getColor(moduleHookRow, com.google.android.material.R.attr.colorOnSurfaceVariant));
-        setHookDotColor(ContextCompat.getColor(requireContext(), R.color.dark_green));
-    }
-
-    private void showHookInactive() {
-        if (moduleHookRow == null) return;
-        moduleHookRow.setVisibility(View.VISIBLE);
-        if (moduleHookDivider != null) moduleHookDivider.setVisibility(View.VISIBLE);
-        moduleHookRow.setClickable(true);
-        moduleHookText.setText(R.string.home_hook_inactive);
-        applyHookStatusCard(R.color.status_hook_err_container, R.color.status_hook_err_on);
-        int amber = ContextCompat.getColor(requireContext(), R.color.corona_amber);
-        moduleHookText.setTextColor(amber);
-        setHookDotColor(amber);
-        moduleHookRow.setOnClickListener(v -> {
-            if (getActivity() instanceof MainActivity activity) {
-                activity.openHelpTab();
+        switch (status) {
+            case CHECKING -> {
+                statusText.setText(R.string.home_hook_checking);
+                statusRing.setState(gold, false);
+                setHookDotColor(gold);
             }
-        });
+            case ACTIVE -> {
+                statusText.setText(R.string.home_hook_active);
+                statusRing.setState(gold, true);
+                setHookDotColor(ContextCompat.getColor(requireContext(), R.color.ie_hook_ok));
+            }
+            case INACTIVE -> {
+                statusText.setText(R.string.home_module_inactive_title);
+                statusRing.setState(ringOff, false);
+                setHookDotColor(ContextCompat.getColor(requireContext(), R.color.ie_danger));
+            }
+            case NOT_INSTALLED -> {
+                statusText.setText(R.string.not_installed_instagram);
+                statusRing.setState(ringOff, false);
+            }
+        }
+
+        boolean inactive = status == Status.INACTIVE;
+        statusCard.setStrokeColor(ContextCompat.getColor(requireContext(),
+                inactive ? R.color.ie_inactive_stroke : R.color.ie_card_stroke));
+        statusDescription.setVisibility(inactive ? View.VISIBLE : View.GONE);
+        versionChip.setVisibility(installed ? View.VISIBLE : View.GONE);
+        setupGuideButton.setVisibility(inactive ? View.VISIBLE : View.GONE);
+        actionsRow.setVisibility(inactive ? View.GONE : View.VISIBLE);
+        launchButton.setVisibility(installed ? View.VISIBLE : View.GONE);
+        actionsRow.findViewById(R.id.home_actions_gap).setVisibility(installed ? View.VISIBLE : View.GONE);
+
+        MaterialButton download = actionsRow.findViewById(R.id.download_instagram_button);
+        if (installed) {
+            download.setBackgroundTintList(ColorStateList.valueOf(android.graphics.Color.TRANSPARENT));
+            download.setTextColor(MaterialColors.getColor(download, com.google.android.material.R.attr.colorOnSurface));
+            download.setIconTint(ColorStateList.valueOf(MaterialColors.getColor(download, com.google.android.material.R.attr.colorOnSurface)));
+            download.setStrokeWidth(Math.round(getResources().getDisplayMetrics().density));
+        } else {
+            download.setBackgroundTintList(ColorStateList.valueOf(gold));
+            int onGold = ContextCompat.getColor(requireContext(), R.color.corona_amber_on);
+            download.setTextColor(onGold);
+            download.setIconTint(ColorStateList.valueOf(onGold));
+            download.setStrokeWidth(0);
+        }
     }
 
     private void setHookDotColor(int color) {
-        if (moduleHookDot == null) return;
         GradientDrawable dot = new GradientDrawable();
         dot.setShape(GradientDrawable.OVAL);
         dot.setColor(color);
-        int size = (int) (8 * getResources().getDisplayMetrics().density);
-        dot.setSize(size, size);
-        moduleHookDot.setBackground(dot);
+        hookDot.setBackground(dot);
     }
 
     private void probeHookStatus(String pkg) {
         if (getContext() == null) return;
         final int gen = ++hookProbeGeneration;
-        showHookChecking();
+        applyStatus(Status.CHECKING);
         ModuleHookProbe.probe(requireContext(), pkg, active -> {
             if (!isAdded() || gen != hookProbeGeneration) return;
             requireActivity().runOnUiThread(() -> {
                 if (!isAdded() || gen != hookProbeGeneration) return;
-                if (active) showHookActive();
-                else showHookInactive();
+                applyStatus(active ? Status.ACTIVE : Status.INACTIVE);
             });
         });
     }
 
-    private void applyHookStatusCard(int containerRes, int onContainerRes) {
-        applyStatusCardColors(
-                ContextCompat.getColor(requireContext(), containerRes),
-                ContextCompat.getColor(requireContext(), onContainerRes));
-    }
-
-    private void applyStatusCardColorsFromTheme(int containerAttr, int onContainerAttr) {
-        applyStatusCardColors(
-                MaterialColors.getColor(instagramStatusCard, containerAttr),
-                MaterialColors.getColor(instagramStatusCard, onContainerAttr));
-    }
-
-    private void applyStatusCardColors(int container, int onContainer) {
-        instagramStatusCard.setCardBackgroundColor(container);
-        instagramLogo.setImageTintList(android.content.res.ColorStateList.valueOf(onContainer));
-        instagramStatusText.setTextColor(onContainer);
-        instagramVariantText.setTextColor(onContainer);
-        instagramInfoIcon.setImageTintList(android.content.res.ColorStateList.valueOf(onContainer));
-    }
-
-    @SuppressLint("SetTextI18n")
     private void bindPackageActions(PackageManager pm, String pkg) {
         activePackage = pkg;
 
+        String versionName = "";
         try {
-            String versionName = pm.getPackageInfo(pkg, 0).versionName;
-            String installedText = getString(R.string.installed_instagram_version);
-            String versionText = getString(R.string.instagram_version) + ": " + versionName;
-            String fullText = installedText + "\n" + versionText;
-
-            SpannableString sp = new SpannableString(fullText);
-            sp.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, installedText.length(), android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-            sp.setSpan(new android.text.style.RelativeSizeSpan(0.85f), installedText.length() + 1, fullText.length(), 0);
-            instagramStatusText.setText(sp);
-        } catch (PackageManager.NameNotFoundException e) {
-            instagramStatusText.setText(getString(R.string.installed_instagram_version));
+            versionName = pm.getPackageInfo(pkg, 0).versionName;
+        } catch (PackageManager.NameNotFoundException ignored) {
         }
+        variantText.setText(CommonUtils.getVariantLabel(pkg));
+        versionText.setText(versionName == null ? "" : versionName);
+        versionChip.setContentDescription(getString(R.string.instagram_info) + ": "
+                + CommonUtils.getVariantLabel(pkg) + " " + versionName);
 
-        instagramVariantText.setText(CommonUtils.getVariantLabel(pkg));
-
-        instagramInfoIcon.setOnClickListener(v -> {
+        versionChip.setOnClickListener(v -> {
             Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
             intent.setData(Uri.parse("package:" + pkg));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
         });
 
-        launchInstagramButton.setOnClickListener(v -> {
+        launchButton.setOnClickListener(v -> {
             Intent launchIntent = pm.getLaunchIntentForPackage(pkg);
             if (launchIntent != null) {
                 startActivity(launchIntent);
@@ -287,11 +247,9 @@ public class HomeFragment extends Fragment {
         });
     }
 
-    private void setupContributorsAndSpecialThanks(View rootView) {
-        HorizontalScrollView contributorsScroll = rootView.findViewById(R.id.contributors_scroll);
-        HorizontalScrollView specialThanksScroll = rootView.findViewById(R.id.special_thanks_scroll);
+    private void setupContributors(View rootView) {
         LinearLayout contributorsContainer = rootView.findViewById(R.id.contributors_container);
-        LinearLayout specialThanksContainer = rootView.findViewById(R.id.special_thanks_container);
+        ChipGroup thanksGroup = rootView.findViewById(R.id.special_thanks_container);
 
         List<Contributor> contributors = Arrays.asList(
                 new Contributor("ReSo7200", "https://github.com/ReSo7200", "https://linkedin.com/in/abdalhaleem-altamimi", null),
@@ -315,136 +273,53 @@ public class HomeFragment extends Fragment {
                 new Contributor("Amàzing World", null, null, null)
         );
 
-        inflateCards(contributors, contributorsContainer);
-        inflateCards(contributors, contributorsContainer);
-        inflateCards(specialThanks, specialThanksContainer);
-        inflateCards(specialThanks, specialThanksContainer);
-
-        if (isReduceMotionEnabled()) {
-            return;
+        LayoutInflater inflater = LayoutInflater.from(requireContext());
+        for (Contributor c : contributors) {
+            View item = inflater.inflate(R.layout.item_contributor_avatar, contributorsContainer, false);
+            ((TextView) item.findViewById(R.id.contributor_initial))
+                    .setText(c.name().substring(0, 1).toUpperCase(Locale.ROOT));
+            ((TextView) item.findViewById(R.id.contributor_name)).setText(c.name());
+            item.setContentDescription(c.name());
+            bindLink(item, primaryLink(c));
+            contributorsContainer.addView(item);
         }
 
-        contributorsContainer.getViewTreeObserver().addOnGlobalLayoutListener(
-                new ViewTreeObserver.OnGlobalLayoutListener() {
-                    @Override
-                    public void onGlobalLayout() {
-                        contributorsContainer.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                        int halfWidth = contributorsContainer.getWidth() / 2;
-                        contributorsAnimator = buildAnimator(contributorsScroll, halfWidth);
-                        if (isResumed()) contributorsAnimator.start();
-                        hookTouchPause(contributorsScroll, contributorsAnimator, halfWidth);
-                    }
-                });
-
-        specialThanksContainer.getViewTreeObserver().addOnGlobalLayoutListener(
-                new ViewTreeObserver.OnGlobalLayoutListener() {
-                    @Override
-                    public void onGlobalLayout() {
-                        specialThanksContainer.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                        int halfWidth = specialThanksContainer.getWidth() / 2;
-                        specialThanksAnimator = buildAnimator(specialThanksScroll, halfWidth);
-                        if (isResumed()) specialThanksAnimator.start();
-                        hookTouchPause(specialThanksScroll, specialThanksAnimator, halfWidth);
-                    }
-                });
-    }
-
-    private boolean isReduceMotionEnabled() {
-        if (getContext() == null) return false;
-        float animator = Settings.Global.getFloat(
-                getContext().getContentResolver(), Settings.Global.ANIMATOR_DURATION_SCALE, 1f);
-        float transition = Settings.Global.getFloat(
-                getContext().getContentResolver(), Settings.Global.TRANSITION_ANIMATION_SCALE, 1f);
-        return animator == 0f || transition == 0f;
-    }
-
-    private void inflateCards(List<Contributor> list, LinearLayout container) {
-        for (Contributor c : list) {
-            View v = LayoutInflater.from(getContext()).inflate(R.layout.contributor_card, container, false);
-            setupContributorCard(v, c);
-            container.addView(v);
-        }
-    }
-
-    private ValueAnimator buildAnimator(HorizontalScrollView scrollView, int halfWidth) {
+        int cardColor = ContextCompat.getColor(requireContext(), R.color.ie_card);
+        int strokeColor = ContextCompat.getColor(requireContext(), R.color.ie_card_stroke);
+        int textColor = MaterialColors.getColor(thanksGroup, com.google.android.material.R.attr.colorOnSurface);
         float density = getResources().getDisplayMetrics().density;
-        long durationMs = (long) (halfWidth / (SCROLL_SPEED_DP_PER_SEC * density) * 1000f);
-
-        ValueAnimator anim = ValueAnimator.ofInt(0, halfWidth);
-        anim.setDuration(Math.max(durationMs, 1000));
-        anim.setRepeatCount(ValueAnimator.INFINITE);
-        anim.setRepeatMode(ValueAnimator.RESTART);
-        anim.setInterpolator(new LinearInterpolator());
-        anim.addUpdateListener(a -> scrollView.scrollTo((int) a.getAnimatedValue(), 0));
-        return anim;
-    }
-
-    @SuppressLint("ClickableViewAccessibility")
-    private void hookTouchPause(HorizontalScrollView scrollView, ValueAnimator animator, int halfWidth) {
-        scrollView.setOnTouchListener((v, event) -> {
-            switch (event.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                case MotionEvent.ACTION_MOVE:
-                    if (animator != null && animator.isRunning()) animator.pause();
-                    break;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    if (animator != null && halfWidth > 0) {
-
-                        int currentX = scrollView.getScrollX() % halfWidth;
-                        animator.setCurrentFraction(currentX / (float) halfWidth);
-                        if (animator.isPaused()) animator.resume();
-                        else if (!animator.isRunning()) animator.start();
-                    }
-                    break;
-            }
-            return false;
-        });
-    }
-
-    private void resumeAnimators() {
-        resumeAnimator(contributorsAnimator);
-        resumeAnimator(specialThanksAnimator);
-    }
-
-    private void resumeAnimator(ValueAnimator anim) {
-        if (anim == null) return;
-        if (anim.isPaused()) anim.resume();
-        else if (!anim.isRunning()) anim.start();
-    }
-
-    private void pauseAnimators() {
-        if (contributorsAnimator != null && contributorsAnimator.isRunning()) contributorsAnimator.pause();
-        if (specialThanksAnimator != null && specialThanksAnimator.isRunning()) specialThanksAnimator.pause();
-    }
-
-    private void setupContributorCard(View view, Contributor contributor) {
-        TextView nameTextView = view.findViewById(R.id.contributor_name);
-        nameTextView.setText(contributor.name());
-
-        ImageButton githubButton = view.findViewById(R.id.github_button);
-        if (contributor.githubUrl() != null) {
-            githubButton.setVisibility(View.VISIBLE);
-            githubButton.setOnClickListener(v -> openLink(contributor.githubUrl()));
-        } else {
-            githubButton.setVisibility(View.GONE);
+        for (Contributor c : specialThanks) {
+            Chip chip = new Chip(requireContext());
+            chip.setText(c.name());
+            chip.setTextSize(13);
+            chip.setTextColor(textColor);
+            chip.setTextDirection(View.TEXT_DIRECTION_LTR);
+            chip.setChipBackgroundColor(ColorStateList.valueOf(cardColor));
+            chip.setChipStrokeColor(ColorStateList.valueOf(strokeColor));
+            chip.setChipStrokeWidth(density);
+            chip.setShapeAppearanceModel(chip.getShapeAppearanceModel().withCornerSize(18 * density));
+            chip.setChipMinHeight(36 * density);
+            chip.setEnsureMinTouchTargetSize(false);
+            chip.setTextStartPadding(6 * density);
+            chip.setTextEndPadding(6 * density);
+            String link = primaryLink(c);
+            chip.setClickable(link != null);
+            chip.setFocusable(link != null);
+            if (link != null) chip.setOnClickListener(v -> openLink(link));
+            thanksGroup.addView(chip);
         }
+    }
 
-        ImageButton linkedinButton = view.findViewById(R.id.linkedin_button);
-        if (contributor.linkedinUrl() != null) {
-            linkedinButton.setVisibility(View.VISIBLE);
-            linkedinButton.setOnClickListener(v -> openLink(contributor.linkedinUrl()));
-        } else {
-            linkedinButton.setVisibility(View.GONE);
-        }
+    private static String primaryLink(Contributor c) {
+        if (c.githubUrl() != null) return c.githubUrl();
+        if (c.telegramUrl() != null) return c.telegramUrl();
+        return c.linkedinUrl();
+    }
 
-        ImageButton telegramButton = view.findViewById(R.id.telegram_button);
-        if (contributor.telegramUrl() != null) {
-            telegramButton.setVisibility(View.VISIBLE);
-            telegramButton.setOnClickListener(v -> openLink(contributor.telegramUrl()));
-        } else {
-            telegramButton.setVisibility(View.GONE);
-        }
+    private void bindLink(View view, String url) {
+        view.setClickable(url != null);
+        view.setFocusable(url != null);
+        if (url != null) view.setOnClickListener(v -> openLink(url));
     }
 
     private void showDetectedVersionsDialog(PackageManager pm) {

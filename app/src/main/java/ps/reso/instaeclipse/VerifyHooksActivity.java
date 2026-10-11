@@ -315,11 +315,11 @@ public class VerifyHooksActivity extends AppCompatActivity {
             String subtitle;
             if (FeatureHealthReport.STATE_OK.equals(row.state)) {
                 iconRes = R.drawable.ic_check_circle;
-                tint = ContextCompat.getColor(holder.itemView.getContext(), R.color.dark_green);
+                tint = ContextCompat.getColor(holder.itemView.getContext(), R.color.ie_hook_ok);
                 subtitle = holder.itemView.getContext().getString(R.string.verify_hooks_state_ok);
             } else if (FeatureHealthReport.STATE_BROKEN.equals(row.state)) {
                 iconRes = R.drawable.ic_cancel;
-                tint = ContextCompat.getColor(holder.itemView.getContext(), R.color.dark_red);
+                tint = ContextCompat.getColor(holder.itemView.getContext(), R.color.ie_danger);
                 subtitle = !row.error.isEmpty() ? row.error : holder.itemView.getContext().getString(R.string.verify_hooks_state_broken);
             } else {
                 iconRes = R.drawable.ic_cancel;

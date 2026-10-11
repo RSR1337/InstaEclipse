@@ -5,9 +5,10 @@ import android.os.Bundle;
 import android.widget.FrameLayout;
 
 import androidx.activity.OnBackPressedCallback;
-import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
@@ -39,21 +40,13 @@ public class MainActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_main);
 
-        Toolbar toolbar = findViewById(R.id.top_app_bar);
-        setSupportActionBar(toolbar);
-        ActionBar actionBar = getSupportActionBar();
-        if (actionBar != null) {
-            actionBar.setDisplayShowTitleEnabled(false);
-        }
-
         BottomNavigationView bottomNavigation = findViewById(R.id.bottom_navigation);
         FrameLayout fragmentContainer = findViewById(R.id.fragment_container);
 
-        bottomNavigation.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
-            int navHeight = v.getHeight();
-            if (fragmentContainer.getPaddingBottom() != navHeight) {
-                fragmentContainer.setPadding(0, 0, 0, navHeight);
-            }
+        ViewCompat.setOnApplyWindowInsetsListener(fragmentContainer, (v, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            v.setPadding(bars.left, bars.top, bars.right, 0);
+            return insets;
         });
 
         if (savedInstanceState == null) {
@@ -65,7 +58,15 @@ public class MainActivity extends AppCompatActivity {
 
         bottomNavigation.setSelectedItemId(R.id.nav_home);
 
+        bottomNavigation.setOnItemReselectedListener(item -> {});
+
         bottomNavigation.setOnItemSelectedListener(item -> {
+            Fragment current = getSupportFragmentManager().findFragmentById(R.id.fragment_container);
+            if (current instanceof FeaturesFragment features && features.hasPendingChanges()) {
+                features.resolvePendingChanges(() -> bottomNavigation.setSelectedItemId(item.getItemId()));
+                return false;
+            }
+
             Fragment selectedFragment = null;
 
             if (item.getItemId() == R.id.nav_home) {

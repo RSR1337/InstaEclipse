@@ -367,4 +367,13 @@
     <string name="theme_slot_link">Ссылка</string>
     <string name="theme_slot_error">Ошибка</string>
     <string name="theme_slot_destructive">Разрушительное</string>
+    <string name="feat_group_stories_video">Истории и видео</string>
+    <string name="feat_group_interactions">Взаимодействия</string>
+    <string name="feat_group_notifications">Уведомления</string>
+    <string name="feat_group_privacy">Конфиденциальность</string>
+    <string name="unsaved_changes_title">Неприменённые изменения</string>
+    <string name="unsaved_changes_message">Некоторые изменения ещё не применены. Применить их перед выходом?</string>
+    <string name="unsaved_discard">Сбросить</string>
+    <string name="extreme_mode_requires_hint">Сначала включите хотя бы один параметр ниже</string>
+    <string name="extreme_mode_active_hint">Активен · заблокирован до переустановки приложения</string>
 </resources>

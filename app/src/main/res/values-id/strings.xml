@@ -397,4 +397,13 @@
     <string name="theme_slot_link">Tautan</string>
     <string name="theme_slot_error">Kesalahan</string>
     <string name="theme_slot_destructive">Destruktif</string>
+    <string name="feat_group_stories_video">Cerita &amp; video</string>
+    <string name="feat_group_interactions">Interaksi</string>
+    <string name="feat_group_notifications">Notifikasi</string>
+    <string name="feat_group_privacy">Privasi</string>
+    <string name="unsaved_changes_title">Perubahan belum diterapkan</string>
+    <string name="unsaved_changes_message">Beberapa perubahan belum diterapkan. Terapkan sebelum keluar?</string>
+    <string name="unsaved_discard">Buang</string>
+    <string name="extreme_mode_requires_hint">Aktifkan setidaknya satu opsi di bawah terlebih dahulu</string>
+    <string name="extreme_mode_active_hint">Aktif · terkunci sampai aplikasi diinstal ulang</string>
 </resources>

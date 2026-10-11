@@ -455,4 +455,13 @@
     <string name="ig_update_later">Później</string>
     <string name="ig_update_error_message">Nie udało się sprawdzić dostępności aktualizacji. Spróbuj ponownie później.</string>
 
+    <string name="feat_group_stories_video">Relacje i wideo</string>
+    <string name="feat_group_interactions">Interakcje</string>
+    <string name="feat_group_notifications">Powiadomienia</string>
+    <string name="feat_group_privacy">Prywatność</string>
+    <string name="unsaved_changes_title">Niezastosowane zmiany</string>
+    <string name="unsaved_changes_message">Niektóre zmiany nie zostały jeszcze zastosowane. Zastosować je przed wyjściem?</string>
+    <string name="unsaved_discard">Odrzuć</string>
+    <string name="extreme_mode_requires_hint">Najpierw włącz co najmniej jedną opcję poniżej</string>
+    <string name="extreme_mode_active_hint">Aktywny · zablokowany do ponownej instalacji aplikacji</string>
 </resources>

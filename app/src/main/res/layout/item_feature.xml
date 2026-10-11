@@ -9,37 +9,74 @@
     android:clickable="true"
     android:focusable="true"
     android:foreground="?attr/selectableItemBackground"
+    app:cardBackgroundColor="@color/ie_card"
     app:cardElevation="0dp"
-    app:strokeWidth="0dp"
-    app:cardBackgroundColor="?attr/colorSurfaceContainerLow">
+    app:strokeWidth="0dp">
 
     <LinearLayout
+        android:id="@+id/row_content"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minHeight="56dp"
+        android:gravity="center_vertical"
+        android:minHeight="64dp"
         android:orientation="horizontal"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="8dp"
-        android:gravity="center_vertical">
+        android:paddingStart="16dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="10dp">
 
         <ImageView
             android:id="@+id/iv_icon"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_marginEnd="12dp"
-            android:padding="6dp"
-            android:scaleType="centerInside"
-            android:visibility="gone"
-            android:contentDescription="@null" />
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="14dp"
+            android:contentDescription="@null"
+            android:importantForAccessibility="no"
+            android:padding="8.5dp"
+            android:scaleType="fitCenter"
+            android:visibility="gone" />
 
-        <TextView
-            android:id="@+id/tv_title"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textSize="15sp"
-            android:textColor="?attr/colorOnSurface" />
+            android:gravity="start"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tv_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingMultiplier="1.1"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="14.5sp" />
+
+            <TextView
+                android:id="@+id/tv_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/bg_badge_unstable"
+                android:paddingStart="8dp"
+                android:paddingTop="1dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="2dp"
+                android:text="@string/feat_unstable"
+                android:textColor="@color/ie_unstable_fg"
+                android:textFontWeight="600"
+                android:textSize="11.5sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tv_subtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:lineSpacingMultiplier="1.1"
+                android:textColor="@color/ie_text_muted"
+                android:textSize="12.5sp"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/sw_toggle"
@@ -48,6 +85,32 @@
             android:layout_marginStart="12dp"
             android:minHeight="0dp"
             android:visibility="gone" />
+
+        <ImageView
+            android:id="@+id/iv_lock"
+            android:layout_width="48dp"
+            android:layout_height="30dp"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/bg_lock_pill"
+            android:contentDescription="@null"
+            android:importantForAccessibility="no"
+            android:paddingTop="7dp"
+            android:paddingBottom="7dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_ie_lock"
+            android:visibility="gone"
+            app:tint="@color/corona_amber" />
+
+        <ImageView
+            android:id="@+id/iv_chevron"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_marginStart="8dp"
+            android:contentDescription="@null"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_ie_chevron"
+            android:visibility="gone"
+            app:tint="@color/ie_text_muted" />
 
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

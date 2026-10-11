@@ -1,15 +1,15 @@
 package ps.reso.instaeclipse.fragments;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.graphics.Color;
+import android.content.res.ColorStateList;
 import android.graphics.Rect;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -31,6 +31,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
+import androidx.core.view.ViewCompat;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -39,7 +40,6 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.color.MaterialColors;
-import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.shape.ShapeAppearanceModel;
 
@@ -74,8 +74,10 @@ public class FeaturesFragment extends Fragment {
     private RecyclerView recyclerFeatures;
     private FeatureAdapter adapter;
     private TextView tvHeaderTitle;
+    private TextView tvHeaderSubtitle;
     private ImageButton btnBack;
-    private ExtendedFloatingActionButton fabSave;
+    private View pendingBar;
+    private TextView pendingText;
     private ActivityResultLauncher<Uri> dirPickerLauncher;
     private ActivityResultLauncher<String[]> restoreFileLauncher;
     private ActivityResultLauncher<String> notifPermLauncher;
@@ -87,6 +89,11 @@ public class FeaturesFragment extends Fragment {
     private int menuAccent = FeatureAccents.color(EclipseAccents.PRIMARY);
 
     private final Map<String, Boolean> stagedChanges = new HashMap<>();
+    private boolean notifPermissionAsked;
+
+    private static final List<String> DOWNLOAD_KEYS = Arrays.asList(
+            "enablePostDownload", "enableStoryDownload", "enableReelDownload",
+            "enableProfileDownload", "enableVoiceDownload", "enableBatchDownload");
 
     private final BroadcastReceiver prefsReceiver = new BroadcastReceiver() {
         @Override
@@ -267,14 +274,6 @@ public class FeaturesFragment extends Fragment {
         fragmentView = inflater.inflate(R.layout.fragment_features, container, false);
         localCache = requireContext().getSharedPreferences("instaeclipse_cache", Context.MODE_PRIVATE);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(requireContext(),
-                    android.Manifest.permission.POST_NOTIFICATIONS)
-                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                notifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS);
-            }
-        }
-
         recyclerFeatures = fragmentView.findViewById(R.id.recycler_features);
         recyclerFeatures.setLayoutManager(new LinearLayoutManager(requireContext()));
         recyclerFeatures.setItemAnimator(null);
@@ -282,8 +281,10 @@ public class FeaturesFragment extends Fragment {
         recyclerFeatures.setAdapter(adapter);
 
         tvHeaderTitle = fragmentView.findViewById(R.id.tv_header_title);
+        tvHeaderSubtitle = fragmentView.findViewById(R.id.tv_header_subtitle);
         btnBack = fragmentView.findViewById(R.id.btn_back);
-        fabSave = fragmentView.findViewById(R.id.fab_save);
+        pendingBar = fragmentView.findViewById(R.id.pending_bar);
+        pendingText = fragmentView.findViewById(R.id.pending_text);
 
         btnBack.setOnClickListener(v -> loadMainMenu());
 
@@ -292,14 +293,22 @@ public class FeaturesFragment extends Fragment {
             public void handleOnBackPressed() {
                 if (!"main".equals(currentMenu)) {
                     loadMainMenu();
-                } else {
+                    return;
+                }
+                Runnable exit = () -> {
                     setEnabled(false);
                     requireActivity().getOnBackPressedDispatcher().onBackPressed();
+                };
+                if (hasPendingChanges()) {
+                    resolvePendingChanges(exit);
+                } else {
+                    exit.run();
                 }
             }
         });
 
-        fabSave.setOnClickListener(v -> commitStagedChanges());
+        fragmentView.findViewById(R.id.pending_apply).setOnClickListener(v -> commitStagedChanges());
+        fragmentView.findViewById(R.id.pending_discard).setOnClickListener(v -> discardStagedChanges());
 
         loadMainMenu();
 
@@ -316,6 +325,15 @@ public class FeaturesFragment extends Fragment {
 
         public int type;
         public String title;
+        public String subtitle;
+        public boolean isNav;
+        public boolean tile;
+        public boolean danger;
+        public boolean unstable;
+        public boolean child;
+        public int extremeLock;
+        public boolean valueOn;
+        public List<String> stateKeys;
         public String prefKey;
         public Runnable onClick;
         public int textColor;
@@ -342,12 +360,38 @@ public class FeaturesFragment extends Fragment {
 
     static class ItemViewHolder extends RecyclerView.ViewHolder {
         TextView tvTitle;
+        TextView tvSubtitle;
+        TextView tvBadge;
         ImageView ivIcon;
+        ImageView ivChevron;
+        ImageView ivLock;
+        View rowContent;
         MaterialSwitch swToggle;
         MaterialCardView cardView;
         ItemViewHolder(View v) {
             super(v);
             tvTitle = v.findViewById(R.id.tv_title);
+            tvSubtitle = v.findViewById(R.id.tv_subtitle);
+            tvBadge = v.findViewById(R.id.tv_badge);
+            ivIcon = v.findViewById(R.id.iv_icon);
+            ivChevron = v.findViewById(R.id.iv_chevron);
+            ivLock = v.findViewById(R.id.iv_lock);
+            rowContent = v.findViewById(R.id.row_content);
+            swToggle = v.findViewById(R.id.sw_toggle);
+            cardView = (MaterialCardView) v;
+        }
+    }
+
+    static class MasterViewHolder extends RecyclerView.ViewHolder {
+        TextView tvTitle;
+        TextView tvSubtitle;
+        ImageView ivIcon;
+        MaterialSwitch swToggle;
+        MaterialCardView cardView;
+        MasterViewHolder(View v) {
+            super(v);
+            tvTitle = v.findViewById(R.id.tv_title);
+            tvSubtitle = v.findViewById(R.id.tv_subtitle);
             ivIcon = v.findViewById(R.id.iv_icon);
             swToggle = v.findViewById(R.id.sw_toggle);
             cardView = (MaterialCardView) v;
@@ -358,14 +402,62 @@ public class FeaturesFragment extends Fragment {
         TextView tvTitle;
         TextView tvSubtitle;
         ImageView ivIcon;
+        View dot;
+        TextView count;
         MaterialCardView cardView;
         TileViewHolder(View v) {
             super(v);
             tvTitle = v.findViewById(R.id.tv_title);
             tvSubtitle = v.findViewById(R.id.tv_subtitle);
             ivIcon = v.findViewById(R.id.iv_icon);
+            dot = v.findViewById(R.id.tile_dot);
+            count = v.findViewById(R.id.tile_count);
             cardView = v.findViewById(R.id.card_view);
         }
+    }
+
+    private static final java.util.regex.Pattern TRAILING_PAREN =
+            java.util.regex.Pattern.compile("\\s*[(（][^()（）]*[)）]\\s*$");
+
+    private int dp(float value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private int color(int res) {
+        return ContextCompat.getColor(requireContext(), res);
+    }
+
+    private int attrColor(View anchor, int attr) {
+        return MaterialColors.getColor(anchor, attr);
+    }
+
+    private static GradientDrawable roundRect(int color, float radiusPx) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(radiusPx);
+        return d;
+    }
+
+    private boolean anyOn(List<String> keys) {
+        if (keys == null) return false;
+        for (String k : keys) {
+            if (getCurrentState(k)) return true;
+        }
+        return false;
+    }
+
+    private int countOn(List<String> keys) {
+        int n = 0;
+        for (String k : keys) {
+            if (getCurrentState(k)) n++;
+        }
+        return n;
+    }
+
+    private boolean isExtremeLocked(FeatureItem item) {
+        if (item.extremeLock == 0 || !getCurrentState("isExtremeMode")) return false;
+        boolean on = getCurrentState(item.prefKey);
+        return item.extremeLock == 1 ? on : !on;
     }
 
     private class FeatureAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
@@ -382,28 +474,26 @@ public class FeaturesFragment extends Fragment {
             if (type == FeatureItem.TYPE_HEADER) return 0;
             if (type == FeatureItem.TYPE_SPACER) return 2;
             if (type == FeatureItem.TYPE_TILE) return 3;
+            if (type == FeatureItem.TYPE_MASTER_SWITCH) return 4;
             return 1;
         }
 
         @NonNull
         @Override
         public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            LayoutInflater inflater = LayoutInflater.from(parent.getContext());
             if (viewType == 0) {
-                View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_feature_header, parent, false);
-                return new HeaderViewHolder(v);
+                return new HeaderViewHolder(inflater.inflate(R.layout.item_feature_header, parent, false));
             } else if (viewType == 2) {
                 View v = new View(parent.getContext());
-                v.setLayoutParams(new RecyclerView.LayoutParams(
-                        RecyclerView.LayoutParams.MATCH_PARENT,
-                        (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12f, parent.getResources().getDisplayMetrics())
-                ));
+                v.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, dp(12)));
                 return new RecyclerView.ViewHolder(v) {};
             } else if (viewType == 3) {
-                View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_feature_tile, parent, false);
-                return new TileViewHolder(v);
+                return new TileViewHolder(inflater.inflate(R.layout.item_feature_tile, parent, false));
+            } else if (viewType == 4) {
+                return new MasterViewHolder(inflater.inflate(R.layout.item_feature_master, parent, false));
             } else {
-                View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_feature, parent, false);
-                return new ItemViewHolder(v);
+                return new ItemViewHolder(inflater.inflate(R.layout.item_feature, parent, false));
             }
         }
 
@@ -414,164 +504,220 @@ public class FeaturesFragment extends Fragment {
             if (item.type == FeatureItem.TYPE_SPACER) return;
 
             if (holder instanceof HeaderViewHolder) {
-                ((HeaderViewHolder) holder).tvHeader.setText(item.title);
+                ((HeaderViewHolder) holder).tvHeader.setText(item.title.replaceAll("\\s*[:：]\\s*$", ""));
+                ViewCompat.setAccessibilityHeading(holder.itemView, true);
             } else if (holder instanceof TileViewHolder) {
-                TileViewHolder tileHolder = (TileViewHolder) holder;
-                tileHolder.tvTitle.setText(item.title);
-                tileHolder.tvSubtitle.setVisibility(View.GONE);
-                bindIcon(tileHolder.ivIcon, item.iconRes, item.accentColor);
-                tileHolder.cardView.setOnClickListener(v -> {
+                bindTile((TileViewHolder) holder, item);
+            } else if (holder instanceof MasterViewHolder) {
+                bindMaster((MasterViewHolder) holder, item);
+            } else if (holder instanceof ItemViewHolder) {
+                bindRow((ItemViewHolder) holder, item);
+            }
+        }
+
+        private void bindTile(TileViewHolder h, FeatureItem item) {
+            h.tvTitle.setText(item.title);
+            bindChip(h.ivIcon, item.iconRes, item.accentColor, attrColor(h.itemView, com.google.android.material.R.attr.colorOnSurface), 13);
+
+            boolean on;
+            String state;
+            int stateColor;
+            String count = null;
+            if (item.stateKeys != null) {
+                int onCount = countOn(item.stateKeys);
+                on = onCount > 0;
+                count = onCount + "/" + item.stateKeys.size();
+                state = getString(on ? R.string.feat_state_on : R.string.feat_state_off);
+                stateColor = on ? color(R.color.ie_accent_text) : color(R.color.ie_text_muted);
+            } else {
+                on = item.valueOn;
+                state = item.subtitle;
+                stateColor = attrColor(h.itemView, com.google.android.material.R.attr.colorOnSurfaceVariant);
+            }
+            h.tvSubtitle.setText(state);
+            h.tvSubtitle.setTextColor(stateColor);
+            h.tvSubtitle.setVisibility(state != null ? View.VISIBLE : View.GONE);
+
+            GradientDrawable dot = new GradientDrawable();
+            dot.setShape(GradientDrawable.OVAL);
+            dot.setColor(on ? color(R.color.corona_amber) : color(R.color.ie_dot_off));
+            h.dot.setBackground(dot);
+            h.dot.setVisibility(item.stateKeys != null || item.subtitle != null ? View.VISIBLE : View.INVISIBLE);
+
+            h.count.setText(count);
+            h.count.setTextColor(stateColor);
+            h.count.setVisibility(count != null ? View.VISIBLE : View.GONE);
+
+            String description = state != null ? item.title + ", " + state : item.title;
+            if (count != null) description += ", " + count;
+            h.cardView.setContentDescription(description);
+            h.cardView.setOnClickListener(v -> {
+                if (item.onClick != null) item.onClick.run();
+            });
+        }
+
+        private void bindMaster(MasterViewHolder h, FeatureItem item) {
+            int total = item.childKeys.size();
+            int onCount = countOn(item.childKeys);
+            boolean on = onCount > 0;
+            boolean enabled = item.disabledWhenTrue == null || !getCurrentState(item.disabledWhenTrue);
+
+            h.tvTitle.setText(item.title);
+            h.tvSubtitle.setText(on
+                    ? getString(R.string.feat_master_summary, onCount, total)
+                    : getString(R.string.feat_master_all_off));
+
+            int gold = color(R.color.corona_amber);
+            int muted = attrColor(h.itemView, com.google.android.material.R.attr.colorOnSurfaceVariant);
+            h.cardView.setCardBackgroundColor(color(on ? R.color.ie_accent_faint : R.color.ie_card));
+            h.cardView.setStrokeColor(color(on ? R.color.ie_accent_border : R.color.ie_card_stroke));
+            bindChip(h.ivIcon, item.iconRes, 0, on ? gold : muted, 16);
+            h.ivIcon.setBackground(roundRect(color(on ? R.color.ie_accent_soft : R.color.ie_chip), dp(16)));
+
+            h.itemView.setEnabled(enabled);
+            h.swToggle.setEnabled(enabled);
+            h.itemView.setAlpha(enabled ? 1f : 0.5f);
+
+            h.swToggle.setOnCheckedChangeListener(null);
+            h.swToggle.setChecked(on);
+            h.swToggle.setContentDescription(item.title);
+            h.itemView.setOnClickListener(v -> h.swToggle.toggle());
+            h.swToggle.setOnCheckedChangeListener((btn, checked) -> {
+                boolean target = !on;
+                for (String key : item.childKeys) {
+                    stageChange(key, target);
+                }
+                notifyDataSetChanged();
+            });
+        }
+
+        private void bindRow(ItemViewHolder h, FeatureItem item) {
+            boolean isSwitch = item.type == FeatureItem.TYPE_SWITCH;
+            boolean checked = isSwitch && item.prefKey != null && getCurrentState(item.prefKey);
+
+            String title = item.title;
+            if (item.unstable) title = TRAILING_PAREN.matcher(title).replaceFirst("");
+            h.tvTitle.setText(title);
+            h.tvTitle.setTextSize(item.isNav && !isSwitch ? 15f : 14.5f);
+            h.tvBadge.setVisibility(item.unstable ? View.VISIBLE : View.GONE);
+
+            int onSurface = attrColor(h.itemView, com.google.android.material.R.attr.colorOnSurface);
+            int muted = attrColor(h.itemView, com.google.android.material.R.attr.colorOnSurfaceVariant);
+            int iconColor = isSwitch ? (checked ? color(R.color.corona_amber) : muted) : onSurface;
+            bindChip(h.ivIcon, item.iconRes, item.accentColor, iconColor, 11);
+
+            float big = dp(22);
+            float small = dp(4);
+            ShapeAppearanceModel.Builder shape = h.cardView.getShapeAppearanceModel().toBuilder();
+            if (item.danger || item.segmentSize == 1) {
+                shape.setAllCornerSizes(item.danger ? dp(20) : big);
+            } else if (item.segmentPosition == 0) {
+                shape.setTopLeftCornerSize(big).setTopRightCornerSize(big)
+                        .setBottomLeftCornerSize(small).setBottomRightCornerSize(small);
+            } else if (item.segmentPosition == item.segmentSize - 1) {
+                shape.setTopLeftCornerSize(small).setTopRightCornerSize(small)
+                        .setBottomLeftCornerSize(big).setBottomRightCornerSize(big);
+            } else {
+                shape.setAllCornerSizes(small);
+            }
+            h.cardView.setShapeAppearanceModel(shape.build());
+
+            boolean switchEnabled = true;
+            if (item.requiresAnyOf != null) switchEnabled = anyOn(item.requiresAnyOf);
+            if (item.disabledWhenTrue != null && getCurrentState(item.disabledWhenTrue)) switchEnabled = false;
+            boolean extremeActive = item.isExtreme && localCache.getBoolean(item.prefKey, false);
+            boolean locked = extremeActive || isExtremeLocked(item);
+            if (locked) switchEnabled = false;
+
+            String subtitle = item.subtitle;
+            if (item.isExtreme) {
+                if (extremeActive) subtitle = getString(R.string.extreme_mode_active_hint);
+                else if (!switchEnabled) subtitle = getString(R.string.extreme_mode_requires_hint);
+                else subtitle = getString(R.string.extreme_mode_desc);
+            } else if (locked) {
+                subtitle = getString(item.extremeLock == 2 ? R.string.extreme_dm_locked_hint : R.string.extreme_locked_hint);
+            }
+            h.tvSubtitle.setText(subtitle);
+            h.tvSubtitle.setVisibility(subtitle != null ? View.VISIBLE : View.GONE);
+
+            if (item.danger) {
+                h.cardView.setCardBackgroundColor(color(R.color.ie_danger_faint));
+                h.cardView.setStrokeColor(color(R.color.ie_danger_border));
+                h.cardView.setStrokeWidth(dp(1));
+                h.tvTitle.setTextColor(color(R.color.ie_danger_text));
+                h.tvTitle.setTypeface(android.graphics.Typeface.create(h.tvTitle.getTypeface(), 600, false));
+                h.tvTitle.setTextSize(15f);
+                bindChip(h.ivIcon, item.iconRes, 0, color(R.color.ie_danger), 13);
+                h.ivIcon.setBackground(roundRect(color(R.color.ie_danger_soft), dp(13)));
+            } else {
+                h.cardView.setCardBackgroundColor(color(R.color.ie_card));
+                h.cardView.setStrokeWidth(0);
+                h.tvTitle.setTextColor(item.textColor != 0 ? item.textColor : onSurface);
+                h.tvTitle.setTypeface(android.graphics.Typeface.create(h.tvTitle.getTypeface(), 400, false));
+            }
+
+            int start = item.child ? dp(40) : dp(16);
+            h.rowContent.setPaddingRelative(start, h.rowContent.getPaddingTop(), dp(16), h.rowContent.getPaddingBottom());
+
+            h.itemView.setEnabled(switchEnabled || item.type == FeatureItem.TYPE_CLICKABLE);
+            h.swToggle.setEnabled(switchEnabled);
+            float contentAlpha = switchEnabled || locked || item.type == FeatureItem.TYPE_CLICKABLE ? 1f : 0.45f;
+            h.ivIcon.setAlpha(locked && !item.danger ? 0.55f : contentAlpha);
+            h.tvTitle.setAlpha(contentAlpha);
+
+            h.ivChevron.setVisibility(item.isNav ? View.VISIBLE : View.GONE);
+            h.ivLock.setVisibility(isSwitch && locked ? View.VISIBLE : View.GONE);
+            if (item.danger) {
+                h.ivLock.setImageTintList(ColorStateList.valueOf(color(R.color.ie_danger)));
+                h.ivLock.setBackground(null);
+            } else {
+                h.ivLock.setImageTintList(ColorStateList.valueOf(color(R.color.corona_amber)));
+                h.ivLock.setBackgroundResource(R.drawable.bg_lock_pill);
+            }
+            h.swToggle.setContentDescription(title);
+
+            h.swToggle.setOnCheckedChangeListener(null);
+            h.itemView.setOnClickListener(null);
+
+            if (item.type == FeatureItem.TYPE_CLICKABLE) {
+                h.swToggle.setVisibility(View.GONE);
+                h.itemView.setOnClickListener(v -> {
                     if (item.onClick != null) item.onClick.run();
                 });
-            } else if (holder instanceof ItemViewHolder) {
-                ItemViewHolder itemHolder = (ItemViewHolder) holder;
-
-                itemHolder.tvTitle.setText(item.title);
-                bindIcon(itemHolder.ivIcon, item.iconRes, item.accentColor);
-
-                boolean isMaster = item.type == FeatureItem.TYPE_MASTER_SWITCH;
-                if (isMaster) {
-                    int bg = MaterialColors.getColor(itemHolder.itemView, com.google.android.material.R.attr.colorSecondaryContainer);
-                    int fg = MaterialColors.getColor(itemHolder.itemView, com.google.android.material.R.attr.colorOnSecondaryContainer);
-                    itemHolder.cardView.setCardBackgroundColor(bg);
-                    itemHolder.tvTitle.setTextColor(fg);
-                    itemHolder.tvTitle.setTypeface(null, android.graphics.Typeface.BOLD);
-                } else {
-                    int bg = MaterialColors.getColor(itemHolder.itemView, com.google.android.material.R.attr.colorSurfaceContainerLow);
-                    int defaultTextColor = MaterialColors.getColor(itemHolder.itemView, com.google.android.material.R.attr.colorOnSurface);
-                    itemHolder.cardView.setCardBackgroundColor(bg);
-                    itemHolder.tvTitle.setTextColor(item.textColor != 0 ? item.textColor : defaultTextColor);
-                    itemHolder.tvTitle.setTypeface(null, android.graphics.Typeface.NORMAL);
-                }
-
-                float largeRadius = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12f, getResources().getDisplayMetrics());
-                float smallRadius = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 4f, getResources().getDisplayMetrics());
-
-                ShapeAppearanceModel.Builder shapeBuilder = itemHolder.cardView.getShapeAppearanceModel().toBuilder();
-
-                if (item.segmentSize == 1) {
-                    shapeBuilder.setAllCornerSizes(largeRadius);
-                } else if (item.segmentPosition == 0) {
-                    shapeBuilder.setTopLeftCornerSize(largeRadius).setTopRightCornerSize(largeRadius)
-                            .setBottomLeftCornerSize(smallRadius).setBottomRightCornerSize(smallRadius);
-                } else if (item.segmentPosition == item.segmentSize - 1) {
-                    shapeBuilder.setTopLeftCornerSize(smallRadius).setTopRightCornerSize(smallRadius)
-                            .setBottomLeftCornerSize(largeRadius).setBottomRightCornerSize(largeRadius);
-                } else {
-                    shapeBuilder.setAllCornerSizes(smallRadius);
-                }
-                itemHolder.cardView.setShapeAppearanceModel(shapeBuilder.build());
-
-                boolean switchEnabled = true;
-                if (item.requiresAnyOf != null) {
-                    switchEnabled = false;
-                    for (String k : item.requiresAnyOf) {
-                        if (getCurrentState(k)) { switchEnabled = true; break; }
-                    }
-                }
-                if (item.disabledWhenTrue != null && getCurrentState(item.disabledWhenTrue)) {
-                    switchEnabled = false;
-                }
-                itemHolder.itemView.setEnabled(switchEnabled);
-                itemHolder.swToggle.setEnabled(switchEnabled);
-                itemHolder.itemView.setAlpha(switchEnabled ? 1f : 0.4f);
-
-                itemHolder.swToggle.setOnCheckedChangeListener(null);
-                itemHolder.itemView.setOnClickListener(null);
-
-                if (item.type == FeatureItem.TYPE_CLICKABLE) {
-                    itemHolder.swToggle.setVisibility(View.GONE);
-                    itemHolder.itemView.setOnClickListener(v -> {
-                        if (item.onClick != null) item.onClick.run();
-                    });
-                } else {
-                    itemHolder.swToggle.setVisibility(View.VISIBLE);
-                    itemHolder.itemView.setOnClickListener(v -> itemHolder.swToggle.toggle());
-
-                    boolean isChecked = false;
-                    if (item.type == FeatureItem.TYPE_MASTER_SWITCH) {
-                        isChecked = true;
-                        for (String key : item.childKeys) {
-                            if (!getCurrentState(key)) {
-                                isChecked = false;
-                                break;
-                            }
-                        }
-                    } else if (item.prefKey != null) {
-                        isChecked = getCurrentState(item.prefKey);
-                    }
-                    itemHolder.swToggle.setChecked(isChecked);
-
-                    itemHolder.swToggle.setOnCheckedChangeListener((btn, checked) -> {
-                        if (item.isExtreme && checked) {
-                            new AlertDialog.Builder(itemHolder.itemView.getContext())
-                                    .setTitle(getString(R.string.ig_dialog_distraction_extreme_title))
-                                    .setMessage(getString(R.string.ig_dialog_distraction_extreme_message))
-                                    .setPositiveButton(getString(R.string.ig_dialog_yes), (dialog, which) -> {
-                                        stageChange(item.prefKey, true);
-                                        stageChange("isDistractionFree", true);
-                                        updateMasterSwitches();
-                                        refreshConditionalItems();
-                                    })
-                                    .setNegativeButton(getString(R.string.ig_dialog_cancel), (dialog, which) -> {
-                                        itemHolder.swToggle.setChecked(false);
-                                    })
-                                    .show();
-                            return;
-                        }
-
-                        if (item.type == FeatureItem.TYPE_MASTER_SWITCH) {
-                            for (String key : item.childKeys) {
-                                stageChange(key, checked);
-                            }
-                            for (int i = 0; i < items.size(); i++) {
-                                if (items.get(i).type == FeatureItem.TYPE_SWITCH) {
-                                    notifyItemChanged(i);
-                                }
-                            }
-                            refreshConditionalItems();
-                        } else if (item.prefKey != null) {
-                            stageChange(item.prefKey, checked);
-                            if (checked && item.dependsOn != null) {
-                                stageChange(item.dependsOn, true);
-                                refreshRowByKey(item.dependsOn);
-                            }
-                            if (!checked && item.cascadeOffKey != null) {
-                                stageChange(item.cascadeOffKey, false);
-                                refreshRowByKey(item.cascadeOffKey);
-                            }
-                            updateMasterSwitches();
-                            refreshConditionalItems();
-                        }
-                    });
-                }
+                return;
             }
-        }
 
-        private void refreshRowByKey(String prefKey) {
-            for (int i = 0; i < items.size(); i++) {
-                if (prefKey.equals(items.get(i).prefKey)) {
-                    notifyItemChanged(i);
-                    break;
-                }
-            }
-        }
+            h.swToggle.setVisibility(locked ? View.GONE : View.VISIBLE);
+            h.itemView.setOnClickListener(v -> {
+                if (!locked) h.swToggle.toggle();
+            });
+            h.swToggle.setChecked(checked);
 
-        void refreshConditionalItems() {
-            for (int i = 0; i < items.size(); i++) {
-                FeatureItem fi = items.get(i);
-                if (fi.requiresAnyOf != null || fi.disabledWhenTrue != null) {
-                    notifyItemChanged(i);
+            h.swToggle.setOnCheckedChangeListener((btn, isChecked) -> {
+                if (item.isExtreme && isChecked) {
+                    new MaterialAlertDialogBuilder(h.itemView.getContext())
+                            .setTitle(getString(R.string.ig_dialog_distraction_extreme_title))
+                            .setMessage(getString(R.string.ig_dialog_distraction_extreme_message))
+                            .setPositiveButton(getString(R.string.extreme_confirm_button), (dialog, which) -> {
+                                stageChange(item.prefKey, true);
+                                stageChange("isDistractionFree", true);
+                                notifyDataSetChanged();
+                            })
+                            .setNegativeButton(getString(R.string.ig_dialog_cancel), (dialog, which) -> dialog.cancel())
+                            .setOnCancelListener(dialog -> {
+                                int pos = h.getAdapterPosition();
+                                if (pos != RecyclerView.NO_POSITION) notifyItemChanged(pos);
+                            })
+                            .show();
+                    return;
                 }
-            }
-        }
 
-        private void updateMasterSwitches() {
-            for (int i = 0; i < items.size(); i++) {
-                if (items.get(i).type == FeatureItem.TYPE_MASTER_SWITCH) {
-                    notifyItemChanged(i);
-                }
-            }
+                if (item.prefKey == null) return;
+                stageChange(item.prefKey, isChecked);
+                if (isChecked && item.dependsOn != null) stageChange(item.dependsOn, true);
+                if (!isChecked && item.cascadeOffKey != null) stageChange(item.cascadeOffKey, false);
+                notifyDataSetChanged();
+            });
         }
 
         @Override
@@ -579,22 +725,22 @@ public class FeaturesFragment extends Fragment {
             return items.size();
         }
 
-        private void bindIcon(ImageView iconView, int iconRes, int accentColor) {
+        private void bindChip(ImageView iconView, int iconRes, int accentColor, int stateColor, int radiusDp) {
             if (iconRes == 0) {
                 iconView.setVisibility(View.GONE);
                 return;
             }
             iconView.setVisibility(View.VISIBLE);
+            boolean colorful = FeatureAccents.isColorful() && accentColor != 0;
+            int tint = colorful ? accentColor : stateColor;
             android.graphics.drawable.Drawable icon = ContextCompat.getDrawable(iconView.getContext(), iconRes);
             if (icon != null) {
                 icon = icon.mutate();
-                icon.setColorFilter(new android.graphics.PorterDuffColorFilter(accentColor, android.graphics.PorterDuff.Mode.SRC_IN));
+                icon.setColorFilter(new android.graphics.PorterDuffColorFilter(tint, android.graphics.PorterDuff.Mode.SRC_IN));
                 iconView.setImageDrawable(icon);
             }
-            android.graphics.drawable.GradientDrawable chipBg = new android.graphics.drawable.GradientDrawable();
-            chipBg.setColor((accentColor & 0x00FFFFFF) | 0x33000000);
-            chipBg.setCornerRadius(iconView.getResources().getDisplayMetrics().density * 10);
-            iconView.setBackground(chipBg);
+            int chip = colorful ? (accentColor & 0x00FFFFFF) | 0x33000000 : color(R.color.ie_chip);
+            iconView.setBackground(roundRect(chip, dp(radiusDp)));
         }
     }
 
@@ -606,8 +752,13 @@ public class FeaturesFragment extends Fragment {
         ViewGroup headerLayout = fragmentView.findViewById(R.id.header_layout);
         TransitionManager.beginDelayedTransition(headerLayout, new AutoTransition().setDuration(200));
 
+        boolean root = title.equals(getString(R.string.features));
         tvHeaderTitle.setText(title);
-        btnBack.setVisibility(title.equals(getString(R.string.features)) ? View.GONE : View.VISIBLE);
+        tvHeaderTitle.setTextAppearance(root ? R.style.TextAppearance_InstaEclipse_ScreenTitle : R.style.TextAppearance_InstaEclipse_Display);
+        tvHeaderSubtitle.setVisibility(root ? View.VISIBLE : View.GONE);
+        btnBack.setVisibility(root ? View.GONE : View.VISIBLE);
+        headerLayout.setPaddingRelative(dp(root ? 20 : 10), dp(root ? 26 : 16), dp(20), dp(root ? 14 : 8));
+        ((ViewGroup.MarginLayoutParams) btnBack.getLayoutParams()).setMarginStart(0);
 
         List<FeatureItem> displayList = new ArrayList<>();
         for (int di = 0; di < definitions.size(); di++) {
@@ -622,7 +773,7 @@ public class FeaturesFragment extends Fragment {
                 List<FeatureItem> group = (List<FeatureItem>) def;
                 for (int i = 0; i < group.size(); i++) {
                     FeatureItem item = group.get(i);
-                    if (tileGrid && item.type == FeatureItem.TYPE_CLICKABLE) {
+                    if (tileGrid && item.tile) {
                         item.type = FeatureItem.TYPE_TILE;
                     }
                     item.segmentPosition = i;
@@ -664,28 +815,22 @@ public class FeaturesFragment extends Fragment {
             glm.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
                 @Override
                 public int getSpanSize(int position) {
-                    int type = adapter.items.get(position).type;
-                    if (type == FeatureItem.TYPE_HEADER
-                            || type == FeatureItem.TYPE_SPACER
-                            || type == FeatureItem.TYPE_SWITCH
-                            || type == FeatureItem.TYPE_MASTER_SWITCH) {
-                        return 2;
-                    }
-                    return 1;
+                    return adapter.items.get(position).type == FeatureItem.TYPE_TILE ? 1 : 2;
                 }
             });
             recyclerFeatures.setLayoutManager(glm);
-            final int halfGap = (int) (getResources().getDisplayMetrics().density * 4);
+            final int halfGap = dp(5);
             tileSpacingDecoration = new RecyclerView.ItemDecoration() {
                 @Override
                 public void getItemOffsets(@NonNull Rect outRect, @NonNull View view, @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
                     int pos = parent.getChildAdapterPosition(view);
                     if (pos == RecyclerView.NO_POSITION || pos >= adapter.items.size()) return;
-                    if (adapter.items.get(pos).type == FeatureItem.TYPE_TILE) {
-                        outRect.left = halfGap;
-                        outRect.right = halfGap;
-                        outRect.bottom = halfGap * 2;
-                    }
+                    if (adapter.items.get(pos).type != FeatureItem.TYPE_TILE) return;
+                    boolean rtl = parent.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
+                    boolean first = ((GridLayoutManager.LayoutParams) view.getLayoutParams()).getSpanIndex() == 0;
+                    if (first == rtl) outRect.left = halfGap;
+                    else outRect.right = halfGap;
+                    outRect.bottom = halfGap * 2;
                 }
             };
             recyclerFeatures.addItemDecoration(tileSpacingDecoration);
@@ -699,15 +844,12 @@ public class FeaturesFragment extends Fragment {
         item.type = FeatureItem.TYPE_CLICKABLE;
         item.title = title;
         item.onClick = navAction;
+        item.isNav = true;
         return item;
     }
 
     private int accentColor() {
         return menuAccent;
-    }
-
-    private static int dangerColor() {
-        return Color.parseColor(EclipseAccents.DANGER);
     }
 
     private FeatureItem createNav(int iconRes, String title, String accentHex, Runnable navAction) {
@@ -781,46 +923,104 @@ public class FeaturesFragment extends Fragment {
         return item;
     }
 
-    private FeatureItem createMasterSwitch(String title, List<String> childKeys) {
+    private static FeatureItem withSubtitle(FeatureItem item, String subtitle) {
+        item.subtitle = subtitle;
+        return item;
+    }
+
+    private FeatureItem createMasterSwitch(int iconRes, String title, List<String> childKeys) {
         FeatureItem item = new FeatureItem();
         item.type = FeatureItem.TYPE_MASTER_SWITCH;
+        item.iconRes = iconRes;
         item.title = title;
         item.childKeys = childKeys;
         return item;
     }
 
+    private String masterTitle(int sectionRes) {
+        return getString(R.string.feat_master_enable, getString(sectionRes));
+    }
+
+    private FeatureItem createCategory(int iconRes, String title, String accentHex, List<String> stateKeys, Runnable navAction) {
+        FeatureItem item = createNav(iconRes, title, accentHex, navAction);
+        item.tile = true;
+        item.stateKeys = stateKeys;
+        return item;
+    }
+
+    private static final List<String> GHOST_KEYS = Arrays.asList(
+            "isGhostSeen", "isGhostTyping", "isGhostStory", "isGhostLive",
+            "allowScreenshots", "isGhostScreenshot", "isGhostViewOnce",
+            "enableUnlimitedReplays", "permanentViewMode", "keepEphemeralMessages");
+    private static final List<String> AD_KEYS = Arrays.asList("isAdBlockEnabled", "isAnalyticsBlocked", "disableTrackingLinks");
+    private static final List<String> CLEAN_FEED_KEYS = Arrays.asList("hideSuggestionsInFeed", "hideThreadsSuggestions");
+    private static final List<String> DISTRACTION_KEYS = Arrays.asList(
+            "disableStories", "disableFeed", "disableReels",
+            "disableReelsExceptDM", "disableExplore", "disableComments");
+    private static final List<String> MISC_KEYS = Arrays.asList(
+            "disableStoryFlipping", "disableVideoAutoPlay", "enableStoryMentions", "enablePhotoZoom",
+            "disableRepost", "disableDoubleTapLike", "enableCopyComment", "enableCaptionCopy",
+            "disableDiscoverPeople", "showFeatureToasts", "showFollowerToast", "spoofLastSeen");
+    private static final List<String> DOWNLOAD_FEATURE_KEYS = Arrays.asList(
+            "enablePostDownload", "enableStoryDownload", "enableReelDownload", "enableProfileDownload", "enableVoiceDownload");
+
     private void loadMainMenu() {
         FeatureFlags.colorfulFeatureIcons = getCurrentState("colorfulFeatureIcons");
         List<Object> defs = new ArrayList<>();
 
+        int quality = localCache.getInt("forceReelQuality", 0);
+        FeatureItem qualityTile = createCategory(R.drawable.ic_ie_film, getString(R.string.ig_dialog_menu_quality),
+                FeatureAccents.QUALITY, null, this::loadQualityMenu);
+        qualityTile.subtitle = qualityLabel(quality);
+        qualityTile.valueOn = quality != 0;
+
         defs.add(getString(R.string.feat_categories));
         defs.add(Arrays.asList(
-                createNav(R.drawable.ic_tune, getString(R.string.ig_dialog_menu_dev_options), FeatureAccents.DEV, this::loadDevMenu),
-                createNav(R.drawable.ic_eye, getString(R.string.ig_dialog_menu_ghost_settings), FeatureAccents.GHOST, this::loadGhostMenu),
-                createNav(R.drawable.ic_shield, getString(R.string.ig_dialog_menu_ad_analytics), FeatureAccents.ADS, this::loadAdsMenu),
-                createNav(R.drawable.ic_sparkle, getString(R.string.ig_dialog_menu_clean_feed), FeatureAccents.CLEAN_FEED, this::loadCleanFeedMenu),
-                createNav(R.drawable.ic_block, getString(R.string.ig_dialog_menu_distraction_free), FeatureAccents.DISTRACTION, this::loadDistractionMenu),
-                createNav(R.drawable.ic_settings_gear, getString(R.string.ig_dialog_menu_misc), FeatureAccents.MISC, this::loadMiscMenu),
-                createNav(R.drawable.ic_download, getString(R.string.ig_dialog_menu_downloader), FeatureAccents.DOWNLOADER, this::loadDownloaderMenu),
-                createNav(R.drawable.ic_pin, getString(R.string.ig_dialog_menu_location), FeatureAccents.LOCATION, this::loadLocationMenu),
-                createNav(R.drawable.ic_movie, getString(R.string.ig_dialog_menu_quality), FeatureAccents.QUALITY, this::loadQualityMenu),
-                createNav(R.drawable.ic_palette, getString(R.string.theme_customize), FeatureAccents.THEME, () ->
-                        themeCustomizerLauncher.launch(new Intent(requireContext(), ThemeCustomizerActivity.class)))
+                createCategory(R.drawable.ic_ie_code, getString(R.string.ig_dialog_menu_dev_options), FeatureAccents.DEV,
+                        Arrays.asList("isDevEnabled", "removeBuildExpiredPopup"), this::loadDevMenu),
+                createCategory(R.drawable.ic_ie_ghost, getString(R.string.ig_dialog_menu_ghost_settings), FeatureAccents.GHOST,
+                        GHOST_KEYS, this::loadGhostMenu),
+                createCategory(R.drawable.ic_ie_shield_x, getString(R.string.ig_dialog_menu_ad_analytics), FeatureAccents.ADS,
+                        AD_KEYS, this::loadAdsMenu),
+                createCategory(R.drawable.ic_ie_lines, getString(R.string.ig_dialog_menu_clean_feed), FeatureAccents.CLEAN_FEED,
+                        CLEAN_FEED_KEYS, this::loadCleanFeedMenu),
+                createCategory(R.drawable.ic_ie_target, getString(R.string.ig_dialog_menu_distraction_free), FeatureAccents.DISTRACTION,
+                        DISTRACTION_KEYS, this::loadDistractionMenu),
+                createCategory(R.drawable.ic_ie_sliders, getString(R.string.ig_dialog_menu_misc), FeatureAccents.MISC,
+                        MISC_KEYS, this::loadMiscMenu),
+                createCategory(R.drawable.ic_ie_download, getString(R.string.ig_dialog_menu_downloader), FeatureAccents.DOWNLOADER,
+                        DOWNLOAD_FEATURE_KEYS, this::loadDownloaderMenu),
+                createCategory(R.drawable.ic_ie_pin, getString(R.string.ig_dialog_menu_location), FeatureAccents.LOCATION,
+                        Arrays.asList("spoofLocation"), this::loadLocationMenu),
+                qualityTile,
+                createCategory(R.drawable.ic_ie_palette, getString(R.string.theme_customize), FeatureAccents.THEME,
+                        Arrays.asList("customThemeEnabled"), () ->
+                                themeCustomizerLauncher.launch(new Intent(requireContext(), ThemeCustomizerActivity.class)))
         ));
 
         defs.add(getString(R.string.feat_tools));
         defs.add(Arrays.asList(
-                createNav(R.drawable.ic_palette, getString(R.string.ig_dialog_icon_style), FeatureAccents.THEME, this::loadIconStyleMenu),
-                createClickable(R.drawable.ic_terminal, getString(R.string.verify_hooks_title), FeatureAccents.VERIFY, () ->
-                        startActivity(new Intent(requireContext(), VerifyHooksActivity.class))),
-                createClickable(R.drawable.ic_save, getString(R.string.ig_dialog_backup_settings), FeatureAccents.SUCCESS, this::backupSettings),
-                createClickable(R.drawable.ic_folder, getString(R.string.ig_dialog_restore_settings), FeatureAccents.INFO, this::restoreSettings),
-                createClickable(R.drawable.ic_info, getString(R.string.ig_dialog_menu_about), FeatureAccents.NEUTRAL, this::showAboutDialog),
-                createClickable(R.drawable.ic_restart, getString(R.string.ig_dialog_menu_restart), FeatureAccents.ADS, this::restartInstagram)
+                withSubtitle(createNav(R.drawable.ic_ie_brush, getString(R.string.ig_dialog_icon_style), FeatureAccents.THEME, this::loadIconStyleMenu),
+                        getString(FeatureFlags.colorfulFeatureIcons ? R.string.ig_dialog_icon_style_colorful : R.string.ig_dialog_icon_style_yellow)),
+                createNav(R.drawable.ic_ie_archive, getString(R.string.ig_dialog_menu_backup_restore), FeatureAccents.SUCCESS, this::showBackupRestoreChooser),
+                createNav(R.drawable.ic_ie_check, getString(R.string.verify_hooks_title), FeatureAccents.VERIFY, () ->
+                        startActivity(new Intent(requireContext(), VerifyHooksActivity.class)))
         ));
 
         showMenu(getString(R.string.features), defs, true);
         currentMenu = "main";
+    }
+
+    private void showBackupRestoreChooser() {
+        String[] options = {getString(R.string.ig_dialog_backup_settings), getString(R.string.ig_dialog_restore_settings)};
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.ig_dialog_menu_backup_restore)
+                .setItems(options, (dialog, which) -> {
+                    if (which == 0) backupSettings();
+                    else restoreSettings();
+                })
+                .setNegativeButton(R.string.ig_dialog_cancel, null)
+                .show();
     }
 
     private void loadIconStyleMenu() {
@@ -840,10 +1040,10 @@ public class FeaturesFragment extends Fragment {
     }
 
     private FeatureItem createIconStyleOption(String title, boolean selected, boolean colorfulValue) {
-        FeatureItem item = createClickable(R.drawable.ic_palette, title, FeatureAccents.THEME, () -> applyIconStyle(colorfulValue));
+        FeatureItem item = createClickable(R.drawable.ic_ie_brush, title, FeatureAccents.THEME, () -> applyIconStyle(colorfulValue));
         if (selected) {
             item.title = title + "  ✓";
-            item.textColor = FeatureAccents.primary();
+            item.textColor = ContextCompat.getColor(requireContext(), R.color.ie_accent_text);
         }
         return item;
     }
@@ -855,7 +1055,7 @@ public class FeaturesFragment extends Fragment {
         sendBoolPref("colorfulFeatureIcons", colorful, updatedAt);
         FeatureFlags.colorfulFeatureIcons = colorful;
         stagedChanges.remove("colorfulFeatureIcons");
-        if (stagedChanges.isEmpty()) fabSave.hide();
+        updatePendingBar();
         loadIconStyleMenu();
     }
 
@@ -864,13 +1064,13 @@ public class FeaturesFragment extends Fragment {
         List<Object> defs = new ArrayList<>();
 
         defs.add(getString(R.string.feat_features));
-        defs.add(Arrays.asList(createSwitch(R.drawable.ic_tune, getString(R.string.ig_dialog_dev_enable), "isDevEnabled")));
+        defs.add(Arrays.asList(createSwitch(R.drawable.ic_ie_code, getString(R.string.ig_dialog_dev_enable), "isDevEnabled")));
 
         defs.add(getString(R.string.feat_config));
         defs.add(Arrays.asList(
                 createClickable(R.drawable.ic_download, getString(R.string.ig_dialog_dev_import), FeatureAccents.SUCCESS, this::importDevConfig),
                 createClickable(R.drawable.ic_upload, getString(R.string.ig_dialog_dev_export), FeatureAccents.INFO, this::exportDevConfig),
-                createClickable(R.drawable.ic_restart, getString(R.string.ig_dialog_dev_restore_default_config), FeatureAccents.DOWNLOADER, this::restoreDefaultConfig)
+                createClickable(R.drawable.ic_ie_restart, getString(R.string.ig_dialog_dev_restore_default_config), FeatureAccents.DOWNLOADER, this::restoreDefaultConfig)
         ));
 
         defs.add(getString(R.string.feat_options));
@@ -884,27 +1084,27 @@ public class FeaturesFragment extends Fragment {
         menuAccent = FeatureAccents.color(FeatureAccents.GHOST);
         List<Object> defs = new ArrayList<>();
 
-        defs.add(getString(R.string.feat_quick_toggle));
-        defs.add(Arrays.asList(createNav(R.drawable.ic_tune, getString(R.string.ig_dialog_customize_quick_toggle), this::loadQuickTogglesMenu)));
+        FeatureItem permanent = createSwitch(R.drawable.ic_ie_eye, getString(R.string.ig_dialog_ghost_permanent_view_once), "permanentViewMode");
+        permanent.unstable = true;
 
-        defs.add(getString(R.string.feat_features));
+        defs.add(Arrays.asList(createMasterSwitch(R.drawable.ic_ie_ghost, masterTitle(R.string.ig_dialog_section_ghost_mode), GHOST_KEYS)));
+
+        defs.add(getString(R.string.feat_options));
         defs.add(Arrays.asList(
-                createMasterSwitch(getString(R.string.ig_dialog_enable_disable_all), Arrays.asList(
-                        "isGhostSeen", "isGhostTyping", "isGhostStory", "isGhostLive",
-                        "allowScreenshots", "isGhostScreenshot", "isGhostViewOnce",
-                        "enableUnlimitedReplays", "permanentViewMode", "keepEphemeralMessages"
-                )),
-                createSwitch(R.drawable.ic_eye_off, getString(R.string.ig_dialog_ghost_hide_dm_seen), "isGhostSeen"),
-                createSwitch(R.drawable.ic_chat, getString(R.string.ig_dialog_ghost_hide_typing), "isGhostTyping"),
-                createSwitch(R.drawable.ic_story_ring, getString(R.string.ig_dialog_ghost_hide_story_views), "isGhostStory"),
-                createSwitch(R.drawable.ic_live, getString(R.string.ig_dialog_ghost_hide_live_presence), "isGhostLive"),
-                createSwitch(R.drawable.ic_camera, getString(R.string.ig_dialog_ghost_allow_screenshots_dms), "allowScreenshots"),
-                createSwitch(R.drawable.ic_camera, getString(R.string.ig_dialog_ghost_bypass_screenshot), "isGhostScreenshot"),
-                createSwitch(R.drawable.ic_eye_off, getString(R.string.ig_dialog_ghost_hide_view_once), "isGhostViewOnce"),
-                createSwitch(R.drawable.ic_restart, getString(R.string.ig_dialog_ghost_unlimited_replays), "enableUnlimitedReplays"),
-                createSwitch(R.drawable.ic_eye, getString(R.string.ig_dialog_ghost_permanent_view_once), "permanentViewMode"),
-                createSwitch(R.drawable.ic_timer, getString(R.string.ig_dialog_ghost_keep_disappearing), "keepEphemeralMessages")
+                createSwitch(R.drawable.ic_ie_eye_off, getString(R.string.ig_dialog_ghost_hide_dm_seen), "isGhostSeen"),
+                createSwitch(R.drawable.ic_ie_typing, getString(R.string.ig_dialog_ghost_hide_typing), "isGhostTyping"),
+                createSwitch(R.drawable.ic_ie_story, getString(R.string.ig_dialog_ghost_hide_story_views), "isGhostStory"),
+                createSwitch(R.drawable.ic_ie_live, getString(R.string.ig_dialog_ghost_hide_live_presence), "isGhostLive"),
+                createSwitch(R.drawable.ic_ie_camera, getString(R.string.ig_dialog_ghost_allow_screenshots_dms), "allowScreenshots"),
+                createSwitch(R.drawable.ic_ie_smartphone, getString(R.string.ig_dialog_ghost_bypass_screenshot), "isGhostScreenshot"),
+                createSwitch(R.drawable.ic_ie_image, getString(R.string.ig_dialog_ghost_hide_view_once), "isGhostViewOnce"),
+                createSwitch(R.drawable.ic_ie_repeat, getString(R.string.ig_dialog_ghost_unlimited_replays), "enableUnlimitedReplays"),
+                permanent,
+                createSwitch(R.drawable.ic_ie_timer, getString(R.string.ig_dialog_ghost_keep_disappearing), "keepEphemeralMessages")
         ));
+
+        defs.add(Arrays.asList(withSubtitle(createNav(R.drawable.ic_ie_zap, getString(R.string.ig_dialog_customize_quick_toggle),
+                FeatureAccents.GHOST, this::loadQuickTogglesMenu), getString(R.string.feat_quick_toggle_desc))));
 
         showMenu(getString(R.string.ig_dialog_section_ghost_mode), defs);
         currentMenu = "ghost";
@@ -914,24 +1114,27 @@ public class FeaturesFragment extends Fragment {
         menuAccent = FeatureAccents.color(FeatureAccents.GHOST);
         List<Object> defs = new ArrayList<>();
 
-        defs.add(getString(R.string.feat_features));
+        FeatureItem permanent = createSwitch(R.drawable.ic_ie_eye, getString(R.string.ig_dialog_quick_permanent_view), "quickTogglePermanentView");
+        permanent.unstable = true;
+
+        defs.add(Arrays.asList(createMasterSwitch(R.drawable.ic_ie_zap, getString(R.string.ig_dialog_enable_disable_all), Arrays.asList(
+                "quickToggleSeen", "quickToggleTyping", "quickToggleScreenshot",
+                "quickToggleViewOnce", "quickToggleStory", "quickToggleLive",
+                "quickToggleEphemeral", "quickToggleReplays", "quickTogglePermanentView",
+                "quickToggleAllowScreenshots"))));
+
+        defs.add(getString(R.string.feat_options));
         defs.add(Arrays.asList(
-                createMasterSwitch(getString(R.string.ig_dialog_enable_disable_all), Arrays.asList(
-                        "quickToggleSeen", "quickToggleTyping", "quickToggleScreenshot",
-                        "quickToggleViewOnce", "quickToggleStory", "quickToggleLive",
-                        "quickToggleEphemeral", "quickToggleReplays", "quickTogglePermanentView",
-                        "quickToggleAllowScreenshots"
-                )),
-                createSwitch(R.drawable.ic_eye_off, getString(R.string.ig_dialog_quick_hide_seen), "quickToggleSeen"),
-                createSwitch(R.drawable.ic_chat, getString(R.string.ig_dialog_quick_hide_typing), "quickToggleTyping"),
-                createSwitch(R.drawable.ic_camera, getString(R.string.ig_dialog_quick_disable_screenshot), "quickToggleScreenshot"),
-                createSwitch(R.drawable.ic_eye_off, getString(R.string.ig_dialog_quick_hide_view_once), "quickToggleViewOnce"),
-                createSwitch(R.drawable.ic_story_ring, getString(R.string.ig_dialog_quick_hide_story_seen), "quickToggleStory"),
-                createSwitch(R.drawable.ic_live, getString(R.string.ig_dialog_quick_hide_live_seen), "quickToggleLive"),
-                createSwitch(R.drawable.ic_timer, getString(R.string.ig_dialog_quick_keep_ephemeral), "quickToggleEphemeral"),
-                createSwitch(R.drawable.ic_restart, getString(R.string.ig_dialog_quick_unlimited_replays), "quickToggleReplays"),
-                createSwitch(R.drawable.ic_eye, getString(R.string.ig_dialog_quick_permanent_view), "quickTogglePermanentView"),
-                createSwitch(R.drawable.ic_camera, getString(R.string.ig_dialog_quick_allow_screenshots), "quickToggleAllowScreenshots")
+                createSwitch(R.drawable.ic_ie_eye_off, getString(R.string.ig_dialog_quick_hide_seen), "quickToggleSeen"),
+                createSwitch(R.drawable.ic_ie_typing, getString(R.string.ig_dialog_quick_hide_typing), "quickToggleTyping"),
+                createSwitch(R.drawable.ic_ie_smartphone, getString(R.string.ig_dialog_quick_disable_screenshot), "quickToggleScreenshot"),
+                createSwitch(R.drawable.ic_ie_image, getString(R.string.ig_dialog_quick_hide_view_once), "quickToggleViewOnce"),
+                createSwitch(R.drawable.ic_ie_story, getString(R.string.ig_dialog_quick_hide_story_seen), "quickToggleStory"),
+                createSwitch(R.drawable.ic_ie_live, getString(R.string.ig_dialog_quick_hide_live_seen), "quickToggleLive"),
+                createSwitch(R.drawable.ic_ie_timer, getString(R.string.ig_dialog_quick_keep_ephemeral), "quickToggleEphemeral"),
+                createSwitch(R.drawable.ic_ie_repeat, getString(R.string.ig_dialog_quick_unlimited_replays), "quickToggleReplays"),
+                permanent,
+                createSwitch(R.drawable.ic_ie_camera, getString(R.string.ig_dialog_quick_allow_screenshots), "quickToggleAllowScreenshots")
         ));
 
         showMenu(getString(R.string.ig_dialog_section_quick_toggle), defs);
@@ -942,11 +1145,12 @@ public class FeaturesFragment extends Fragment {
         menuAccent = FeatureAccents.color(FeatureAccents.ADS);
         List<Object> defs = new ArrayList<>();
 
+        defs.add(Arrays.asList(createMasterSwitch(R.drawable.ic_ie_shield_x, masterTitle(R.string.ig_dialog_section_ad_analytics), AD_KEYS)));
+
         defs.add(getString(R.string.feat_features));
         defs.add(Arrays.asList(
-                createMasterSwitch(getString(R.string.ig_dialog_enable_disable_all), Arrays.asList("isAdBlockEnabled", "isAnalyticsBlocked", "disableTrackingLinks")),
                 createSwitch(R.drawable.ic_shield, getString(R.string.ig_dialog_ad_block_ads), "isAdBlockEnabled"),
-                createSwitch(R.drawable.ic_shield, getString(R.string.ig_dialog_ad_block_analytics), "isAnalyticsBlocked"),
+                createSwitch(R.drawable.ic_analytics, getString(R.string.ig_dialog_ad_block_analytics), "isAnalyticsBlocked"),
                 createSwitch(R.drawable.ic_link, getString(R.string.ig_dialog_ad_disable_tracking), "disableTrackingLinks")
         ));
 
@@ -961,7 +1165,7 @@ public class FeaturesFragment extends Fragment {
         defs.add(getString(R.string.feat_features));
         defs.add(Arrays.asList(
                 createSwitch(R.drawable.ic_sparkle, getString(R.string.ig_dialog_clean_feed_hide_suggested), "hideSuggestionsInFeed"),
-                createSwitch(R.drawable.ic_sparkle, getString(R.string.ig_dialog_clean_feed_hide_threads), "hideThreadsSuggestions")
+                createSwitch(R.drawable.ic_at, getString(R.string.ig_dialog_clean_feed_hide_threads), "hideThreadsSuggestions")
         ));
 
         showMenu(getString(R.string.ig_dialog_section_clean_feed), defs);
@@ -972,53 +1176,40 @@ public class FeaturesFragment extends Fragment {
         menuAccent = FeatureAccents.color(FeatureAccents.DISTRACTION);
         List<Object> defs = new ArrayList<>();
 
-        List<String> distractionKeys = Arrays.asList(
-                "disableStories", "disableFeed", "disableReels",
-                "disableReelsExceptDM", "disableExplore", "disableComments"
-        );
-
-        FeatureItem extreme = createSwitch(R.drawable.ic_block, getString(R.string.ig_dialog_distraction_extreme_mode), "isExtremeMode");
-        extreme.textColor = dangerColor();
+        FeatureItem extreme = createSwitch(R.drawable.ic_ie_warning, getString(R.string.extreme_mode_title), "isExtremeMode");
         extreme.isExtreme = true;
-        extreme.requiresAnyOf = distractionKeys;
-
-        defs.add(getString(R.string.feat_danger_zone));
+        extreme.danger = true;
+        extreme.requiresAnyOf = DISTRACTION_KEYS;
         defs.add(Arrays.asList(extreme));
 
-        FeatureItem masterSwitch = createMasterSwitch(getString(R.string.ig_dialog_enable_disable_all), distractionKeys);
+        FeatureItem disableReels = createSwitchWithCascadeOff(R.drawable.ic_ie_reels, getString(R.string.ig_dialog_distraction_disable_reels), "disableReels", "disableReelsExceptDM");
+        disableReels.extremeLock = 1;
+
+        FeatureItem disableReelsExceptDM = createSwitchWithDependency(R.drawable.ic_ie_bubble, getString(R.string.ig_dialog_distraction_disable_reels_except_dm), "disableReelsExceptDM", "disableReels");
+        disableReelsExceptDM.extremeLock = 2;
+        disableReelsExceptDM.child = true;
+
+        FeatureItem masterSwitch = createMasterSwitch(R.drawable.ic_ie_target, masterTitle(R.string.ig_dialog_section_distraction_free), DISTRACTION_KEYS);
         masterSwitch.disabledWhenTrue = "isExtremeMode";
-
-        FeatureItem disableReels = createSwitchWithCascadeOff(R.drawable.ic_movie, getString(R.string.ig_dialog_distraction_disable_reels), "disableReels", "disableReelsExceptDM");
-        disableReels.disabledWhenTrue = "isExtremeMode";
-
-        FeatureItem disableReelsExceptDM = createSwitchWithDependency(R.drawable.ic_movie, getString(R.string.ig_dialog_distraction_disable_reels_except_dm), "disableReelsExceptDM", "disableReels");
-        disableReelsExceptDM.disabledWhenTrue = "isExtremeMode";
+        defs.add(Arrays.asList(masterSwitch));
 
         defs.add(getString(R.string.feat_features));
         defs.add(Arrays.asList(
-                masterSwitch,
-                createSwitchLockedByExtreme(R.drawable.ic_story_ring, getString(R.string.ig_dialog_distraction_disable_stories), "disableStories"),
-                createSwitchLockedByExtreme(R.drawable.ic_block, getString(R.string.ig_dialog_distraction_disable_feed), "disableFeed"),
+                createSwitchLockedByExtreme(R.drawable.ic_ie_story, getString(R.string.ig_dialog_distraction_disable_stories), "disableStories"),
+                createSwitchLockedByExtreme(R.drawable.ic_ie_lines, getString(R.string.ig_dialog_distraction_disable_feed), "disableFeed"),
                 disableReels,
                 disableReelsExceptDM,
-                createSwitchLockedByExtreme(R.drawable.ic_search, getString(R.string.ig_dialog_distraction_disable_explore), "disableExplore"),
-                createSwitchLockedByExtreme(R.drawable.ic_chat, getString(R.string.ig_dialog_distraction_disable_comments), "disableComments")
+                createSwitchLockedByExtreme(R.drawable.ic_ie_compass, getString(R.string.ig_dialog_distraction_disable_explore), "disableExplore"),
+                createSwitchLockedByExtreme(R.drawable.ic_ie_comment, getString(R.string.ig_dialog_distraction_disable_comments), "disableComments")
         ));
 
         showMenu(getString(R.string.ig_dialog_section_distraction_free), defs);
         currentMenu = "distract";
     }
 
-    private FeatureItem createSwitchLockedByExtreme(String title, String prefKey) {
-        FeatureItem item = createSwitch(title, prefKey);
-        item.disabledWhenTrue = "isExtremeMode";
-        return item;
-    }
-
     private FeatureItem createSwitchLockedByExtreme(int iconRes, String title, String prefKey) {
-        FeatureItem item = createSwitchLockedByExtreme(title, prefKey);
-        item.iconRes = iconRes;
-        item.accentColor = accentColor();
+        FeatureItem item = createSwitch(iconRes, title, prefKey);
+        item.extremeLock = 1;
         return item;
     }
 
@@ -1026,25 +1217,34 @@ public class FeaturesFragment extends Fragment {
         menuAccent = FeatureAccents.color(FeatureAccents.MISC);
         List<Object> defs = new ArrayList<>();
 
-        defs.add(getString(R.string.feat_features));
+        defs.add(Arrays.asList(createMasterSwitch(R.drawable.ic_ie_sliders, getString(R.string.ig_dialog_enable_disable_all), MISC_KEYS)));
+
+        defs.add(getString(R.string.feat_group_stories_video));
         defs.add(Arrays.asList(
-                createMasterSwitch(getString(R.string.ig_dialog_enable_disable_all), Arrays.asList(
-                        "disableStoryFlipping", "disableVideoAutoPlay", "spoofLastSeen", "disableRepost", "showFollowerToast",
-                        "showFeatureToasts", "enableStoryMentions", "disableDiscoverPeople", "enableCopyComment",
-                        "disableDoubleTapLike", "enableCaptionCopy", "enablePhotoZoom"
-                )),
                 createSwitch(R.drawable.ic_story_ring, getString(R.string.ig_dialog_misc_disable_story_autoswipe), "disableStoryFlipping"),
-                createSwitch(R.drawable.ic_movie, getString(R.string.ig_dialog_misc_disable_video_autoplay), "disableVideoAutoPlay"),
-                createSwitch(R.drawable.ic_timer, getString(R.string.ig_dialog_misc_spoof_last_seen), "spoofLastSeen"),
-                createSwitch(R.drawable.ic_block, getString(R.string.ig_dialog_misc_disable_repost), "disableRepost"),
-                createSwitch(R.drawable.ic_notification, getString(R.string.ig_dialog_misc_show_follower_toast), "showFollowerToast"),
-                createSwitch(R.drawable.ic_notification, getString(R.string.ig_dialog_misc_show_feature_toasts), "showFeatureToasts"),
+                createSwitch(R.drawable.ic_play_circle, getString(R.string.ig_dialog_misc_disable_video_autoplay), "disableVideoAutoPlay"),
                 createSwitch(R.drawable.ic_at, getString(R.string.ig_dialog_misc_view_story_mentions), "enableStoryMentions"),
-                createSwitch(R.drawable.ic_block, getString(R.string.ig_dialog_misc_disable_discover_people), "disableDiscoverPeople"),
-                createSwitch(R.drawable.ic_content_copy, getString(R.string.ig_dialog_misc_copy_comment), "enableCopyComment"),
+                createSwitch(R.drawable.ic_zoom_in, getString(R.string.ig_dialog_misc_photo_zoom), "enablePhotoZoom")
+        ));
+
+        defs.add(getString(R.string.feat_group_interactions));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_repeat, getString(R.string.ig_dialog_misc_disable_repost), "disableRepost"),
                 createSwitch(R.drawable.ic_heart, getString(R.string.ig_dialog_misc_disable_double_tap_like), "disableDoubleTapLike"),
-                createSwitch(R.drawable.ic_content_copy, getString(R.string.ig_dialog_misc_copy_caption), "enableCaptionCopy"),
-                createSwitch(R.drawable.ic_search, getString(R.string.ig_dialog_misc_photo_zoom), "enablePhotoZoom")
+                createSwitch(R.drawable.ic_content_copy, getString(R.string.ig_dialog_misc_copy_comment), "enableCopyComment"),
+                createSwitch(R.drawable.ic_subject, getString(R.string.ig_dialog_misc_copy_caption), "enableCaptionCopy"),
+                createSwitch(R.drawable.ic_group, getString(R.string.ig_dialog_misc_disable_discover_people), "disableDiscoverPeople")
+        ));
+
+        defs.add(getString(R.string.feat_group_notifications));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_notification, getString(R.string.ig_dialog_misc_show_feature_toasts), "showFeatureToasts"),
+                createSwitch(R.drawable.ic_person_add, getString(R.string.ig_dialog_misc_show_follower_toast), "showFollowerToast")
+        ));
+
+        defs.add(getString(R.string.feat_group_privacy));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_timer, getString(R.string.ig_dialog_misc_spoof_last_seen), "spoofLastSeen")
         ));
 
         showMenu(getString(R.string.ig_dialog_section_misc), defs);
@@ -1066,8 +1266,8 @@ public class FeaturesFragment extends Fragment {
                 : getString(R.string.ig_dialog_location_current, lat, lng);
 
         defs.add(getString(R.string.feat_options));
-        defs.add(Arrays.asList(createClickable(R.drawable.ic_pin,
-                getString(R.string.ig_dialog_location_pick) + " — " + coordLabel, () -> {
+        defs.add(Arrays.asList(withSubtitle(createNav(R.drawable.ic_explore,
+                getString(R.string.ig_dialog_location_pick), () -> {
                     double curLat = 0.0, curLng = 0.0;
                     try { curLat = Double.parseDouble(localCache.getString("spoofLat", "0")); } catch (Throwable ignored) {}
                     try { curLng = Double.parseDouble(localCache.getString("spoofLng", "0")); } catch (Throwable ignored) {}
@@ -1075,7 +1275,7 @@ public class FeaturesFragment extends Fragment {
                     i.putExtra(LocationPickerActivity.EXTRA_LAT, curLat);
                     i.putExtra(LocationPickerActivity.EXTRA_LNG, curLng);
                     locationPickerLauncher.launch(i);
-                })));
+                }), coordLabel)));
 
         showMenu(getString(R.string.ig_dialog_section_location), defs);
         currentMenu = "location";
@@ -1096,8 +1296,8 @@ public class FeaturesFragment extends Fragment {
         int current = localCache.getInt("forceReelQuality", 0);
 
         defs.add(getString(R.string.feat_features));
-        defs.add(Arrays.asList(createClickable(R.drawable.ic_movie,
-                getString(R.string.ig_dialog_quality_force_reels) + ": " + qualityLabel(current), () -> pickQuality(current))));
+        defs.add(Arrays.asList(withSubtitle(createClickable(R.drawable.ic_movie,
+                getString(R.string.ig_dialog_quality_force_reels), () -> pickQuality(current)), qualityLabel(current))));
 
         showMenu(getString(R.string.ig_dialog_section_quality), defs);
         currentMenu = "quality";
@@ -1136,34 +1336,32 @@ public class FeaturesFragment extends Fragment {
         menuAccent = FeatureAccents.color(FeatureAccents.DOWNLOADER);
         List<Object> defs = new ArrayList<>();
 
+        defs.add(Arrays.asList(createMasterSwitch(R.drawable.ic_ie_download,
+                masterTitle(R.string.ig_dialog_section_downloader), DOWNLOAD_FEATURE_KEYS)));
+
         defs.add(getString(R.string.feat_features));
         defs.add(Arrays.asList(
-                createMasterSwitch(getString(R.string.ig_dialog_enable_disable_all), Arrays.asList(
-                        "enablePostDownload", "enableStoryDownload", "enableReelDownload", "enableProfileDownload", "enableVoiceDownload"
-                )),
-                createSwitch(R.drawable.ic_download, getString(R.string.ig_dialog_downloader_posts), "enablePostDownload"),
-                createSwitch(R.drawable.ic_download, getString(R.string.ig_dialog_downloader_stories), "enableStoryDownload"),
-                createSwitch(R.drawable.ic_download, getString(R.string.ig_dialog_downloader_reels), "enableReelDownload"),
-                createSwitch(R.drawable.ic_download, getString(R.string.ig_dialog_downloader_profiles), "enableProfileDownload"),
-                createSwitch(R.drawable.ic_download, getString(R.string.ig_dialog_downloader_voice), "enableVoiceDownload"),
-                createSwitch(R.drawable.ic_download, getString(R.string.ig_dialog_downloader_batch), "enableBatchDownload")
+                createSwitch(R.drawable.ic_image, getString(R.string.ig_dialog_downloader_posts), "enablePostDownload"),
+                createSwitch(R.drawable.ic_story_ring, getString(R.string.ig_dialog_downloader_stories), "enableStoryDownload"),
+                createSwitch(R.drawable.ic_movie, getString(R.string.ig_dialog_downloader_reels), "enableReelDownload"),
+                createSwitch(R.drawable.ic_person, getString(R.string.ig_dialog_downloader_profiles), "enableProfileDownload"),
+                createSwitch(R.drawable.ic_mic, getString(R.string.ig_dialog_downloader_voice), "enableVoiceDownload")
         ));
 
         defs.add(getString(R.string.feat_options));
         defs.add(Arrays.asList(
-                createSwitch(R.drawable.ic_folder, getString(R.string.ig_dialog_downloader_username_subfolder), "downloaderUsernameFolder"),
+                createSwitch(R.drawable.ic_collections, getString(R.string.ig_dialog_downloader_batch), "enableBatchDownload"),
+                createSwitch(R.drawable.ic_create_new_folder, getString(R.string.ig_dialog_downloader_username_subfolder), "downloaderUsernameFolder"),
                 createSwitch(R.drawable.ic_timer, getString(R.string.ig_dialog_downloader_add_timestamp), "downloaderAddTimestamp"),
-                createClickable(R.drawable.ic_download, getString(R.string.feat_downloader_view_history), this::openDownloadHistory)
+                createNav(R.drawable.ic_history, getString(R.string.feat_downloader_view_history), this::openDownloadHistory)
         ));
 
         String customPath = localCache.getString("downloaderCustomPath", "");
-        String folderTitle = customPath.isEmpty()
-                ? getString(R.string.feat_downloader_set_folder)
-                : getString(R.string.feat_downloader_selected, customPath);
 
         defs.add(getString(R.string.feat_download_folder));
         defs.add(Arrays.asList(
-                createClickable(R.drawable.ic_folder, folderTitle, this::pickDownloadFolder),
+                withSubtitle(createClickable(R.drawable.ic_folder, getString(R.string.feat_downloader_set_folder), this::pickDownloadFolder),
+                        customPath.isEmpty() ? null : customPath),
                 createClickable(R.drawable.ic_delete, getString(R.string.feat_downloader_reset_folder), this::resetDownloadFolder)
         ));
 
@@ -1221,10 +1419,6 @@ public class FeaturesFragment extends Fragment {
         restoreFileLauncher.launch(new String[]{"application/json"});
     }
 
-    private void restartInstagram() {
-        Toast.makeText(requireContext(), getString(R.string.ig_toast_restart_manual), Toast.LENGTH_LONG).show();
-    }
-
     private void importDevConfig() {
         Intent importIntent = new Intent();
         importIntent.setComponent(new ComponentName(requireContext(), "ps.reso.instaeclipse.mods.devops.config.JsonImportActivity"));
@@ -1267,7 +1461,7 @@ public class FeaturesFragment extends Fragment {
     }
 
     private void restoreDefaultConfig() {
-        new AlertDialog.Builder(requireContext())
+        new MaterialAlertDialogBuilder(requireContext())
                 .setTitle(getString(R.string.ig_dialog_dev_restore_default_config))
                 .setMessage(getString(R.string.ig_dialog_dev_restore_default_config_confirm))
                 .setPositiveButton(getString(R.string.ig_dialog_yes), (dialog, which) -> {
@@ -1291,14 +1485,6 @@ public class FeaturesFragment extends Fragment {
                 .show();
     }
 
-    private void showAboutDialog() {
-        new AlertDialog.Builder(requireContext())
-                .setTitle("InstaEclipse 🌘")
-                .setMessage("Created by @reso7200\n\nGitHub: https://github.com/ReSo7200/InstaEclipse\nTelegram: https://t.me/InstaEclipse")
-                .setPositiveButton("Close", null)
-                .show();
-    }
-
     private void stageChange(String prefKey, boolean isChecked) {
         if (localCache.getBoolean(prefKey, false) == isChecked) {
             stagedChanges.remove(prefKey);
@@ -1306,11 +1492,39 @@ public class FeaturesFragment extends Fragment {
             stagedChanges.put(prefKey, isChecked);
         }
 
-        if (stagedChanges.isEmpty()) {
-            fabSave.hide();
-        } else {
-            fabSave.show();
+        updatePendingBar();
+
+        if (isChecked && DOWNLOAD_KEYS.contains(prefKey)) {
+            maybeRequestNotificationPermission();
         }
+    }
+
+    private void maybeRequestNotificationPermission() {
+        if (notifPermissionAsked || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return;
+        if (ContextCompat.checkSelfPermission(requireContext(), android.Manifest.permission.POST_NOTIFICATIONS)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED) return;
+        notifPermissionAsked = true;
+        notifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS);
+    }
+
+    public boolean hasPendingChanges() {
+        return !stagedChanges.isEmpty();
+    }
+
+    public void resolvePendingChanges(Runnable proceed) {
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.unsaved_changes_title)
+                .setMessage(R.string.unsaved_changes_message)
+                .setPositiveButton(R.string.apply_changes, (dialog, which) -> {
+                    commitStagedChanges();
+                    proceed.run();
+                })
+                .setNegativeButton(R.string.unsaved_discard, (dialog, which) -> {
+                    discardStagedChanges();
+                    proceed.run();
+                })
+                .setNeutralButton(R.string.ig_dialog_cancel, null)
+                .show();
     }
 
     private void commitStagedChanges() {
@@ -1326,7 +1540,7 @@ public class FeaturesFragment extends Fragment {
         }
         FeatureFlags.colorfulFeatureIcons = localCache.getBoolean("colorfulFeatureIcons", false);
         stagedChanges.clear();
-        fabSave.hide();
+        updatePendingBar();
         Toast.makeText(requireContext(), getString(R.string.ig_toast_settings_applied), Toast.LENGTH_SHORT).show();
         if ("main".equals(currentMenu)) {
             loadMainMenu();
@@ -1334,6 +1548,33 @@ public class FeaturesFragment extends Fragment {
             loadIconStyleMenu();
         } else if (adapter != null) {
             adapter.notifyDataSetChanged();
+        }
+    }
+
+    private void discardStagedChanges() {
+        stagedChanges.clear();
+        updatePendingBar();
+        if (adapter != null) adapter.notifyDataSetChanged();
+    }
+
+    private void updatePendingBar() {
+        if (pendingBar == null) return;
+        int count = stagedChanges.size();
+        boolean show = count > 0;
+        if (show) {
+            pendingText.setText(getResources().getQuantityString(R.plurals.pending_changes, count, count));
+        }
+        if (show == (pendingBar.getVisibility() == View.VISIBLE)) return;
+        pendingBar.animate().cancel();
+        if (show) {
+            pendingBar.setVisibility(View.VISIBLE);
+            pendingBar.setAlpha(0f);
+            pendingBar.setTranslationY(dp(16));
+            pendingBar.animate().alpha(1f).translationY(0f).setDuration(180)
+                    .setInterpolator(new DecelerateInterpolator()).start();
+        } else {
+            pendingBar.animate().alpha(0f).translationY(dp(16)).setDuration(140)
+                    .withEndAction(() -> pendingBar.setVisibility(View.GONE)).start();
         }
     }
 

@@ -2,17 +2,18 @@
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/theme_preset_card"
+    style="@style/Widget.InstaEclipse.Card.Outlined"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="6dp"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="0dp"
-    app:strokeWidth="1dp">
+    android:layout_margin="5dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground">
 
     <LinearLayout
-        android:orientation="vertical"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:orientation="vertical"
         android:padding="10dp">
 
         <FrameLayout
@@ -25,35 +26,70 @@
                 android:layout_height="120dp" />
 
             <ImageView
+                android:id="@+id/theme_preset_check"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:layout_gravity="top|start"
+                android:layout_margin="6dp"
+                android:background="@drawable/bg_preset_check"
+                android:importantForAccessibility="no"
+                android:padding="5dp"
+                android:src="@drawable/ic_ie_check"
+                android:visibility="gone"
+                app:tint="@color/corona_amber_on" />
+
+            <ImageView
                 android:id="@+id/theme_preset_delete"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:layout_gravity="top|end"
-                android:padding="4dp"
-                android:src="@drawable/ic_close"
-                android:background="?selectableItemBackgroundBorderless"
+                android:layout_margin="4dp"
+                android:background="@drawable/bg_preset_delete"
                 android:contentDescription="@string/theme_delete_preset"
-                android:visibility="gone" />
+                android:padding="8dp"
+                android:src="@drawable/ic_ie_trash"
+                android:visibility="gone"
+                app:tint="@color/ie_danger" />
         </FrameLayout>
 
         <TextView
             android:id="@+id/theme_preset_name"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:gravity="center"
-            android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+            android:layout_marginTop="10dp"
+            android:ellipsize="end"
             android:maxLines="1"
-            android:ellipsize="end" />
+            android:paddingStart="2dp"
+            android:paddingEnd="2dp"
+            android:textColor="?attr/colorOnSurface"
+            android:textFontWeight="600"
+            android:textSize="14.5sp" />
 
-        <TextView
-            android:id="@+id/theme_preset_contrast"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:gravity="center"
-            android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-            android:maxLines="1" />
+            android:layout_marginTop="3dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="2dp"
+            android:paddingEnd="2dp">
+
+            <View
+                android:id="@+id/theme_preset_contrast_dot"
+                android:layout_width="7dp"
+                android:layout_height="7dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/shape_status_dot" />
+
+            <TextView
+                android:id="@+id/theme_preset_contrast"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:maxLines="1"
+                android:textColor="@color/ie_text_muted"
+                android:textSize="12sp" />
+        </LinearLayout>
 
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

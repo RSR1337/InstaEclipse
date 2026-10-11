@@ -74,6 +74,15 @@
     <string name="feat_downloader_selected">Selected: %1$s</string>
     <string name="feat_downloader_reset_folder">Reset Download Folder</string>
     <string name="feat_downloader_view_history">View Download History</string>
+    <string name="feat_group_stories_video">Stories &amp; Video</string>
+    <string name="feat_group_interactions">Interactions</string>
+    <string name="feat_group_notifications">Notifications</string>
+    <string name="feat_group_privacy">Privacy</string>
+    <string name="unsaved_changes_title">Unsaved changes</string>
+    <string name="unsaved_changes_message">Some changes haven\'t been applied yet. Apply them before leaving?</string>
+    <string name="unsaved_discard">Discard</string>
+    <string name="extreme_mode_requires_hint">Turn on at least one option below first</string>
+    <string name="extreme_mode_active_hint">Active · locked until the app is reinstalled</string>
 
     <string name="download_history_title">Download History</string>
     <string name="download_history_clear">Clear</string>
@@ -490,4 +499,45 @@
     <string name="ig_update_later">Later</string>
     <string name="ig_update_error_message">Failed to check for updates. Please try again later.</string>
 
+    <string name="home_module_status">Module status</string>
+    <string name="home_module_inactive_title">Module not active</string>
+    <string name="home_module_inactive_desc">Enable the module for Instagram in LSPosed, then restart Instagram.</string>
+    <string name="home_open_setup_guide">Open setup guide</string>
+    <string name="home_quick_access_title">Quick access inside Instagram</string>
+    <string name="home_quick_access_desc">Long-press the search icon to open the InstaEclipse panel.</string>
+    <string name="features_subtitle">Changes are saved when you tap Apply.</string>
+    <string name="apply_short">Apply</string>
+    <string name="feat_state_on">On</string>
+    <string name="feat_state_off">Off</string>
+    <string name="feat_master_enable">Enable %1$s</string>
+    <string name="feat_master_summary">%1$d of %2$d options on</string>
+    <string name="feat_master_all_off">All options are off</string>
+    <string name="feat_quick_toggle_desc">Options covered by the ghost button inside Instagram</string>
+    <string name="feat_unstable">Unstable</string>
+    <plurals name="pending_changes">
+        <item quantity="one">%d unapplied change</item>
+        <item quantity="other">%d unapplied changes</item>
+    </plurals>
+    <string name="extreme_mode_title">Extreme Mode</string>
+    <string name="extreme_mode_desc">Locks enabled features until the app is reinstalled</string>
+    <string name="extreme_locked_hint">Locked by Extreme Mode</string>
+    <string name="extreme_dm_locked_hint">Can\'t be enabled in Extreme Mode</string>
+    <string name="extreme_confirm_button">Activate &amp; lock</string>
+    <string name="help_step1_title">Install LSPosed</string>
+    <string name="help_step1_desc">With root use LSPosed; without root use LSPatch.</string>
+    <string name="help_step2_title">Enable the module for Instagram</string>
+    <string name="help_step2_desc">Select Instagram in the InstaEclipse scope inside LSPosed.</string>
+    <string name="help_step3_title">Restart Instagram</string>
+    <string name="help_step3_desc">Force stop it, open it again, and check that Home shows “Hook active”.</string>
+    <string name="help_with_root">With root</string>
+    <string name="help_without_root">Without root</string>
+    <string name="help_lsposed_link">LSPosed by JingMatrix</string>
+    <string name="help_lspatch_link">LSPatch by JingMatrix</string>
+    <string name="help_lspatch_guide">LSPatch setup guide</string>
+    <string name="help_community">Community</string>
+    <string name="sheet_saved_instantly">Saved instantly</string>
+    <string name="sheet_ghost_on">On — tap to turn off</string>
+    <string name="sheet_ghost_off">Off — tap to turn on</string>
+    <string name="faq_expanded">Expanded</string>
+    <string name="faq_collapsed">Collapsed</string>
 </resources>

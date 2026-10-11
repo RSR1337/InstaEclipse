@@ -120,7 +120,11 @@ public class ColorPickerBottomSheet extends BottomSheetDialogFragment {
         brightnessSlider.setProgress(value);
         opacitySlider.setColors(Color.argb(0, Color.red(opaque), Color.green(opaque), Color.blue(opaque)), Color.argb(255, Color.red(opaque), Color.green(opaque), Color.blue(opaque)));
         opacitySlider.setProgress(Color.alpha(color) / 255.0f);
-        previewSwatch.setBackgroundColor(color);
+        GradientDrawable swatch = new GradientDrawable();
+        swatch.setCornerRadius(11 * getResources().getDisplayMetrics().density);
+        swatch.setColor(color);
+        swatch.setStroke(Math.round(getResources().getDisplayMetrics().density), 0x33FFFFFF);
+        previewSwatch.setBackground(swatch);
         if (!updating) {
             updating = true;
             hexInput.setText(String.format("#%08X", color));
@@ -160,8 +164,8 @@ public class ColorPickerBottomSheet extends BottomSheetDialogFragment {
     private void buildRecentColorSwatches() {
         recentContainer.removeAllViews();
         List<Integer> recents = loadRecentColors();
-        int size = (int) (32 * getResources().getDisplayMetrics().density);
-        int margin = (int) (8 * getResources().getDisplayMetrics().density);
+        int size = (int) (36 * getResources().getDisplayMetrics().density);
+        int margin = (int) (10 * getResources().getDisplayMetrics().density);
         for (int color : recents) {
             View swatch = new View(requireContext());
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);

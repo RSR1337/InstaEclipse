@@ -367,4 +367,13 @@
     <string name="theme_slot_link">Enlace</string>
     <string name="theme_slot_error">Error</string>
     <string name="theme_slot_destructive">Destructivo</string>
+    <string name="feat_group_stories_video">Historias y vídeo</string>
+    <string name="feat_group_interactions">Interacciones</string>
+    <string name="feat_group_notifications">Notificaciones</string>
+    <string name="feat_group_privacy">Privacidad</string>
+    <string name="unsaved_changes_title">Cambios sin aplicar</string>
+    <string name="unsaved_changes_message">Algunos cambios aún no se han aplicado. ¿Aplicarlos antes de salir?</string>
+    <string name="unsaved_discard">Descartar</string>
+    <string name="extreme_mode_requires_hint">Activa primero al menos una opción de abajo</string>
+    <string name="extreme_mode_active_hint">Activo · bloqueado hasta reinstalar la app</string>
 </resources>

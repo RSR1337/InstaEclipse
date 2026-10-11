@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.coordinatorlayout.widget.CoordinatorLayout android:fitsSystemWindows="true" android:layout_width="match_parent" android:layout_height="match_parent"
   xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.google.android.material.appbar.AppBarLayout android:fitsSystemWindows="true" android:layout_width="match_parent" android:layout_height="wrap_content">
-        <com.google.android.material.appbar.MaterialToolbar android:id="@+id/toolbar" android:layout_width="match_parent" android:layout_height="?actionBarSize" app:navigationIcon="@drawable/ic_chevron_right" app:title="@string/verify_hooks_title" app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge" />
+    <com.google.android.material.appbar.AppBarLayout android:fitsSystemWindows="true" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="?colorSurface" app:elevation="0dp" app:liftOnScroll="false">
+        <com.google.android.material.appbar.MaterialToolbar android:id="@+id/toolbar" android:layout_width="match_parent" android:layout_height="?actionBarSize" android:background="?colorSurface" app:navigationIcon="@drawable/ic_ie_arrow_back" app:navigationIconTint="?colorOnSurface" app:navigationContentDescription="@string/back" app:title="@string/verify_hooks_title" app:titleTextAppearance="@style/TextAppearance.InstaEclipse.Display" />
     </com.google.android.material.appbar.AppBarLayout>
     <LinearLayout android:orientation="vertical" android:background="?colorSurface" android:layout_width="match_parent" android:layout_height="match_parent" app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
@@ -10,17 +10,17 @@
             <LinearLayout android:orientation="horizontal" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="16.0dp" android:gravity="center">
 
                 <LinearLayout android:orientation="vertical" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:gravity="center">
-                    <TextView android:id="@+id/verify_hooks_ok_count" android:textSize="20sp" android:textStyle="bold" android:textColor="@color/dark_green" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" />
+                    <TextView android:id="@+id/verify_hooks_ok_count" android:textSize="22sp" android:fontFamily="@font/ie_display" android:textColor="@color/ie_hook_ok" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" />
                     <TextView android:textSize="12sp" android:textColor="?colorOnSurfaceVariant" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/verify_hooks_ok_label" />
                 </LinearLayout>
 
                 <LinearLayout android:orientation="vertical" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:gravity="center">
-                    <TextView android:id="@+id/verify_hooks_broken_count" android:textSize="20sp" android:textStyle="bold" android:textColor="@color/dark_red" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" />
+                    <TextView android:id="@+id/verify_hooks_broken_count" android:textSize="22sp" android:fontFamily="@font/ie_display" android:textColor="@color/ie_danger" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" />
                     <TextView android:textSize="12sp" android:textColor="?colorOnSurfaceVariant" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/verify_hooks_broken_label" />
                 </LinearLayout>
 
                 <LinearLayout android:orientation="vertical" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:gravity="center">
-                    <TextView android:id="@+id/verify_hooks_disabled_count" android:textSize="20sp" android:textStyle="bold" android:textColor="?colorOnSurfaceVariant" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" />
+                    <TextView android:id="@+id/verify_hooks_disabled_count" android:textSize="22sp" android:fontFamily="@font/ie_display" android:textColor="?colorOnSurfaceVariant" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" />
                     <TextView android:textSize="12sp" android:textColor="?colorOnSurfaceVariant" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/verify_hooks_disabled_label" />
                 </LinearLayout>
 
@@ -33,6 +33,6 @@
             <androidx.recyclerview.widget.RecyclerView android:id="@+id/verify_hooks_list" android:layout_width="match_parent" android:layout_height="match_parent" android:clipToPadding="false" android:padding="4.0dp" />
         </com.google.android.material.card.MaterialCardView>
 
-        <com.google.android.material.button.MaterialButton android:id="@+id/verify_hooks_run_test" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="16.0dp" android:text="@string/verify_hooks_run_test" app:cornerRadius="14.0dp" app:icon="@drawable/ic_restart" app:iconGravity="textStart" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/verify_hooks_run_test" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="16.0dp" android:text="@string/verify_hooks_run_test" app:icon="@drawable/ic_ie_restart" style="@style/Widget.InstaEclipse.Button" />
     </LinearLayout>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

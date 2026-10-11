@@ -15,9 +15,9 @@ public final class FeatureAccents {
     public static final String DOWNLOADER = "#FF9F0A";
     public static final String LOCATION = "#FFD60A";
     public static final String QUALITY = "#64D2FF";
-    public static final String THEME = "#FFB020";
+    public static final String THEME = "#F4B740";
     public static final String TOOLS = "#A8B0BE";
-    public static final String VERIFY = "#FFB020";
+    public static final String VERIFY = "#F4B740";
     public static final String SUCCESS = "#30D158";
     public static final String INFO = "#0A84FF";
     public static final String NEUTRAL = "#8E8E93";

@@ -2,7 +2,6 @@
 <androidx.core.widget.NestedScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?attr/colorSurface"
@@ -13,237 +12,215 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:gravity="center_horizontal"
-        android:padding="16dp">
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="28dp">
 
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/help_setup_card"
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
-            app:cardBackgroundColor="?attr/colorSurfaceContainerLow"
-            app:strokeWidth="0dp">
+            android:paddingStart="4dp"
+            android:paddingTop="26dp"
+            android:paddingEnd="4dp"
+            android:paddingBottom="18dp"
+            android:accessibilityHeading="true"
+            android:text="@string/help"
+            android:textAppearance="@style/TextAppearance.InstaEclipse.ScreenTitle" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/help_version_card"
+            style="@style/Widget.InstaEclipse.Card.Outlined"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="24dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
+                android:clipChildren="false"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="18dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/help_setup_title"
-                    android:textAppearance="?attr/textAppearanceTitleMedium"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="8dp" />
+                <ImageView
+                    android:id="@+id/help_version_ring"
+                    android:layout_width="72dp"
+                    android:layout_height="72dp"
+                    android:layout_margin="-12dp"
+                    android:importantForAccessibility="no" />
 
-                <TextView
-                    android:id="@+id/help_version_text"
-                    android:layout_width="match_parent"
+                <LinearLayout
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:textAppearance="@style/TextAppearance.InstaEclipse.Mono"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:layout_marginBottom="8dp" />
+                    android:layout_marginStart="28dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
 
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/help_update_chip"
-                    style="@style/Widget.Material3.Chip.Assist"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:visibility="gone"
-                    app:chipBackgroundColor="@color/corona_amber"
-                    android:textColor="@color/corona_amber_on" />
+                    <TextView
+                        android:id="@+id/help_version_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/ie_display"
+                        android:textAlignment="viewStart"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textDirection="locale"
+                        android:textSize="18sp" />
+
+                    <LinearLayout
+                        android:id="@+id/help_update_row"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:background="?attr/selectableItemBackground"
+                        android:gravity="center_vertical"
+                        android:minHeight="24dp"
+                        android:orientation="horizontal">
+
+                        <View
+                            android:id="@+id/help_update_dot"
+                            android:layout_width="7dp"
+                            android:layout_height="7dp"
+                            android:layout_marginEnd="7dp"
+                            android:background="@drawable/shape_status_dot" />
+
+                        <TextView
+                            android:id="@+id/help_update_text"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:accessibilityLiveRegion="polite"
+                            android:text="@string/help_checking_updates"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+                </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/faq_card"
-            android:layout_width="match_parent"
+        <TextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
             android:layout_marginBottom="12dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
-            app:cardBackgroundColor="?attr/colorSurfaceContainerLow"
-            app:strokeWidth="0dp">
+            android:accessibilityHeading="true"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:text="@string/help_setup_title"
+            android:textAppearance="@style/TextAppearance.InstaEclipse.SectionLabel" />
+
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.InstaEclipse.Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
 
             <LinearLayout
+                android:id="@+id/help_steps_container"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:id="@+id/faq_title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/frequently_asked_questions"
-                    android:textAppearance="?attr/textAppearanceTitleMedium"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="8dp" />
-
-                
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/faq_1"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:layout_marginBottom="8dp"
-                    tools:ignore="HardcodedText" />
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/faq_2"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:layout_marginBottom="8dp" />
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/faq_3"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:layout_marginBottom="8dp" />
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/faq_4"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:layout_marginBottom="8dp" />
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/faq_5"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:layout_marginBottom="8dp" />
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/faq_6"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
-            </LinearLayout>
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp" />
         </com.google.android.material.card.MaterialCardView>
 
-        
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/module_not_working_card"
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:layout_marginBottom="12dp"
+            android:accessibilityHeading="true"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:text="@string/frequently_asked_questions"
+            android:textAppearance="@style/TextAppearance.InstaEclipse.SectionLabel" />
+
+        <LinearLayout
+            android:id="@+id/help_faq_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
-            app:cardBackgroundColor="?attr/colorSurfaceContainerLow"
-            app:strokeWidth="0dp">
+            android:orientation="vertical" />
+
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.InstaEclipse.Card.Outlined"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            app:strokeColor="@color/ie_stuck_stroke">
 
             <LinearLayout
+                android:id="@+id/help_links_container"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="18dp">
 
                 <TextView
-                    android:id="@+id/module_not_working_title"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginBottom="4dp"
+                    android:accessibilityHeading="true"
+                    android:fontFamily="@font/ie_display"
                     android:text="@string/module_not_working_title"
-                    android:textAppearance="?attr/textAppearanceTitleMedium"
                     android:textColor="?attr/colorOnSurface"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="10dp" />
-
-                <TextView
-                    android:id="@+id/module_not_working_description"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/module_not_working_description"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
+                    android:textSize="16sp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:layout_marginBottom="12dp"
+            android:accessibilityHeading="true"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:text="@string/help_community"
+            android:textAppearance="@style/TextAppearance.InstaEclipse.SectionLabel" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center">
+            android:baselineAligned="false"
+            android:orientation="horizontal">
 
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                tools:ignore="UselessParent">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/github_card"
+                style="@style/Widget.InstaEclipse.Button.Outlined"
+                android:layout_width="0dp"
+                android:layout_height="56dp"
+                android:layout_marginEnd="5dp"
+                android:layout_weight="1"
+                android:contentDescription="@string/go_to_github"
+                android:text="GitHub"
+                app:backgroundTint="@color/ie_card"
+                app:cornerRadius="18dp"
+                app:icon="@drawable/ic_ie_code"
+                app:strokeColor="@color/ie_card_stroke" />
 
-                
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/github_card"
-                    android:layout_width="58dp"
-                    android:layout_height="58dp"
-                    android:layout_marginEnd="20dp"
-                    app:cardElevation="0dp"
-                    app:cardBackgroundColor="?attr/colorSurfaceContainer"
-                    app:shapeAppearanceOverlay="@style/ShapeAppearance.App.Circle"
-                    app:strokeWidth="0dp"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackgroundBorderless">
-
-                    <ImageView
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
-                        android:layout_gravity="center"
-                        android:src="@drawable/ic_github_logo"
-                        app:tint="?attr/colorOnSurface"
-                        android:layoutDirection="ltr"
-                        android:contentDescription="@string/go_to_github" />
-                </com.google.android.material.card.MaterialCardView>
-
-                
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/telegram_card"
-                    android:layout_width="58dp"
-                    android:layout_height="58dp"
-                    app:cardElevation="0dp"
-                    app:cardBackgroundColor="#31A6DE"
-                    app:shapeAppearanceOverlay="@style/ShapeAppearance.App.Circle"
-                    app:strokeWidth="0dp"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackgroundBorderless">
-
-                    <ImageView
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
-                        android:layout_gravity="center"
-                        android:src="@drawable/ic_telegram_logo"
-                        app:tint="@android:color/white"
-                        android:layoutDirection="ltr"
-                        android:contentDescription="@string/go_to_telegram" />
-                </com.google.android.material.card.MaterialCardView>
-
-            </LinearLayout>
-
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/telegram_card"
+                style="@style/Widget.InstaEclipse.Button.Outlined"
+                android:layout_width="0dp"
+                android:layout_height="56dp"
+                android:layout_marginStart="5dp"
+                android:layout_weight="1"
+                android:contentDescription="@string/go_to_telegram"
+                android:text="Telegram"
+                app:backgroundTint="@color/ie_card"
+                app:cornerRadius="18dp"
+                app:icon="@drawable/ic_ie_send"
+                app:strokeColor="@color/ie_card_stroke" />
         </LinearLayout>
 
         <TextView
             android:id="@+id/help_disclaimer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:gravity="center"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
+            android:layout_marginTop="22dp"
+            android:lineSpacingMultiplier="1.2"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
             android:text="@string/help_disclaimer"
-            android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="?attr/colorOnSurfaceVariant" />
+            android:textColor="@color/ie_text_muted"
+            android:textSize="12.5sp" />
 
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

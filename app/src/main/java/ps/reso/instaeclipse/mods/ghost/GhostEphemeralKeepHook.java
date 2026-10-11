@@ -21,6 +21,8 @@ import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class GhostEphemeralKeepHook {
 
+    private static final String EXPIRY_CACHE_KEY = "Ephemeral_expiry_v2";
+
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
         hookVanishLocalDelete(bridge, classLoader);
         hookServerPing(bridge);
@@ -58,6 +60,14 @@ public class GhostEphemeralKeepHook {
                                 .usingStrings("igThreadIgid")
                                 .paramCount(2)
                                 .returnType("void")));
+            }
+
+            if (methods.isEmpty()) {
+                methods = IgDex.findMethod(bridge, FindMethod.create()
+                        .matcher(MethodMatcher.create()
+                                .paramTypes("com.instagram.model.direct.DirectThreadKey", "boolean")
+                                .returnType("void")
+                                .addInvoke(MethodMatcher.create().usingStrings("igThreadIgid"))));
             }
 
             for (MethodData md : methods) {
@@ -130,7 +140,7 @@ public class GhostEphemeralKeepHook {
         };
 
         if (DexKitCache.isCacheValid()) {
-            List<Method> cached = DexKitCache.loadMethods("Ephemeral_expiry", classLoader);
+            List<Method> cached = DexKitCache.loadMethods(EXPIRY_CACHE_KEY, classLoader);
             if (cached != null && !cached.isEmpty()) {
                 for (Method m : cached) XposedBridge.hookMethod(m, hook);
                 return;
@@ -139,6 +149,11 @@ public class GhostEphemeralKeepHook {
 
         try {
             List<MethodData> methods = IgDex.findMethodsUsingAll(bridge, classLoader, "message_expiration_timestamp_ms");
+            List<MethodData> parsers = new java.util.ArrayList<>();
+            for (MethodData md : methods) {
+                if ("unsafeParseFromJson".equals(md.getName())) parsers.add(md);
+            }
+            if (!parsers.isEmpty()) methods = parsers;
 
             List<Method> hooked = new java.util.ArrayList<>();
             for (MethodData md : methods) {
@@ -153,7 +168,7 @@ public class GhostEphemeralKeepHook {
             if (hooked.isEmpty()) {
                 ModuleLog.line("(IE|Ephemeral) ❌ no expiry-parser methods hooked");
             } else {
-                DexKitCache.saveMethods("Ephemeral_expiry", hooked);
+                DexKitCache.saveMethods(EXPIRY_CACHE_KEY, hooked);
             }
         } catch (Throwable t) {
             ModuleLog.line("(IE|Ephemeral) ❌ hookExpiryParser: " + t.getMessage());

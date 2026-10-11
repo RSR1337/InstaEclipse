@@ -1,88 +1,294 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout android:fitsSystemWindows="true" android:layout_width="match_parent" android:layout_height="match_parent"
-  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/theme_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/colorSurface"
+    android:orientation="vertical">
 
-    <com.google.android.material.appbar.AppBarLayout android:fitsSystemWindows="true" android:layout_width="match_parent" android:layout_height="wrap_content">
-        <com.google.android.material.appbar.MaterialToolbar android:id="@+id/theme_toolbar" android:layout_width="match_parent" android:layout_height="?actionBarSize"
-            app:navigationIcon="@drawable/ic_chevron_right" app:title="@string/theme_title" app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge" />
-    </com.google.android.material.appbar.AppBarLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="8dp">
 
-    <androidx.core.widget.NestedScrollView android:layout_width="match_parent" android:layout_height="match_parent"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior">
-        <LinearLayout android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:paddingBottom="32.0dp">
+        <ImageButton
+            android:id="@+id/theme_back"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="6dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/back"
+            android:padding="13dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_ie_arrow_back"
+            app:tint="?attr/colorOnSurface" />
 
-            
-            <com.google.android.material.card.MaterialCardView android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_margin="16.0dp" app:cardCornerRadius="16.0dp" app:cardElevation="0.0dp" app:strokeWidth="1.0dp" app:strokeColor="?colorOutlineVariant">
-                <LinearLayout android:orientation="horizontal" android:gravity="center_vertical" android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:padding="16.0dp">
-                    <TextView android:layout_width="0.0dp" android:layout_height="wrap_content" android:layout_weight="1.0"
-                        android:text="@string/theme_enable" android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
-                    <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/theme_enable_switch"
-                        android:layout_width="wrap_content" android:layout_height="wrap_content" />
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:accessibilityHeading="true"
+            android:text="@string/theme_title"
+            android:textAppearance="@style/TextAppearance.InstaEclipse.Display" />
+    </LinearLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingBottom="28dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="16dp">
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/theme_enable_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                app:cardBackgroundColor="@color/ie_card"
+                app:cardCornerRadius="24dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/ie_card_stroke"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:minHeight="84dp"
+                    android:orientation="horizontal"
+                    android:paddingStart="18dp"
+                    android:paddingTop="16dp"
+                    android:paddingEnd="18dp"
+                    android:paddingBottom="16dp">
+
+                    <ImageView
+                        android:id="@+id/theme_enable_icon"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:layout_marginEnd="14dp"
+                        android:importantForAccessibility="no"
+                        android:padding="12dp"
+                        android:scaleType="fitCenter"
+                        android:src="@drawable/ic_ie_palette" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/ie_display"
+                            android:text="@string/theme_enable"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="17sp" />
+
+                        <TextView
+                            android:id="@+id/theme_enable_summary"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="3dp"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/theme_enable_switch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:contentDescription="@string/theme_enable"
+                        android:minHeight="0dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            
-            <LinearLayout android:id="@+id/theme_presets_header" android:orientation="horizontal" android:gravity="center_vertical"
-                android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="20.0dp" android:paddingEnd="20.0dp"
-                android:paddingTop="8.0dp" android:paddingBottom="8.0dp" android:background="?selectableItemBackground" android:clickable="true" android:focusable="true">
-                <TextView android:layout_width="0.0dp" android:layout_height="wrap_content" android:layout_weight="1.0"
-                    android:text="@string/theme_section_presets" android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
-                <ImageView android:id="@+id/theme_presets_expand_icon" android:layout_width="24.0dp" android:layout_height="24.0dp"
-                    android:src="@drawable/ic_expand_less" android:contentDescription="@string/theme_collapse_section" />
-            </LinearLayout>
-            <LinearLayout android:id="@+id/theme_presets_content" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content">
-                <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:scrollbars="none" android:fillViewport="true">
-                    <com.google.android.material.chip.ChipGroup android:id="@+id/theme_preset_categories"
-                        android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:paddingStart="16dp" android:paddingEnd="16dp" android:paddingBottom="4dp"
-                        app:singleSelection="true" app:selectionRequired="true" app:chipSpacingHorizontal="8dp">
-                        <com.google.android.material.chip.Chip android:id="@+id/theme_cat_dark"
-                            style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:text="@string/theme_cat_dark"
-                            android:checked="true" android:checkable="true" />
-                        <com.google.android.material.chip.Chip android:id="@+id/theme_cat_amoled"
-                            style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:text="@string/theme_cat_amoled"
-                            android:checkable="true" />
-                        <com.google.android.material.chip.Chip android:id="@+id/theme_cat_mine"
-                            style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" android:text="@string/theme_cat_my_presets"
-                            android:checkable="true" />
-                    </com.google.android.material.chip.ChipGroup>
-                </HorizontalScrollView>
-                <TextView android:id="@+id/theme_my_presets_empty" android:layout_width="match_parent"
-                    android:layout_height="wrap_content" android:paddingStart="20dp" android:paddingEnd="20dp"
-                    android:paddingTop="12dp" android:paddingBottom="12dp"
-                    android:text="@string/theme_my_presets_empty"
-                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-                    android:visibility="gone" />
-                <androidx.recyclerview.widget.RecyclerView android:id="@+id/theme_preset_list" android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:paddingStart="12.0dp" android:paddingEnd="12.0dp" android:clipToPadding="false" android:nestedScrollingEnabled="false" />
+            <LinearLayout
+                android:id="@+id/theme_presets_header"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:minHeight="48dp"
+                android:orientation="horizontal"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:accessibilityHeading="true"
+                    android:text="@string/theme_section_presets"
+                    android:textAppearance="@style/TextAppearance.InstaEclipse.SectionLabel" />
+
+                <ImageView
+                    android:id="@+id/theme_presets_expand_icon"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:contentDescription="@string/theme_collapse_section"
+                    android:src="@drawable/ic_ie_chevron_down"
+                    app:tint="@color/ie_text_muted" />
             </LinearLayout>
 
-            
-            <LinearLayout android:id="@+id/theme_custom_header" android:orientation="horizontal" android:gravity="center_vertical"
-                android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="20.0dp" android:paddingEnd="20.0dp"
-                android:paddingTop="16.0dp" android:paddingBottom="8.0dp" android:background="?selectableItemBackground" android:clickable="true" android:focusable="true">
-                <TextView android:layout_width="0.0dp" android:layout_height="wrap_content" android:layout_weight="1.0"
-                    android:text="@string/theme_section_custom" android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
-                <ImageView android:id="@+id/theme_custom_expand_icon" android:layout_width="24.0dp" android:layout_height="24.0dp"
-                    android:src="@drawable/ic_expand_less" android:contentDescription="@string/theme_collapse_section" />
+            <LinearLayout
+                android:id="@+id/theme_presets_content"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fillViewport="true"
+                    android:scrollbars="none">
+
+                    <com.google.android.material.chip.ChipGroup
+                        android:id="@+id/theme_preset_categories"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingBottom="4dp"
+                        app:chipSpacingHorizontal="8dp"
+                        app:selectionRequired="true"
+                        app:singleLine="true"
+                        app:singleSelection="true">
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/theme_cat_dark"
+                            style="@style/Widget.InstaEclipse.FilterChip.Plain"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checkable="true"
+                            android:checked="true"
+                            android:text="@string/theme_cat_dark" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/theme_cat_amoled"
+                            style="@style/Widget.InstaEclipse.FilterChip.Plain"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checkable="true"
+                            android:text="@string/theme_cat_amoled" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/theme_cat_mine"
+                            style="@style/Widget.InstaEclipse.FilterChip.Plain"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checkable="true"
+                            android:text="@string/theme_cat_my_presets" />
+                    </com.google.android.material.chip.ChipGroup>
+                </HorizontalScrollView>
+
+                <TextView
+                    android:id="@+id/theme_my_presets_empty"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_tip_card"
+                    android:lineSpacingMultiplier="1.15"
+                    android:padding="16dp"
+                    android:text="@string/theme_my_presets_empty"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:textSize="13.5sp"
+                    android:visibility="gone" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/theme_preset_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="-5dp"
+                    android:layout_marginTop="7dp"
+                    android:layout_marginEnd="-5dp"
+                    android:clipToPadding="false"
+                    android:nestedScrollingEnabled="false" />
             </LinearLayout>
-            <LinearLayout android:id="@+id/theme_custom_content" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content">
-                <androidx.recyclerview.widget.RecyclerView android:id="@+id/theme_color_slots" android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:paddingStart="16.0dp" android:paddingEnd="16.0dp" android:clipToPadding="false" android:nestedScrollingEnabled="false" />
-                <com.google.android.material.button.MaterialButton android:id="@+id/theme_save_preset" android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:layout_marginStart="16.0dp" android:layout_marginEnd="16.0dp" android:layout_marginTop="8.0dp"
-                    android:text="@string/theme_save_preset" style="@style/Widget.Material3.Button.TonalButton" />
-                <com.google.android.material.button.MaterialButton android:id="@+id/theme_reset_custom" android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:layout_margin="16.0dp" android:text="@string/theme_reset_custom" style="@style/Widget.Material3.Button.OutlinedButton" />
+
+            <LinearLayout
+                android:id="@+id/theme_custom_header"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:minHeight="48dp"
+                android:orientation="horizontal"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:accessibilityHeading="true"
+                    android:text="@string/theme_section_custom"
+                    android:textAppearance="@style/TextAppearance.InstaEclipse.SectionLabel" />
+
+                <ImageView
+                    android:id="@+id/theme_custom_expand_icon"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:contentDescription="@string/theme_collapse_section"
+                    android:src="@drawable/ic_ie_chevron_down"
+                    app:tint="@color/ie_text_muted" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/theme_custom_content"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/theme_color_slots"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:nestedScrollingEnabled="false" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/theme_save_preset"
+                    style="@style/Widget.InstaEclipse.Button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="@string/theme_save_preset"
+                    app:icon="@drawable/ic_ie_archive" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/theme_reset_custom"
+                    style="@style/Widget.InstaEclipse.Button.Outlined"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/theme_reset_custom"
+                    app:icon="@drawable/ic_ie_restart" />
             </LinearLayout>
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+</LinearLayout>

@@ -1,21 +1,21 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:id="@+id/nav_home"
-        android:icon="@drawable/nav_selector_home"
+        android:icon="@drawable/ic_ie_nav_home"
         android:title="@string/home" />
 
     <item
         android:id="@+id/nav_features"
-        android:icon="@drawable/ic_features"
+        android:icon="@drawable/ic_ie_nav_features"
         android:title="@string/features" />
 
     <item
         android:id="@+id/nav_logs"
-        android:icon="@drawable/ic_terminal"
+        android:icon="@drawable/ic_ie_nav_logs"
         android:title="@string/logging" />
 
     <item
         android:id="@+id/nav_help"
-        android:icon="@drawable/nav_selector_help"
+        android:icon="@drawable/ic_ie_help_circle"
         android:title="@string/help" />
 </menu>

@@ -367,4 +367,13 @@
     <string name="theme_slot_link">Keçid</string>
     <string name="theme_slot_error">Xəta</string>
     <string name="theme_slot_destructive">Dağıdıcı</string>
+    <string name="feat_group_stories_video">Hekayələr və video</string>
+    <string name="feat_group_interactions">Qarşılıqlı əlaqələr</string>
+    <string name="feat_group_notifications">Bildirişlər</string>
+    <string name="feat_group_privacy">Məxfilik</string>
+    <string name="unsaved_changes_title">Tətbiq edilməmiş dəyişikliklər</string>
+    <string name="unsaved_changes_message">Bəzi dəyişikliklər hələ tətbiq edilməyib. Çıxmazdan əvvəl tətbiq edilsin?</string>
+    <string name="unsaved_discard">Rədd et</string>
+    <string name="extreme_mode_requires_hint">Əvvəlcə aşağıdakı seçimlərdən ən azı birini aktiv edin</string>
+    <string name="extreme_mode_active_hint">Aktiv · tətbiq yenidən quraşdırılana qədər kilidlidir</string>
 </resources>

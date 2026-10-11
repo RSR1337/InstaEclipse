@@ -357,6 +357,19 @@ public class ProfilePicDownloadHook {
             } catch (Throwable ignored) {}
         }
 
+        for (Class<?> cls = view.getClass(); cls != null && cls != Object.class; cls = cls.getSuperclass()) {
+            for (Field f : cls.getDeclaredFields()) {
+                if (!"com.instagram.common.typedurl.ImageUrl".equals(f.getType().getName())) continue;
+                try {
+                    f.setAccessible(true);
+                    Object imageUrl = f.get(view);
+                    if (imageUrl == null) continue;
+                    Object url = imageUrl.getClass().getMethod("getUrl").invoke(imageUrl);
+                    if (url instanceof String s && s.startsWith("http")) return s;
+                } catch (Throwable ignored) {}
+            }
+        }
+
         try {
             Object tag = view.getTag();
             if (tag instanceof Uri) return tag.toString();

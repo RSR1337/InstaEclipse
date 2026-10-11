@@ -18,3 +18,12 @@ local.properties
 /app/debug
 /.claude
 /APK
+/instagram_Decompiled_447.0.0.55.81/
+/instagram_Decompiled_450/
+/instagram_Decompiled_450/
+/sources/
+**/build/
+graphify-out/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/

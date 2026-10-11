@@ -1,17 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Theme.InstaEclipse" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:statusBarColor">?attr/colorSurface</item>
         <item name="android:windowLightStatusBar" tools:targetApi="23">false</item>
-        <item name="android:navigationBarColor">?attr/colorSurfaceContainer</item>
+        <item name="android:navigationBarColor">@color/ie_nav_bg</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>
 
-        <item name="fontFamily">@font/inter</item>
-        <item name="android:fontFamily">@font/inter</item>
+        <item name="fontFamily">@font/ie_sans</item>
+        <item name="android:fontFamily">@font/ie_sans</item>
 
         <item name="colorPrimary">@color/corona_amber</item>
         <item name="colorOnPrimary">@color/corona_amber_on</item>
-        <item name="colorSecondary">@color/gray</item>
-        <item name="colorError">@color/error_red</item>
+        <item name="colorSecondary">@color/text_secondary_dark</item>
+        <item name="colorError">@color/ie_danger</item>
+        <item name="colorOnError">@color/ie_on_danger</item>
+        <item name="colorPrimaryContainer">#2B2416</item>
+        <item name="colorOnPrimaryContainer">@color/corona_amber</item>
+        <item name="colorSecondaryContainer">@color/surface_2_dark</item>
+        <item name="colorOnSecondaryContainer">@color/text_primary_dark</item>
+        <item name="colorErrorContainer">#3A1E1B</item>
+        <item name="colorOnErrorContainer">#FFB3A9</item>
+        <item name="colorSurfaceVariant">@color/surface_2_dark</item>
+        <item name="colorSurfaceBright">@color/surface_3_dark</item>
+        <item name="colorSurfaceDim">@color/surface_0_dark</item>
 
         <item name="android:colorBackground">@color/surface_0_dark</item>
         <item name="colorSurface">@color/surface_0_dark</item>
@@ -24,5 +35,9 @@
         <item name="colorOnSurfaceVariant">@color/text_secondary_dark</item>
         <item name="colorOutline">@color/outline_dark</item>
         <item name="colorOutlineVariant">@color/outline_variant_dark</item>
+
+        <item name="materialSwitchStyle">@style/Widget.InstaEclipse.Switch</item>
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.InstaEclipse.Dialog</item>
+        <item name="bottomSheetDialogTheme">@style/ThemeOverlay.InstaEclipse.BottomSheet</item>
     </style>
 </resources>

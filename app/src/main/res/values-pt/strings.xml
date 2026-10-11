@@ -365,4 +365,13 @@
     <string name="theme_slot_link">Link</string>
     <string name="theme_slot_error">Erro</string>
     <string name="theme_slot_destructive">Destrutivo</string>
+    <string name="feat_group_stories_video">Stories e vídeo</string>
+    <string name="feat_group_interactions">Interações</string>
+    <string name="feat_group_notifications">Notificações</string>
+    <string name="feat_group_privacy">Privacidade</string>
+    <string name="unsaved_changes_title">Alterações não aplicadas</string>
+    <string name="unsaved_changes_message">Algumas alterações ainda não foram aplicadas. Aplicá-las antes de sair?</string>
+    <string name="unsaved_discard">Descartar</string>
+    <string name="extreme_mode_requires_hint">Ative primeiro pelo menos uma opção abaixo</string>
+    <string name="extreme_mode_active_hint">Ativo · bloqueado até reinstalar o app</string>
 </resources>

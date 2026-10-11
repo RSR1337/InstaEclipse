@@ -81,6 +81,28 @@ public class GhostStorySeenHook {
                 }
             }
 
+            for (MethodData method : methods) {
+                for (MethodData caller : method.getCallers()) {
+                    List<String> callerParams = caller.getParamTypeNames();
+                    if (!"void".equals(caller.getReturnTypeName())
+                            || callerParams.size() != 1
+                            || !method.getClassName().equals(callerParams.get(0))) continue;
+                    try {
+                        Method reflectMethod = caller.getMethodInstance(Module.hostClassLoader);
+                        DexKitCache.saveMethod("GhostStorySeen", reflectMethod);
+                        XposedBridge.hookMethod(reflectMethod, hook);
+                        ModuleLog.line("(InstaEclipse | StoryBlock): ✅ Hooked (seen sender): " +
+                                caller.getClassName() + "." + caller.getName());
+                        FeatureStatusTracker.setHooked("GhostStories");
+                        return;
+                    } catch (Throwable e) {
+                        ModuleLog.line("(InstaEclipse | StoryBlock): ❌ Hook error: " + e.getMessage());
+                    }
+                }
+            }
+
+            ModuleLog.line("(InstaEclipse | StoryBlock): ❌ No 'media/seen/' sender matched");
+
         } catch (Throwable t) {
             ModuleLog.line("(InstaEclipse | StoryBlock): ❌ Exception: " + t.getMessage());
         }

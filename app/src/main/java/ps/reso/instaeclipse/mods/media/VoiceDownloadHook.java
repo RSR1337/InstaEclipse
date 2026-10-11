@@ -44,7 +44,8 @@ public class VoiceDownloadHook {
     };
 
     private static final String[] AUDIO_URL_METHODS = {
-            "BQp", "BQO", "Bfd", "C79"
+            "BQp", "BQO", "Bfd", "C79",
+            "BTm", "Bij", "CB7"
     };
 
     private static final long CAPTURE_FRESHNESS_MS = 30_000;

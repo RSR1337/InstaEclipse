@@ -398,4 +398,13 @@
     <string name="theme_slot_link">链接</string>
     <string name="theme_slot_error">错误</string>
     <string name="theme_slot_destructive">破坏性操作</string>
+    <string name="feat_group_stories_video">快拍与视频</string>
+    <string name="feat_group_interactions">互动</string>
+    <string name="feat_group_notifications">通知</string>
+    <string name="feat_group_privacy">隐私</string>
+    <string name="unsaved_changes_title">未应用的更改</string>
+    <string name="unsaved_changes_message">部分更改尚未应用。离开前是否应用？</string>
+    <string name="unsaved_discard">放弃</string>
+    <string name="extreme_mode_requires_hint">请先开启下方至少一个选项</string>
+    <string name="extreme_mode_active_hint">已启用 · 重新安装应用前无法关闭</string>
 </resources>

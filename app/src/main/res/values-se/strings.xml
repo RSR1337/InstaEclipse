@@ -366,4 +366,13 @@
     <string name="theme_slot_link">Länk</string>
     <string name="theme_slot_error">Fel</string>
     <string name="theme_slot_destructive">Destruktiv</string>
+    <string name="feat_group_stories_video">Berättelser och video</string>
+    <string name="feat_group_interactions">Interaktioner</string>
+    <string name="feat_group_notifications">Aviseringar</string>
+    <string name="feat_group_privacy">Integritet</string>
+    <string name="unsaved_changes_title">Ej tillämpade ändringar</string>
+    <string name="unsaved_changes_message">Vissa ändringar har inte tillämpats än. Vill du tillämpa dem innan du lämnar?</string>
+    <string name="unsaved_discard">Förkasta</string>
+    <string name="extreme_mode_requires_hint">Aktivera minst ett alternativ nedan först</string>
+    <string name="extreme_mode_active_hint">Aktivt · låst tills appen installeras om</string>
 </resources>

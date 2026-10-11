@@ -398,4 +398,13 @@
     <string name="theme_slot_link">Σύνδεσμος</string>
     <string name="theme_slot_error">Σφάλμα</string>
     <string name="theme_slot_destructive">Καταστροφική Ενέργεια</string>
+    <string name="feat_group_stories_video">Ιστορίες &amp; βίντεο</string>
+    <string name="feat_group_interactions">Αλληλεπιδράσεις</string>
+    <string name="feat_group_notifications">Ειδοποιήσεις</string>
+    <string name="feat_group_privacy">Απόρρητο</string>
+    <string name="unsaved_changes_title">Μη εφαρμοσμένες αλλαγές</string>
+    <string name="unsaved_changes_message">Ορισμένες αλλαγές δεν έχουν εφαρμοστεί ακόμα. Να εφαρμοστούν πριν φύγετε;</string>
+    <string name="unsaved_discard">Απόρριψη</string>
+    <string name="extreme_mode_requires_hint">Ενεργοποιήστε πρώτα τουλάχιστον μία επιλογή παρακάτω</string>
+    <string name="extreme_mode_active_hint">Ενεργό · κλειδωμένο μέχρι την επανεγκατάσταση της εφαρμογής</string>
 </resources>

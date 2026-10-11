@@ -1,9 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="status_hook_ok_container">#132A20</color>
-    <color name="status_hook_ok_on">#F4F6F9</color>
+    <color name="status_hook_ok_on">#F3F1EC</color>
     <color name="status_hook_err_container">#2A1418</color>
-    <color name="status_hook_err_on">#F4F6F9</color>
+    <color name="status_hook_err_on">#F3F1EC</color>
     <color name="status_hook_check_container">#1A1510</color>
-    <color name="status_hook_check_on">#F4F6F9</color>
+    <color name="status_hook_check_on">#F3F1EC</color>
+
+    <color name="ie_accent_text">#F4B740</color>
+    <color name="ie_card">@color/surface_1_dark</color>
+    <color name="ie_card_stroke">#23232C</color>
+    <color name="ie_chip">@color/surface_2_dark</color>
+    <color name="ie_tab_selected">#2A2A35</color>
+    <color name="ie_nav_bg">#111116</color>
+    <color name="ie_nav_border">#1F1F27</color>
+    <color name="ie_log_bg">#0F0F14</color>
+    <color name="ie_log_border">#1F1F27</color>
+    <color name="ie_log_time">#6E6B7A</color>
+    <color name="ie_log_text">#D9D6E0</color>
+    <color name="ie_tip_bg">#121217</color>
+    <color name="ie_tip_stroke">#2E2E39</color>
+    <color name="ie_dot_off">#3A3A46</color>
+    <color name="ie_hook_ok">#7DDBA8</color>
+    <color name="ie_ring_off">#3A3A46</color>
+    <color name="ie_ring_core">#0B0B0F</color>
+    <color name="ie_inactive_stroke">#3A2A26</color>
+    <color name="ie_stuck_stroke">#3A2F1C</color>
+    <color name="ie_switch_off_track">#1E1E26</color>
+    <color name="ie_switch_off_border">#4A4A57</color>
+    <color name="ie_switch_off_thumb">#8D8A99</color>
+    <color name="ie_chip_selected_bg">#F3F1EC</color>
+    <color name="ie_chip_selected_fg">#0B0B0F</color>
+    <color name="ie_danger">#FF8A7C</color>
+    <color name="ie_danger_text">#FFB3A9</color>
+    <color name="ie_unstable_fg">#FFB27A</color>
+    <color name="ie_warn_text">#F7D58F</color>
+    <color name="ie_error_text">#FFB3A9</color>
+    <color name="ie_text_muted">#8D8A99</color>
+    <color name="ie_dialog_bg">#1A1A21</color>
+    <color name="ie_sheet_bg">#121217</color>
 </resources>

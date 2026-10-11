@@ -12,11 +12,160 @@
         <item name="android:textSize">13sp</item>
         <item name="android:lineSpacingMultiplier">1.54</item>
     </style>
-    <style name="TextAppearance.InstaEclipse.SectionLabel" parent="TextAppearance.Material3.LabelSmall">
-        <item name="fontFamily">@font/inter</item>
-        <item name="android:fontFamily">@font/inter</item>
-        <item name="android:textSize">13sp</item>
-        <item name="android:letterSpacing">0.08</item>
+    <style name="TextAppearance.InstaEclipse.SectionLabel" parent="TextAppearance.Material3.LabelLarge">
+        <item name="fontFamily">@font/ie_sans</item>
+        <item name="android:fontFamily">@font/ie_sans</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="android:textColor">@color/ie_text_muted</item>
+    </style>
+    <style name="TextAppearance.InstaEclipse.ScreenTitle" parent="TextAppearance.Material3.HeadlineMedium">
+        <item name="fontFamily">@font/ie_display</item>
+        <item name="android:fontFamily">@font/ie_display</item>
+        <item name="android:textSize">30sp</item>
+        <item name="android:letterSpacing">-0.01</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+    <style name="TextAppearance.InstaEclipse.Display" parent="TextAppearance.Material3.TitleLarge">
+        <item name="fontFamily">@font/ie_display</item>
+        <item name="android:fontFamily">@font/ie_display</item>
+        <item name="android:textSize">21sp</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+    <style name="TextAppearance.InstaEclipse.NavLabel" parent="TextAppearance.Material3.LabelMedium">
+        <item name="fontFamily">@font/ie_sans</item>
+        <item name="android:fontFamily">@font/ie_sans</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+    <style name="TextAppearance.InstaEclipse.NavLabel.Active">
+        <item name="android:textFontWeight">600</item>
+    </style>
+    <style name="Widget.InstaEclipse.Switch" parent="Widget.Material3.CompoundButton.MaterialSwitch">
+        <item name="thumbTint">@color/ie_switch_thumb</item>
+        <item name="trackTint">@color/ie_switch_track</item>
+        <item name="trackDecorationTint">@color/ie_switch_track_decoration</item>
+    </style>
+    <style name="Widget.InstaEclipse.NavIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">@color/ie_accent_soft</item>
+        <item name="android:width">58dp</item>
+        <item name="android:height">32dp</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.App.Circle</item>
+    </style>
+    <style name="Widget.InstaEclipse.FilterChip.Plain">
+        <item name="chipIconVisible">false</item>
+        <item name="textStartPadding">14dp</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+    <style name="ThemeOverlay.InstaEclipse.BottomSheet" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/Widget.InstaEclipse.BottomSheet</item>
+    </style>
+    <style name="Widget.InstaEclipse.BottomSheet" parent="Widget.Material3.BottomSheet.Modal">
+        <item name="backgroundTint">@color/ie_sheet_bg</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.InstaEclipse.Sheet</item>
+    </style>
+    <style name="ShapeAppearance.InstaEclipse.Sheet" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">28dp</item>
+        <item name="cornerSizeTopRight">28dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
+    </style>
+    <style name="ThemeOverlay.InstaEclipse.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="colorSurfaceContainerHigh">@color/ie_dialog_bg</item>
+        <item name="shapeAppearanceCornerExtraLarge">@style/ShapeAppearance.InstaEclipse.Dialog</item>
+    </style>
+    <style name="ShapeAppearance.InstaEclipse.Dialog" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">26dp</item>
+    </style>
+    <style name="Widget.InstaEclipse.Button" parent="Widget.Material3.Button">
+        <item name="android:minHeight">52dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="cornerRadius">16dp</item>
+        <item name="iconSize">20dp</item>
+        <item name="iconGravity">textStart</item>
+        <item name="iconPadding">8dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+    </style>
+    <style name="Widget.InstaEclipse.Button.SingleLine">
+        <item name="android:maxLines">1</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">12dp</item>
+        <item name="android:autoSizeTextType">uniform</item>
+        <item name="android:autoSizeMinTextSize">11sp</item>
+        <item name="android:autoSizeMaxTextSize">15sp</item>
+        <item name="android:autoSizeStepGranularity">0.5sp</item>
+    </style>
+    <style name="Widget.InstaEclipse.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:minHeight">52dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textFontWeight">500</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="cornerRadius">16dp</item>
+        <item name="strokeColor">?attr/colorOutline</item>
+        <item name="iconTint">?attr/colorOnSurface</item>
+        <item name="iconSize">20dp</item>
+        <item name="iconGravity">textStart</item>
+        <item name="iconPadding">8dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+    </style>
+    <style name="Widget.InstaEclipse.Button.Outlined.SingleLine">
+        <item name="android:maxLines">1</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">12dp</item>
+        <item name="android:autoSizeTextType">uniform</item>
+        <item name="android:autoSizeMinTextSize">11sp</item>
+        <item name="android:autoSizeMaxTextSize">15sp</item>
+        <item name="android:autoSizeStepGranularity">0.5sp</item>
+    </style>
+    <style name="Widget.InstaEclipse.IconButton" parent="Widget.Material3.Button.IconButton">
+        <item name="android:minWidth">44dp</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:padding">11dp</item>
+        <item name="iconSize">21dp</item>
+        <item name="iconTint">?attr/colorOnSurface</item>
+        <item name="cornerRadius">22dp</item>
+    </style>
+    <style name="Widget.InstaEclipse.Card" parent="Widget.Material3.CardView.Filled">
+        <item name="cardBackgroundColor">@color/ie_card</item>
+        <item name="cardCornerRadius">22dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeWidth">0dp</item>
+    </style>
+    <style name="Widget.InstaEclipse.Card.Outlined">
+        <item name="strokeWidth">1dp</item>
+        <item name="strokeColor">@color/ie_card_stroke</item>
+    </style>
+    <style name="Widget.InstaEclipse.FilterChip" parent="Widget.Material3.Chip.Filter">
+        <item name="chipBackgroundColor">@color/ie_filter_chip_bg</item>
+        <item name="chipStrokeColor">@color/ie_filter_chip_stroke</item>
+        <item name="chipStrokeWidth">1dp</item>
+        <item name="chipCornerRadius">18dp</item>
+        <item name="chipMinHeight">36dp</item>
+        <item name="android:textColor">@color/ie_filter_chip_fg</item>
+        <item name="android:textSize">13.5sp</item>
+        <item name="android:textFontWeight">600</item>
+        <item name="checkedIconVisible">false</item>
+        <item name="chipIconVisible">true</item>
+        <item name="chipIconSize">7dp</item>
+        <item name="iconStartPadding">10dp</item>
+        <item name="textStartPadding">6dp</item>
+        <item name="textEndPadding">14dp</item>
+        <item name="ensureMinTouchTargetSize">true</item>
     </style>
     <style name="ShapeAppearance.App.Circle" parent="">
         <item name="cornerFamily">rounded</item>

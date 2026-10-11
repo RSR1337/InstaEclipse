@@ -7,6 +7,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.os.Build;
 import android.os.Bundle;
@@ -17,6 +20,7 @@ import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
+import android.text.style.LineBackgroundSpan;
 import android.text.style.StyleSpan;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -35,7 +39,6 @@ import androidx.core.widget.NestedScrollView;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.color.MaterialColors;
 import com.google.android.material.textfield.TextInputEditText;
@@ -43,6 +46,8 @@ import com.google.android.material.textfield.TextInputEditText;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.MainActivity;
@@ -54,6 +59,7 @@ public class LoggingFragment extends Fragment {
     private static final long INSTAGRAM_REPLY_TIMEOUT_MS = 4000;
     private static final int MAX_DISPLAY_CHARS = 100000;
     private static final int NEAR_BOTTOM_SLOP_PX = 48;
+    private static final Pattern TIMESTAMP = Pattern.compile("^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}(\\.\\d{3})?");
 
     private TextView contentView;
     private TextView lineCountView;
@@ -61,12 +67,16 @@ public class LoggingFragment extends Fragment {
     private ImageButton searchClear;
     private MaterialButton pauseButton;
     private MaterialButton jumpLatestButton;
-    private Chip pausedBadge;
+    private MaterialButton sourceInstagram;
+    private MaterialButton sourceCompanion;
+    private View pausedBadge;
     private LinearLayout emptyState;
     private boolean paused;
     private boolean userScrolledUp;
     private Runnable pendingTimeout;
     private String companionSection = "";
+    private String instagramSection = "";
+    private boolean showCompanion;
     private String rawCombined = "";
     private String searchQuery = "";
     private Logging.Filter activeFilter = Logging.Filter.ALL;
@@ -83,10 +93,10 @@ public class LoggingFragment extends Fragment {
             cancelInstagramTimeout();
             loadExecutor.execute(() -> {
                 String instagram = formatInstagramSection(intent);
-                String combined = joinSections(instagram, companionSection);
                 mainHandler.post(() -> {
                     if (contentView == null || gen != loadGeneration.get()) return;
-                    applyDisplay(combined);
+                    instagramSection = instagram;
+                    applyDisplay();
                 });
             });
         }
@@ -109,6 +119,12 @@ public class LoggingFragment extends Fragment {
         jumpLatestButton = view.findViewById(R.id.logging_jump_latest);
         pausedBadge = view.findViewById(R.id.logging_paused_badge);
         emptyState = view.findViewById(R.id.logging_empty_state);
+        sourceInstagram = view.findViewById(R.id.logging_source_instagram);
+        sourceCompanion = view.findViewById(R.id.logging_source_companion);
+
+        sourceInstagram.setOnClickListener(v -> selectSource(false));
+        sourceCompanion.setOnClickListener(v -> selectSource(true));
+        updateSourceTabs();
 
         pauseButton.setOnClickListener(v -> togglePause());
         jumpLatestButton.setOnClickListener(v -> scrollToLatest());
@@ -203,6 +219,8 @@ public class LoggingFragment extends Fragment {
         searchClear = null;
         pauseButton = null;
         jumpLatestButton = null;
+        sourceInstagram = null;
+        sourceCompanion = null;
         pausedBadge = null;
         emptyState = null;
     }
@@ -226,9 +244,11 @@ public class LoggingFragment extends Fragment {
                 if (contentView == null || gen != loadGeneration.get()) return;
                 companionSection = companion;
                 if (pkg == null) {
-                    applyDisplay(joinSections(formatInstagramUnavailableSection(), companionSection));
+                    instagramSection = formatInstagramUnavailableSection();
+                    applyDisplay();
                     return;
                 }
+                if (showCompanion) applyDisplay();
                 Intent request = new Intent(CommonUtils.ACTION_REQUEST_LOGS);
                 request.setPackage(pkg);
                 ctx.sendBroadcast(request);
@@ -240,9 +260,8 @@ public class LoggingFragment extends Fragment {
     private void scheduleInstagramTimeout(int gen) {
         pendingTimeout = () -> {
             if (contentView == null || gen != loadGeneration.get()) return;
-            String ig = sectionHeader(getString(R.string.logging_instagram), null)
-                    + getString(R.string.logging_instagram_timeout) + "\n";
-            applyDisplay(joinSections(ig, companionSection));
+            instagramSection = getString(R.string.logging_instagram_timeout) + "\n";
+            applyDisplay();
         };
         mainHandler.postDelayed(pendingTimeout, INSTAGRAM_REPLY_TIMEOUT_MS);
     }
@@ -257,8 +276,7 @@ public class LoggingFragment extends Fragment {
     private String formatCompanionSection(Context ctx) {
         String snap = Logging.getSnapshot().trim();
         if (snap.isEmpty()) return "";
-        String header = sectionHeader(getString(R.string.logging_companion), ctx.getPackageName());
-        return header + snap;
+        return sectionHeader(ctx.getPackageName()) + snap;
     }
 
     private static String joinSections(String first, String second) {
@@ -268,12 +286,12 @@ public class LoggingFragment extends Fragment {
     }
 
     private String formatInstagramUnavailableSection() {
-        return sectionHeader(getString(R.string.logging_instagram), null) + getString(R.string.logging_no_target);
+        return getString(R.string.logging_no_target);
     }
 
     private String formatInstagramSection(Intent intent) {
         String src = intent.getStringExtra(CommonUtils.EXTRA_LOG_SOURCE);
-        String header = sectionHeader(getString(R.string.logging_instagram), src);
+        String header = sectionHeader(src);
         String err = intent.getStringExtra(CommonUtils.EXTRA_LOG_ERROR);
         if (err != null) return header + err;
         String body = intent.getStringExtra(CommonUtils.EXTRA_LOG_TEXT);
@@ -284,13 +302,35 @@ public class LoggingFragment extends Fragment {
         return header + body.trim();
     }
 
-    private static String sectionHeader(String title, String packageName) {
-        String header = "=== " + title + " ===\n";
-        if (packageName != null) header = header + "[" + packageName + "]\n";
-        return header + "\n";
+    private static String sectionHeader(String packageName) {
+        return packageName == null ? "" : "[" + packageName + "]\n\n";
     }
 
-    private void applyDisplay(String text) {
+    private void selectSource(boolean companion) {
+        if (showCompanion == companion) {
+            updateSourceTabs();
+            return;
+        }
+        showCompanion = companion;
+        updateSourceTabs();
+        rawCombined = "";
+        applyDisplay();
+    }
+
+    private void updateSourceTabs() {
+        if (sourceInstagram == null || sourceCompanion == null) return;
+        sourceInstagram.setChecked(!showCompanion);
+        sourceCompanion.setChecked(showCompanion);
+    }
+
+    private String fullExport() {
+        String ig = instagramSection.trim().isEmpty() ? "" : "=== " + getString(R.string.logging_instagram) + " ===\n" + instagramSection.trim();
+        String app = companionSection.trim().isEmpty() ? "" : "=== " + getString(R.string.logging_companion) + " ===\n" + companionSection.trim();
+        return joinSections(ig, app);
+    }
+
+    private void applyDisplay() {
+        String text = showCompanion ? companionSection : instagramSection;
         boolean pinnedToBottom = !paused && (rawCombined.isEmpty() || isScrolledNearBottom());
         rawCombined = text == null ? "" : text;
         renderFiltered(false, pinnedToBottom);
@@ -301,7 +341,8 @@ public class LoggingFragment extends Fragment {
     private void togglePause() {
         paused = !paused;
         if (pauseButton != null) {
-            pauseButton.setText(paused ? R.string.logging_resume : R.string.logging_pause);
+            pauseButton.setIconResource(paused ? R.drawable.ic_ie_play : R.drawable.ic_ie_pause);
+            pauseButton.setContentDescription(getString(paused ? R.string.logging_resume : R.string.logging_pause));
         }
         if (pausedBadge != null) {
             pausedBadge.setVisibility(paused ? View.VISIBLE : View.GONE);
@@ -432,10 +473,15 @@ public class LoggingFragment extends Fragment {
 
     private CharSequence styledLogText(View anchor, String text) {
         if (text == null || text.isEmpty()) return text;
-        int errorColor = MaterialColors.getColor(anchor, com.google.android.material.R.attr.colorError);
-        int warningColor = ContextCompat.getColor(anchor.getContext(), R.color.corona_amber);
+        Context ctx = anchor.getContext();
+        int errorColor = ContextCompat.getColor(ctx, R.color.ie_error_text);
+        int warningColor = ContextCompat.getColor(ctx, R.color.ie_warn_text);
+        int errorRow = ContextCompat.getColor(ctx, R.color.ie_error_row);
+        int warningRow = ContextCompat.getColor(ctx, R.color.ie_warn_row);
+        int timeColor = ContextCompat.getColor(ctx, R.color.ie_log_time);
+        int accentColor = ContextCompat.getColor(ctx, R.color.ie_accent_text);
         int mutedColor = MaterialColors.getColor(anchor, com.google.android.material.R.attr.colorOnSurfaceVariant);
-        int accentColor = MaterialColors.getColor(anchor, com.google.android.material.R.attr.colorPrimary);
+        float radius = 4 * ctx.getResources().getDisplayMetrics().density;
         SpannableStringBuilder builder = new SpannableStringBuilder();
         int start = 0;
         while (start <= text.length()) {
@@ -447,18 +493,52 @@ public class LoggingFragment extends Fragment {
             if (line.startsWith("===") || line.startsWith("[")) {
                 builder.setSpan(new StyleSpan(Typeface.BOLD), spanStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 builder.setSpan(new ForegroundColorSpan(accentColor), spanStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            } else if (line.contains("❌") || containsIgnoreCase(line, "exception") || containsIgnoreCase(line, "error")) {
-                builder.setSpan(new ForegroundColorSpan(errorColor), spanStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            } else if (line.contains("⚠️") || containsIgnoreCase(line, "failed")) {
-                builder.setSpan(new ForegroundColorSpan(warningColor), spanStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            } else if (line.contains("✅")) {
-                builder.setSpan(new ForegroundColorSpan(mutedColor), spanStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            } else if (!line.isEmpty()) {
+                int bodyStart = spanStart;
+                Matcher m = TIMESTAMP.matcher(line);
+                if (m.find()) {
+                    bodyStart = spanStart + m.end();
+                    builder.setSpan(new ForegroundColorSpan(timeColor), spanStart, bodyStart, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+                if (line.contains("❌") || containsIgnoreCase(line, "exception") || containsIgnoreCase(line, "error")) {
+                    builder.setSpan(new ForegroundColorSpan(errorColor), bodyStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.setSpan(new RowBackgroundSpan(errorRow, radius), spanStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                } else if (line.contains("⚠️") || containsIgnoreCase(line, "failed")) {
+                    builder.setSpan(new ForegroundColorSpan(warningColor), bodyStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    builder.setSpan(new RowBackgroundSpan(warningRow, radius), spanStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                } else if (line.contains("✅")) {
+                    builder.setSpan(new ForegroundColorSpan(mutedColor), bodyStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
             }
             if (nl < 0) break;
             builder.append('\n');
             start = nl + 1;
         }
         return builder;
+    }
+
+    private static final class RowBackgroundSpan implements LineBackgroundSpan {
+        private final int color;
+        private final float radius;
+        private final RectF rect = new RectF();
+
+        RowBackgroundSpan(int color, float radius) {
+            this.color = color;
+            this.radius = radius;
+        }
+
+        @Override
+        public void drawBackground(@NonNull Canvas canvas, @NonNull Paint paint, int left, int right, int top,
+                                   int baseline, int bottom, @NonNull CharSequence text, int start, int end, int lineNumber) {
+            int previous = paint.getColor();
+            Paint.Style style = paint.getStyle();
+            paint.setColor(color);
+            paint.setStyle(Paint.Style.FILL);
+            rect.set(left - radius, top, right + radius, bottom);
+            canvas.drawRoundRect(rect, radius, radius, paint);
+            paint.setColor(previous);
+            paint.setStyle(style);
+        }
     }
 
     private static String findInstagramPackage(Context ctx) {
@@ -495,6 +575,11 @@ public class LoggingFragment extends Fragment {
                 || getString(R.string.logging_search_empty).contentEquals(text);
     }
 
+    private String exportText() {
+        boolean unfiltered = activeFilter == Logging.Filter.ALL && searchQuery.trim().isEmpty();
+        return unfiltered ? fullExport() : contentView.getText().toString();
+    }
+
     private void copyLogs() {
         if (isBlankDisplay()) {
             Toast.makeText(requireContext(), R.string.logging_empty_reply, Toast.LENGTH_SHORT).show();
@@ -502,7 +587,7 @@ public class LoggingFragment extends Fragment {
         }
         ClipboardManager clipboard = (ClipboardManager) requireContext().getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboard == null) return;
-        clipboard.setPrimaryClip(ClipData.newPlainText("logs", contentView.getText().toString()));
+        clipboard.setPrimaryClip(ClipData.newPlainText("logs", exportText()));
         Toast.makeText(requireContext(), R.string.logging_copied, Toast.LENGTH_SHORT).show();
     }
 
@@ -513,7 +598,7 @@ public class LoggingFragment extends Fragment {
         }
         Intent share = new Intent(Intent.ACTION_SEND);
         share.setType("text/plain");
-        share.putExtra(Intent.EXTRA_TEXT, contentView.getText().toString());
+        share.putExtra(Intent.EXTRA_TEXT, exportText());
         startActivity(Intent.createChooser(share, getString(R.string.logging_share_title)));
     }
 }
