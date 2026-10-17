@@ -468,6 +468,11 @@ public class DialogUtils {
         card.asMasterCard();
         card.setSummary(I18n.t(context, active ? R.string.sheet_ghost_on : R.string.sheet_ghost_off));
         card.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (!GhostModeUtils.hasQuickToggleSelection()) {
+                Toast.makeText(context, "❗ " + I18n.t(context, R.string.ig_toast_ghost_no_options), Toast.LENGTH_SHORT).show();
+                openScreen(() -> showGhostQuickToggleOptions(context));
+                return;
+            }
             GhostModeUtils.toggleSelectedGhostOptions(context);
             IgColorRemapEngine.withBypass(() -> showMainMenu(context));
         });

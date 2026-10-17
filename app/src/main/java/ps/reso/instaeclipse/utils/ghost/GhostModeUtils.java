@@ -25,52 +25,16 @@ public class GhostModeUtils {
         return FeatureFlags.quickToggleAllowScreenshots && FeatureFlags.allowScreenshots;
     }
 
+    public static boolean hasQuickToggleSelection() {
+        return FeatureFlags.quickToggleSeen || FeatureFlags.quickToggleTyping
+                || FeatureFlags.quickToggleScreenshot || FeatureFlags.quickToggleViewOnce
+                || FeatureFlags.quickToggleStory || FeatureFlags.quickToggleLive
+                || FeatureFlags.quickToggleEphemeral || FeatureFlags.quickToggleReplays
+                || FeatureFlags.quickTogglePermanentView || FeatureFlags.quickToggleAllowScreenshots;
+    }
+
     public static void toggleSelectedGhostOptions(Context context) {
-        boolean anySelected = false;
-        boolean shouldDisable = false;
-
-        if (FeatureFlags.quickToggleSeen) {
-            anySelected = true;
-            if (FeatureFlags.isGhostSeen) shouldDisable = true;
-        }
-        if (FeatureFlags.quickToggleTyping) {
-            anySelected = true;
-            if (FeatureFlags.isGhostTyping) shouldDisable = true;
-        }
-        if (FeatureFlags.quickToggleScreenshot) {
-            anySelected = true;
-            if (FeatureFlags.isGhostScreenshot) shouldDisable = true;
-        }
-        if (FeatureFlags.quickToggleViewOnce) {
-            anySelected = true;
-            if (FeatureFlags.isGhostViewOnce) shouldDisable = true;
-        }
-        if (FeatureFlags.quickToggleStory) {
-            anySelected = true;
-            if (FeatureFlags.isGhostStory) shouldDisable = true;
-        }
-        if (FeatureFlags.quickToggleLive) {
-            anySelected = true;
-            if (FeatureFlags.isGhostLive) shouldDisable = true;
-        }
-        if (FeatureFlags.quickToggleEphemeral) {
-            anySelected = true;
-            if (FeatureFlags.keepEphemeralMessages) shouldDisable = true;
-        }
-        if (FeatureFlags.quickToggleReplays) {
-            anySelected = true;
-            if (FeatureFlags.enableUnlimitedReplays) shouldDisable = true;
-        }
-        if (FeatureFlags.quickTogglePermanentView) {
-            anySelected = true;
-            if (FeatureFlags.permanentViewMode) shouldDisable = true;
-        }
-        if (FeatureFlags.quickToggleAllowScreenshots) {
-            anySelected = true;
-            if (FeatureFlags.allowScreenshots) shouldDisable = true;
-        }
-
-        if (!anySelected) {
+        if (!hasQuickToggleSelection()) {
             Activity activity = UIHookManager.getCurrentActivity();
             if (activity != null) {
                 GhostEmojiManager.addGhostEmojiNextToInbox(activity, false);
@@ -79,7 +43,7 @@ public class GhostModeUtils {
             return;
         }
 
-        boolean newState = !shouldDisable;
+        boolean newState = !isGhostModeActive();
 
         if (FeatureFlags.quickToggleSeen) FeatureFlags.isGhostSeen = newState;
         if (FeatureFlags.quickToggleTyping) FeatureFlags.isGhostTyping = newState;

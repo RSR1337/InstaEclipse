@@ -21,6 +21,7 @@ import ps.reso.instaeclipse.utils.core.IgDex;
 
 public class GhostEphemeralKeepHook {
 
+    private static final String VANISH_CACHE_KEY = "Ephemeral_vanish_v2";
     private static final String EXPIRY_CACHE_KEY = "Ephemeral_expiry_v2";
 
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
@@ -39,7 +40,7 @@ public class GhostEphemeralKeepHook {
         };
 
         if (DexKitCache.isCacheValid()) {
-            Method cached = DexKitCache.loadMethod("Ephemeral_vanish", classLoader);
+            Method cached = DexKitCache.loadMethod(VANISH_CACHE_KEY, classLoader);
             if (cached != null) {
                 XposedBridge.hookMethod(cached, hook);
                 FeatureStatusTracker.setHooked("KeepEphemeralMessages");
@@ -57,23 +58,23 @@ public class GhostEphemeralKeepHook {
             if (methods.isEmpty()) {
                 methods = IgDex.findMethod(bridge, FindMethod.create()
                         .matcher(MethodMatcher.create()
-                                .usingStrings("igThreadIgid")
-                                .paramCount(2)
-                                .returnType("void")));
-            }
-
-            if (methods.isEmpty()) {
-                methods = IgDex.findMethod(bridge, FindMethod.create()
-                        .matcher(MethodMatcher.create()
                                 .paramTypes("com.instagram.model.direct.DirectThreadKey", "boolean")
                                 .returnType("void")
                                 .addInvoke(MethodMatcher.create().usingStrings("igThreadIgid"))));
             }
 
+            if (methods.isEmpty()) {
+                methods = IgDex.findMethod(bridge, FindMethod.create()
+                        .matcher(MethodMatcher.create()
+                                .usingStrings("igThreadIgid")
+                                .paramCount(2)
+                                .returnType("void")));
+            }
+
             for (MethodData md : methods) {
                 try {
                     Method m = md.getMethodInstance(classLoader);
-                    DexKitCache.saveMethod("Ephemeral_vanish", m);
+                    DexKitCache.saveMethod(VANISH_CACHE_KEY, m);
                     XposedBridge.hookMethod(m, hook);
                     ModuleLog.line("(IE|Ephemeral) ✅ vanish-local-delete hook → "
                             + md.getClassName() + "." + md.getName());

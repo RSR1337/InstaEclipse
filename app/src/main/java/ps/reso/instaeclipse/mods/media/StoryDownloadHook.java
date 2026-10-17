@@ -86,48 +86,56 @@ public class StoryDownloadHook {
         installClickHandlerHook(bridge, classLoader);
     }
 
+    public static Method findStoryMenuBuilder(DexKitBridge bridge, ClassLoader classLoader) {
+        List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
+                .matcher(MethodMatcher.create()
+                        .usingStrings("[INTERNAL] Pause Playback")
+                        .paramCount(1)));
+
+        if (methods.isEmpty()) {
+            methods = IgDex.findMethod(bridge, FindMethod.create()
+                    .matcher(MethodMatcher.create()
+                            .usingStrings("explore_viewer")
+                            .paramCount(1)));
+        }
+
+        for (MethodData md : methods) {
+            Method m = charSequenceArrayBuilder(md, classLoader, true);
+            if (m != null) return m;
+        }
+        for (MethodData md : methods) {
+            Method m = charSequenceArrayBuilder(md, classLoader, false);
+            if (m != null) return m;
+        }
+        for (MethodData md : methods) {
+            for (MethodData caller : md.getCallers()) {
+                if (caller.getParamTypeNames().size() != 1) continue;
+                Method m = charSequenceArrayBuilder(caller, classLoader, true);
+                if (m != null) return m;
+            }
+        }
+        return null;
+    }
+
+    private static Method charSequenceArrayBuilder(MethodData md, ClassLoader classLoader, boolean requireReelItem) {
+        try {
+            Method m = md.getMethodInstance(classLoader);
+            Class<?> rt = m.getReturnType();
+            if (!rt.isArray() || !CharSequence.class.isAssignableFrom(rt.getComponentType())) return null;
+            if (requireReelItem && !classHasReelItemField(m.getDeclaringClass())) return null;
+            return m;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     private void installButtonInjectorHook(DexKitBridge bridge, ClassLoader classLoader) {
         Method method = DexKitCache.isCacheValid()
                 ? DexKitCache.loadMethod("StoryDownload_button_v2", classLoader) : null;
 
         if (method == null) {
             try {
-                List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
-                        .matcher(MethodMatcher.create()
-                                .usingStrings("[INTERNAL] Pause Playback")
-                                .paramCount(1)));
-
-                if (methods.isEmpty()) {
-                    methods = IgDex.findMethod(bridge, FindMethod.create()
-                            .matcher(MethodMatcher.create()
-                                    .usingStrings("explore_viewer")
-                                    .paramCount(1)));
-                }
-
-                for (MethodData md : methods) {
-                    try {
-                        Method m = md.getMethodInstance(classLoader);
-                        if (m.getReturnType().isArray() &&
-                                CharSequence.class.isAssignableFrom(m.getReturnType().getComponentType())
-                                && classHasReelItemField(m.getDeclaringClass())) {
-                            method = m;
-                            break;
-                        }
-                    } catch (Throwable ignored) {}
-                }
-
-                if (method == null) {
-                    for (MethodData md : methods) {
-                        try {
-                            Method m = md.getMethodInstance(classLoader);
-                            if (m.getReturnType().isArray() &&
-                                    CharSequence.class.isAssignableFrom(m.getReturnType().getComponentType())) {
-                                method = m;
-                                break;
-                            }
-                        } catch (Throwable ignored) {}
-                    }
-                }
+                method = findStoryMenuBuilder(bridge, classLoader);
             } catch (Throwable t) {
                 ModuleLog.line("(IE|Story) ❌ Button builder DexKit: " + t);
                 return;

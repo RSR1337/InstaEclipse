@@ -57,6 +57,7 @@ import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
+import ps.reso.instaeclipse.mods.media.StoryDownloadHook;
 import ps.reso.instaeclipse.mods.ui.UIHookManager;
 import ps.reso.instaeclipse.utils.i18n.I18n;
 import ps.reso.instaeclipse.utils.users.UserUtils;
@@ -261,21 +262,7 @@ public class StoryMentionHook {
 
         if (method == null) {
             try {
-                List<MethodData> methods = IgDex.findMethod(bridge, FindMethod.create()
-                        .matcher(MethodMatcher.create()
-                                .usingStrings("[INTERNAL] Pause Playback")
-                                .paramCount(1)));
-
-                for (MethodData md : methods) {
-                    try {
-                        Method m = md.getMethodInstance(classLoader);
-                        if (m.getReturnType().isArray() &&
-                                CharSequence.class.isAssignableFrom(m.getReturnType().getComponentType())) {
-                            method = m;
-                            break;
-                        }
-                    } catch (Throwable ignored) {}
-                }
+                method = StoryDownloadHook.findStoryMenuBuilder(bridge, classLoader);
             } catch (Throwable t) {
                 ModuleLog.line("(IE|Mention) ❌ button hook DexKit: " + t);
             }
