@@ -107,7 +107,7 @@ public class SettingsProvider extends ContentProvider {
     }
 
     private android.content.SharedPreferences prefs(Context context) {
-        return context.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE);
+        return ps.reso.instaeclipse.utils.core.CommonUtils.companionCache(context);
     }
 
     public static void putValue(Bundle bundle, String key, Object value) {

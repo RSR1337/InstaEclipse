@@ -8,8 +8,8 @@ import org.luckypray.dexkit.result.MethodData;
 import java.lang.reflect.Method;
 import java.util.List;
 
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
+import ps.reso.instaeclipse.xposedcompat.XC_MethodHook;
+import ps.reso.instaeclipse.xposedcompat.XposedBridge;
 import ps.reso.instaeclipse.Xposed.Module;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
@@ -20,7 +20,7 @@ public class DisableStoryFlippingHook {
 
     private static final XC_MethodHook HOOK = new XC_MethodHook() {
         @Override
-        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+        protected void beforeHookedMethod(MethodHookParam param) throws Throwable { ps.reso.instaeclipse.utils.core.JitGuard.tick(param.method);
             if (FeatureFlags.disableStoryFlipping) param.setResult(null);
         }
     };
@@ -30,6 +30,7 @@ public class DisableStoryFlippingHook {
             Method cached = DexKitCache.loadMethod("StoryFlipping", Module.hostClassLoader);
             if (cached != null) {
                 XposedBridge.hookMethod(cached, HOOK);
+                ps.reso.instaeclipse.utils.feature.FeatureStatusTracker.setHooked("DisableStoryFlipping");
                 ModuleLog.line("(InstaEclipse | StoryFlipping): ✅ Hooked (dynamic check): " + cached.getDeclaringClass().getName() + "." + cached.getName());
                 return;
             }
@@ -43,23 +44,45 @@ public class DisableStoryFlippingHook {
 
     private void findAndHookMethod(DexKitBridge bridge) {
         try {
-
+            String rvf = "instagram.features.stories.fragment.ReelViewerFragment";
             List<MethodData> methods = IgDex.findMethod(bridge, 
                     FindMethod.create().matcher(
                             MethodMatcher.create()
-                                    .declaredClass("instagram.features.stories.fragment.ReelViewerFragment")
-                                    .paramTypes("java.lang.Object")
+                                    .declaredClass(rvf)
+                                    .paramCount(1)
                                     .returnType("void")
-                                    .usingStrings("userSession")
+                                    .usingStrings("end_scene", "userSession")
                     )
             );
+            if (methods.isEmpty()) {
+                methods = IgDex.findMethod(bridge, 
+                        FindMethod.create().matcher(
+                                MethodMatcher.create()
+                                        .declaredClass(rvf)
+                                        .paramTypes("com.instagram.model.reels.ReelItem")
+                                        .returnType("void")
+                                        .usingStrings("end_scene")
+                        )
+                );
+            }
+            if (methods.isEmpty()) {
+                methods = IgDex.findMethod(bridge, 
+                        FindMethod.create().matcher(
+                                MethodMatcher.create()
+                                        .declaredClass(rvf)
+                                        .paramTypes("java.lang.Object")
+                                        .returnType("void")
+                                        .usingStrings("userSession")
+                        )
+                );
+            }
 
             if (methods.isEmpty()) {
                 methods = IgDex.findMethod(bridge, 
                         FindMethod.create().matcher(
                                 MethodMatcher.create()
                                         .usingStrings("end_scene", "userSession")
-                                        .paramTypes("java.lang.Object")
+                                        .paramCount(1)
                                         .returnType("void")
                         )
                 );
@@ -108,6 +131,7 @@ public class DisableStoryFlippingHook {
                     DexKitCache.saveMethod("StoryFlipping", targetMethod);
                     XposedBridge.hookMethod(targetMethod, HOOK);
 
+                    ps.reso.instaeclipse.utils.feature.FeatureStatusTracker.setHooked("DisableStoryFlipping");
                     ModuleLog.line("(InstaEclipse | StoryFlipping): ✅ Hooked (dynamic check): " +
                             method.getClassName() + "." + method.getName());
                     return;

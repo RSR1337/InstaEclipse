@@ -1,5 +1,7 @@
 package ps.reso.instaeclipse.mods.misc;
 
+import ps.reso.instaeclipse.utils.dialog.IeDialog;
+import ps.reso.instaeclipse.utils.core.DexKitQueryCache;
 import android.app.Activity;
 import android.app.AndroidAppHelper;
 import android.app.Dialog;
@@ -51,8 +53,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
+import ps.reso.instaeclipse.xposedcompat.XC_MethodHook;
+import ps.reso.instaeclipse.xposedcompat.XposedBridge;
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
@@ -217,11 +219,14 @@ public class StoryMentionHook {
         return false;
     }
 
+    // Walks an object's declared fields (and superclasses) for the first one whose exact
+    // declared type matches typeName. Used to find LiveTreeMediaDict on Media, and the
+    // mentioned User inside an Interactive sticker, without depending on obfuscated field names.
     private static Object findFieldByType(Object obj, String typeName) {
         if (obj == null) return null;
         Class<?> cls = obj.getClass();
         while (cls != null && cls != Object.class) {
-            for (Field f : cls.getDeclaredFields()) {
+            for (Field f : ps.reso.instaeclipse.utils.core.SafeReflect.fields(cls)) {
                 if (f.getType().getName().equals(typeName)) {
                     try {
                         f.setAccessible(true);
@@ -299,6 +304,7 @@ public class StoryMentionHook {
 
     private void installClickHook(DexKitBridge bridge, ClassLoader classLoader) {
         Method method = null;
+        List<Method> targets = new ArrayList<>();
 
         if (DexKitCache.isCacheValid()) {
             method = DexKitCache.loadMethod("MentionClick", classLoader);
@@ -312,20 +318,28 @@ public class StoryMentionHook {
                                 .usingStrings("explore_viewer",
                                         "friendships/mute_friend_reel/%s/",
                                         "[INTERNAL] Pause Playback")));
-                if (methods.isEmpty()) {
-                    ModuleLog.line("(IE|Mention) ❌ click handler not found");
-                    return;
+                if (!methods.isEmpty()) {
+                    method = methods.get(0).getMethodInstance(classLoader);
+                    DexKitCache.saveMethod("MentionClick", method);
                 }
-                method = methods.get(0).getMethodInstance(classLoader);
-                DexKitCache.saveMethod("MentionClick", method);
             } catch (Throwable t) {
                 ModuleLog.line("(IE|Mention) ❌ click hook DexKit: " + t);
                 return;
             }
         }
 
+        if (method != null) {
+            targets.add(method);
+        } else {
+            targets.addAll(ps.reso.instaeclipse.mods.media.StoryDownloadHook.storyClickDispatchers(bridge, classLoader));
+        }
+        if (targets.isEmpty()) {
+            ModuleLog.line("(IE|Mention) ❌ click handler not found");
+            return;
+        }
+
         try {
-            XposedBridge.hookMethod(method, new XC_MethodHook() {
+            XC_MethodHook clickHook = new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
                     try {
@@ -368,8 +382,18 @@ public class StoryMentionHook {
                         ModuleLog.line("(IE|Mention) ❌ click handler: " + t);
                     }
                 }
-            });
-            ModuleLog.line("(IE|Mention) ✅ click hook installed");
+            };
+            int hooked = 0;
+            for (Method target : targets) {
+                if (target.getParameterCount() == 0) continue;
+                try {
+                    XposedBridge.hookMethod(target, clickHook);
+                    hooked++;
+                } catch (Throwable t) {
+                    ModuleLog.line("(IE|Mention) ⚠️ click hook on " + target.getName() + ": " + t);
+                }
+            }
+            ModuleLog.line("(IE|Mention) ✅ click hook installed on " + hooked + " dispatcher(s)");
         } catch (Throwable t) {
             ModuleLog.line("(IE|Mention) ❌ click hook: " + t);
         }
@@ -731,7 +755,7 @@ public class StoryMentionHook {
 
     private static final int GRAPH_MAX_DEPTH = 6;
 
-    private static Object findMediaInGraph(Object obj, int depth, Set<Object> visited) {
+    static Object findMediaInGraph(Object obj, int depth, Set<Object> visited) {
         if (obj == null || depth > GRAPH_MAX_DEPTH) return null;
         if (!visited.add(obj)) return null;
 
@@ -744,7 +768,7 @@ public class StoryMentionHook {
 
         Class<?> cls = obj.getClass();
         while (cls != null && cls != Object.class) {
-            for (Field f : cls.getDeclaredFields()) {
+            for (Field f : ps.reso.instaeclipse.utils.core.SafeReflect.fields(cls)) {
                 Class<?> ft = f.getType();
                 if (ft.isPrimitive() || ft.isArray()) continue;
                 f.setAccessible(true);
@@ -1085,11 +1109,13 @@ public class StoryMentionHook {
         }
     }
 
-    private static Context findContext(Object obj) {
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    static Context findContext(Object obj) {
         if (obj == null) return null;
         Class<?> cls = obj.getClass();
         while (cls != null && cls != Object.class) {
-            for (Field f : cls.getDeclaredFields()) {
+            for (Field f : ps.reso.instaeclipse.utils.core.SafeReflect.fields(cls)) {
                 if (Context.class.isAssignableFrom(f.getType())) {
                     f.setAccessible(true);
                     try {

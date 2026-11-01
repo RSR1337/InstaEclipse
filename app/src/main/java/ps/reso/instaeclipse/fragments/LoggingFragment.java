@@ -252,18 +252,37 @@ public class LoggingFragment extends Fragment {
                 Intent request = new Intent(CommonUtils.ACTION_REQUEST_LOGS);
                 request.setPackage(pkg);
                 ctx.sendBroadcast(request);
-                scheduleInstagramTimeout(gen);
+                scheduleInstagramTimeout(gen, pkg);
             });
         });
     }
 
-    private void scheduleInstagramTimeout(int gen) {
+    private void scheduleInstagramTimeout(int gen, String pkg) {
         pendingTimeout = () -> {
             if (contentView == null || gen != loadGeneration.get()) return;
-            instagramSection = getString(R.string.logging_instagram_timeout) + "\n";
+            String mirrored = readMirroredLog(getContext(), pkg);
+            instagramSection = mirrored != null
+                    ? sectionHeader(pkg) + mirrored
+                    : getString(R.string.logging_instagram_timeout) + "\n";
             applyDisplay();
         };
         mainHandler.postDelayed(pendingTimeout, INSTAGRAM_REPLY_TIMEOUT_MS);
+    }
+
+    private static String readMirroredLog(Context ctx, String pkg) {
+        if (ctx == null || pkg == null) return null;
+        java.io.File file = new java.io.File(ps.reso.instaeclipse.utils.log.LogMirrorProvider.mirrorDir(ctx), pkg + ".log");
+        if (!file.isFile() || file.length() == 0) return null;
+        try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(file, "r")) {
+            long start = Math.max(0, raf.length() - MAX_DISPLAY_CHARS);
+            raf.seek(start);
+            byte[] buf = new byte[(int) (raf.length() - start)];
+            raf.readFully(buf);
+            String text = new String(buf, java.nio.charset.StandardCharsets.UTF_8).trim();
+            return text.isEmpty() ? null : text;
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     private void cancelInstagramTimeout() {

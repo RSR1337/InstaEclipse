@@ -4,7 +4,9 @@ import android.content.Context;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import ps.reso.instaeclipse.utils.i18n.I18n;
 
@@ -18,7 +20,8 @@ public class FeatureStatusTracker {
 
     private static final Map<String, State> features = Collections.synchronizedMap(new HashMap<>());
     private static final Map<String, Integer> labels = Collections.synchronizedMap(new HashMap<>());
-    private static final java.util.Set<String> everHooked = Collections.synchronizedSet(new java.util.HashSet<>());
+    private static final Set<String> everHooked = Collections.synchronizedSet(new HashSet<>());
+    private static final Set<String> broken = Collections.synchronizedSet(new HashSet<>());
 
     public static void setEnabled(String name, int labelResId) {
         State previous = features.get(name);
@@ -36,8 +39,25 @@ public class FeatureStatusTracker {
         features.put(name, State.OFF);
     }
 
+    public static void setBroken(String name, int labelResId) {
+        broken.add(name);
+        labels.put(name, labelResId);
+        if (!everHooked.contains(name)) features.put(name, State.PENDING);
+    }
+
+    public static void setBroken(String name) {
+        broken.add(name);
+        State current = features.get(name);
+        if (current != State.OFF && !everHooked.contains(name)) features.put(name, State.PENDING);
+    }
+
+    public static boolean isBroken(String name) {
+        return broken.contains(name) && !everHooked.contains(name);
+    }
+
     public static void setHooked(String name) {
         everHooked.add(name);
+        broken.remove(name);
         if (features.containsKey(name) && features.get(name) != State.OFF) {
             features.put(name, State.HOOKED);
         }

@@ -33,7 +33,9 @@ jobs:
 
       # Step 3: Set up Android SDK
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v2
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'  # the old 'tools' package no longer exists
 
       # Step 4: Grant execution permissions to gradlew
       - name: Grant execute permission to gradlew
@@ -52,4 +54,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/*.apk

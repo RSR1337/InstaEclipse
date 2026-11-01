@@ -40,8 +40,27 @@ public final class LsPatchCompanionBridge {
     public static void initForCompanion(Context context) {
         appContext = context.getApplicationContext();
         hookProcess = false;
-        registerListener();
         requestPush(appContext);
+    }
+
+    public static void onCompanionServiceBound(XposedService bound) {
+        service = bound;
+        try {
+            remotePrefs = bound.getRemotePreferences(PREF_GROUP);
+        } catch (Throwable t) {
+            ModuleLog.line("(InstaEclipse | LSPatch): remote prefs unavailable: " + t.getMessage());
+            remotePrefs = null;
+            return;
+        }
+        Context ctx = appContext;
+        if (ctx != null) syncFrom(CommonUtils.companionCache(ctx));
+    }
+
+    public static void onCompanionServiceDied(XposedService dead) {
+        if (service == dead) {
+            service = null;
+            remotePrefs = null;
+        }
     }
 
     public static void initForHook(Context context) {
@@ -88,7 +107,7 @@ public final class LsPatchCompanionBridge {
                         applyRemoteToHost(ctx);
                         listenForRemoteChanges(ctx);
                     } else {
-                        syncFrom(ctx.getSharedPreferences(COMPANION_CACHE, Context.MODE_PRIVATE));
+                        syncFrom(CommonUtils.companionCache(ctx));
                     }
                 }
 

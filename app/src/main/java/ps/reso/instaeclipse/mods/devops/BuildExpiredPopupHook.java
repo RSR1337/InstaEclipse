@@ -8,8 +8,8 @@ import org.luckypray.dexkit.result.MethodData;
 import java.lang.reflect.Method;
 import java.util.List;
 
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
+import ps.reso.instaeclipse.xposedcompat.XC_MethodHook;
+import ps.reso.instaeclipse.xposedcompat.XposedBridge;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
@@ -25,7 +25,7 @@ public class BuildExpiredPopupHook {
 
         XC_MethodHook noOpHook = new XC_MethodHook() {
             @Override
-            protected void beforeHookedMethod(MethodHookParam param) {
+            protected void beforeHookedMethod(MethodHookParam param) { ps.reso.instaeclipse.utils.core.JitGuard.tick(param.method);
                 if (FeatureFlags.removeBuildExpiredPopup) {
                     param.setResult(null);
                 }
@@ -34,7 +34,7 @@ public class BuildExpiredPopupHook {
 
         XC_MethodHook falseHook = new XC_MethodHook() {
             @Override
-            protected void beforeHookedMethod(MethodHookParam param) {
+            protected void beforeHookedMethod(MethodHookParam param) { ps.reso.instaeclipse.utils.core.JitGuard.tick(param.method);
                 if (FeatureFlags.removeBuildExpiredPopup) {
                     param.setResult(false);
                 }
@@ -88,7 +88,7 @@ public class BuildExpiredPopupHook {
 
             List<MethodData> checkMethods = IgDex.findMethod(bridge, FindMethod.create()
                     .matcher(MethodMatcher.create()
-                            .usingStrings("snooze_expiration_lockout_manager")
+                            .usingEqStrings(List.of("snooze_expiration_lockout_manager"))
                             .returnType("boolean")));
 
             for (MethodData md : checkMethods) {

@@ -10,8 +10,8 @@ android {
         applicationId "ps.reso.instaeclipse"
         minSdkVersion 28
         targetSdk 36
-        versionCode 17
-        versionName '0.6.1'
+        versionCode 20
+        versionName '0.8.2'
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -30,9 +30,20 @@ android {
 
     buildFeatures {
         aidl = true
+        buildConfig = true
     }
 
+    testOptions {
+        unitTests.all {
+            ['instaeclipse.ffmpeg', 'instaeclipse.ffprobe', 'instaeclipse.fixtureOutput'].each { key ->
+                if (System.getProperty(key) != null) systemProperty key, System.getProperty(key)
+            }
+        }
+    }
     packagingOptions {
+        resources {
+            merges += 'META-INF/xposed/*'
+        }
         jniLibs {
             useLegacyPackaging = true
             keepDebugSymbols += ['**/libdexkit.so']
@@ -47,7 +58,6 @@ dependencies {
     implementation libs.constraintlayout
     implementation libs.gson
     implementation libs.dexkit
-    implementation libs.libxposed.service
     implementation 'com.google.android.material:material:1.12.0'
     implementation "androidx.documentfile:documentfile:1.1.0"
     implementation libs.osmdroid
@@ -56,9 +66,17 @@ dependencies {
     implementation libs.fileprefs
     // Testing dependencies
     testImplementation libs.junit
+    testRuntimeOnly files('libs/api-82.jar')
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core.v361
 
-    // Compile-only dependency
+    // Xposed APIs, provided by the framework at runtime. The module loads through libxposed API 102
+    // (META-INF/xposed: Vector 2.2+, LSPatch 1.0+); the legacy API stays behind the compat layer.
+    // See docs/xposed-api-102.
     compileOnly files('libs/api-82.jar')
+    compileOnly 'io.github.libxposed:api:102.0.0'
+    // Lets the companion write remote preferences that the hooked app reads. The classes of io.github.libxposed:service/interface 102.0.0 (Apache-2.0), used as jars: the
+    // AARs declare minCompileSdk 37, which this project's AGP/compileSdk 34 doesn't meet; their
+    // XposedProvider is declared in AndroidManifest.xml.
+    implementation files('libs/modern/libxposed-service-102.0.0.jar', 'libs/modern/libxposed-interface-102.0.0.jar')
 }

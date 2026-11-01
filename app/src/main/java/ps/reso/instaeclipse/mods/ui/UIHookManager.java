@@ -1,5 +1,8 @@
 package ps.reso.instaeclipse.mods.ui;
 
+import java.util.Map;
+import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
+import ps.reso.instaeclipse.mods.ui.utils.LifecycleHookUtil;
 import static org.luckypray.dexkit.query.FindMethod.create;
 import static ps.reso.instaeclipse.mods.ghost.ui.GhostEmojiManager.addGhostEmojiNextToInbox;
 
@@ -19,9 +22,9 @@ import org.luckypray.dexkit.result.MethodData;
 
 import java.util.List;
 
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
+import ps.reso.instaeclipse.xposedcompat.XC_MethodHook;
+import ps.reso.instaeclipse.xposedcompat.XposedBridge;
+import ps.reso.instaeclipse.xposedcompat.XposedHelpers;
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.Xposed.Module;
 import ps.reso.instaeclipse.mods.devops.config.ConfigManager;
@@ -77,6 +80,13 @@ public class UIHookManager {
 
         addGhostEmojiNextToInbox(activity, GhostModeUtils.isGhostModeActive());
 
+        ps.reso.instaeclipse.utils.core.CacheAutoClear.maybeClear(activity);
+        ps.reso.instaeclipse.mods.ui.LockDirectMessagesHook.watchActivity(activity);
+        ps.reso.instaeclipse.mods.ui.RemoveMetaAIHook.watchActionSheet(activity);
+        ps.reso.instaeclipse.mods.ui.DistractionFreeUIHook.watchActivity(activity);
+        ps.reso.instaeclipse.mods.ui.StoryTrayHook.watchActivity(activity);
+        ps.reso.instaeclipse.mods.ui.FancyBioFontHook.watchActivity(activity);
+
         ensureIdsCached(activity);
 
         boolean anySearchFound = false;
@@ -121,6 +131,21 @@ public class UIHookManager {
     public void mainActivity(ClassLoader classLoader) {
         for (String activityClass : MAIN_ACTIVITIES) {
             hookMainActivityLifecycle(classLoader, activityClass);
+            try {
+                LifecycleHookUtil.hookAfter(classLoader, activityClass, "onResume",
+                        (activity, param) -> {
+                            currentActivity = activity;
+                            activity.runOnUiThread(() -> {
+                                try {
+                                    setupHooks(activity);
+                                } catch (Exception e) {
+                                    ModuleLog.line("(InstaEclipse) UI Error: " + e);
+                                }
+                            });
+                        });
+            } catch (Throwable t) {
+                ModuleLog.line("(InstaEclipse): ⚠️ " + activityClass + " onResume hook failed: " + t);
+            }
         }
 
         BottomSheetHookUtil.hookBottomSheetNavigator(Module.dexKitBridge);
@@ -141,20 +166,13 @@ public class UIHookManager {
         });
 
         try {
-            XposedHelpers.findAndHookMethod("com.instagram.modal.ModalActivity", classLoader, "onResume", new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) {
-                    Activity activity = (Activity) param.thisObject;
-                    if (activity != null) {
-                        activity.runOnUiThread(() -> {
-                            try {
-                                setupHooks(activity);
-                            } catch (Exception ignored) {
-                            }
-                        });
-                    }
-                }
-            });
+            LifecycleHookUtil.hookAfter(classLoader, "com.instagram.modal.ModalActivity", "onResume",
+                    (activity, param) -> activity.runOnUiThread(() -> {
+                        try {
+                            setupHooks(activity);
+                        } catch (Exception ignored) {
+                        }
+                    }));
         } catch (Throwable t) {
             ModuleLog.line("(InstaEclipse): ModalActivity hook failed: " + t.getMessage());
         }
@@ -300,33 +318,37 @@ public class UIHookManager {
         }
     }
 
+    /** Registers a broadcast receiver in the Instagram process to handle config imports. */
     public static void registerConfigImportReceiver(android.content.Context context) {
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(android.content.Context ctx, Intent intent) {
                 String json = intent.getStringExtra("json_content");
+                try { ps.reso.instaeclipse.utils.ipc.BrokerPayload.validateConfig(json); }
+                catch (IllegalArgumentException malformed) {
+                    ModuleLog.line("(IE|Config) Invalid or oversized configuration rejected");
+                    return;
+                }
                 if (json != null && !json.isEmpty()) {
                     ConfigManager.importConfigFromJson(ctx, json);
                 }
             }
         };
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(receiver,
-                    new IntentFilter("ps.reso.instaeclipse.ACTION_IMPORT_CONFIG"),
-                    android.content.Context.RECEIVER_EXPORTED);
-        } else {
-            androidx.core.content.ContextCompat.registerReceiver(context,
-                    receiver,
-                    new IntentFilter("ps.reso.instaeclipse.ACTION_IMPORT_CONFIG"),
-                    androidx.core.content.ContextCompat.RECEIVER_EXPORTED);
-        }
+        ps.reso.instaeclipse.utils.core.IpcSecurity.registerCompanionOnlyReceiver(context, receiver,
+                new IntentFilter("ps.reso.instaeclipse.ACTION_IMPORT_CONFIG"));
     }
 
+    /** Registers a receiver in the Instagram process to restore settings from a backup JSON. */
     public static void registerSettingsRestoreReceiver(android.content.Context context) {
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(android.content.Context ctx, Intent intent) {
                 String json = intent.getStringExtra("json_content");
+                try { ps.reso.instaeclipse.utils.ipc.BrokerPayload.validateConfig(json); }
+                catch (IllegalArgumentException malformed) {
+                    ModuleLog.line("(IE|Config) Invalid or oversized configuration rejected");
+                    return;
+                }
                 if (json == null || json.isEmpty()) return;
                 new Thread(() -> {
                     try {
@@ -334,30 +356,38 @@ public class UIHookManager {
                         SettingsManager.saveAllFlags();
                         ps.reso.instaeclipse.utils.feature.FeatureManager.refreshFeatureStatus();
                         Handler mainHandler = new Handler(Looper.getMainLooper());
-                        mainHandler.post(() -> Toast.makeText(ctx.getApplicationContext(),
+                        mainHandler.post(() -> ps.reso.instaeclipse.utils.toast.IeToast.makeText(ctx.getApplicationContext(),
                                 "✅ " + I18n.t(ctx, R.string.ig_toast_settings_restored), Toast.LENGTH_SHORT).show());
                     } catch (Exception e) {
                         Handler mainHandler = new Handler(Looper.getMainLooper());
-                        mainHandler.post(() -> Toast.makeText(ctx.getApplicationContext(),
+                        mainHandler.post(() -> ps.reso.instaeclipse.utils.toast.IeToast.makeText(ctx.getApplicationContext(),
                                 "❌ " + I18n.t(ctx, R.string.ig_toast_restore_failed, e.getMessage()), Toast.LENGTH_LONG).show());
                     }
                 }).start();
             }
         };
         try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                context.registerReceiver(receiver,
-                        new IntentFilter("ps.reso.instaeclipse.ACTION_RESTORE_SETTINGS"),
-                        android.content.Context.RECEIVER_EXPORTED);
-            } else {
-                androidx.core.content.ContextCompat.registerReceiver(context,
-                        receiver,
-                        new IntentFilter("ps.reso.instaeclipse.ACTION_RESTORE_SETTINGS"),
-                        androidx.core.content.ContextCompat.RECEIVER_EXPORTED);
-            }
+            ps.reso.instaeclipse.utils.core.IpcSecurity.registerCompanionOnlyReceiver(context, receiver,
+                    new IntentFilter("ps.reso.instaeclipse.ACTION_RESTORE_SETTINGS"));
             } catch (Throwable e) {
             ModuleLog.line("(InstaEclipse | RestoreReceiver): ❌ " + e.getMessage());
         }
     }
 
+
+    /** Activity to show our dialogs on: the one {@code ctx} belongs to (posts, stories and
+     *  highlights opened from a profile run in their own activity above the main one), else the
+     *  main activity, else {@code ctx} itself. */
+    public static android.content.Context dialogHost(android.content.Context ctx) {
+        android.content.Context c = ctx;
+        while (c instanceof android.content.ContextWrapper) {
+            if (c instanceof Activity a) {
+                if (!a.isFinishing()) return a;
+                break;
+            }
+            c = ((android.content.ContextWrapper) c).getBaseContext();
+        }
+        Activity main = currentActivity;
+        return main != null && !main.isFinishing() ? main : ctx;
+    }
 }

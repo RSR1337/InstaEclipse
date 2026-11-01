@@ -1,6 +1,6 @@
 package ps.reso.instaeclipse.mods.misc;
 
-import android.app.AndroidAppHelper;
+import ps.reso.instaeclipse.xposedcompat.AndroidAppHelper;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
@@ -13,12 +13,13 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
+import ps.reso.instaeclipse.xposedcompat.XC_MethodHook;
+import ps.reso.instaeclipse.xposedcompat.XposedBridge;
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.utils.i18n.I18n;
 import ps.reso.instaeclipse.utils.toast.CustomToast;
 import ps.reso.instaeclipse.utils.tracker.FollowIndicatorTracker;
+import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 
 public class FollowStatusHook {
 
@@ -50,13 +51,13 @@ public class FollowStatusHook {
         if (sHookedCallbackClasses.contains(className)) return;
         sHookedCallbackClasses.add(className);
 
-        for (Method m : cb.getClass().getDeclaredMethods()) {
+        for (Method m : ps.reso.instaeclipse.utils.core.SafeReflect.methods(cb.getClass())) {
             if (java.lang.reflect.Modifier.isStatic(m.getModifiers())) continue;
             if (m.getParameterCount() == 0) continue;
             try {
                 XposedBridge.hookMethod(m, new XC_MethodHook() {
                     @Override
-                    protected void afterHookedMethod(MethodHookParam p) {
+                    protected void afterHookedMethod(MethodHookParam p) { ps.reso.instaeclipse.utils.core.JitGuard.tick(p.method);
                         int hash = System.identityHashCode(p.thisObject);
                         String uid = sPendingCallbacks.get(hash);
                         if (uid == null) return;
@@ -65,6 +66,7 @@ public class FollowStatusHook {
                             Boolean followedBy = parseFollowedBy(arg);
                             if (followedBy != null) {
                                 sPendingCallbacks.remove(hash);
+                                ps.reso.instaeclipse.mods.ui.ProfileFollowsYouHook.onFollowResult(uid, followedBy);
                                 showFollowToast(uid, followedBy);
                                 return;
                             }
@@ -73,6 +75,7 @@ public class FollowStatusHook {
                         Boolean followedByFromObj = parseFollowedBy(p.thisObject);
                         if (followedByFromObj != null) {
                             sPendingCallbacks.remove(hash);
+                            ps.reso.instaeclipse.mods.ui.ProfileFollowsYouHook.onFollowResult(uid, followedByFromObj);
                             showFollowToast(uid, followedByFromObj);
                         }
                     }
@@ -119,7 +122,7 @@ public class FollowStatusHook {
         if (depth > 0) {
             Class<?> cls = obj.getClass();
             while (cls != null && cls != Object.class) {
-                for (Field f : cls.getDeclaredFields()) {
+                for (Field f : ps.reso.instaeclipse.utils.core.SafeReflect.fields(cls)) {
                     if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
                     f.setAccessible(true);
                     try {
@@ -147,7 +150,8 @@ public class FollowStatusHook {
                         ? I18n.t(ctx, R.string.ig_toast_follows_you)
                         : I18n.t(ctx, R.string.ig_toast_not_follows_you);
 
-                CustomToast.showCustomToast(ctx, "(" + userId + ") " + statusStr);
+                if (FeatureFlags.showFollowerToast)
+                    CustomToast.showCustomToast(ctx, "(" + userId + ") " + statusStr);
 
                 FollowIndicatorTracker.currentlyViewedUserId = null;
             } catch (Throwable ignored) {}

@@ -1,5 +1,6 @@
 package ps.reso.instaeclipse.fragments;
 
+import android.graphics.Color;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -182,6 +183,7 @@ public class FeaturesFragment extends Fragment {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        profilePhotoLauncher = registerForActivityResult(new ActivityResultContracts.GetContent(), this::onProfilePhotoPicked);
         restoreFileLauncher = registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
             if (uri == null) return;
             try (InputStream is = requireContext().getContentResolver().openInputStream(uri);
@@ -272,7 +274,7 @@ public class FeaturesFragment extends Fragment {
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         fragmentView = inflater.inflate(R.layout.fragment_features, container, false);
-        localCache = requireContext().getSharedPreferences("instaeclipse_cache", Context.MODE_PRIVATE);
+        localCache = CommonUtils.companionCache(requireContext());
 
         recyclerFeatures = fragmentView.findViewById(R.id.recycler_features);
         recyclerFeatures.setLayoutManager(new LinearLayoutManager(requireContext()));
@@ -998,6 +1000,30 @@ public class FeaturesFragment extends Fragment {
                                 themeCustomizerLauncher.launch(new Intent(requireContext(), ThemeCustomizerActivity.class)))
         ));
 
+        defs.add(getString(R.string.feat_more));
+        defs.add(Arrays.asList(
+                createCategory(R.drawable.ic_ie_bubble, getString(R.string.menu_messages), A_PRIVACY,
+                        switchKeys(buildMessagesDefs()), this::loadMessagesMenu),
+                createCategory(R.drawable.ic_ie_eye_off, getString(R.string.ig_hide_chats_title), A_PRIVACY,
+                        switchKeys(buildHideChatsDefs()), this::loadHideChatsMenu),
+                createCategory(R.drawable.ic_ie_lock, getString(R.string.ig_dialog_misc_lock_section), A_PRIVACY,
+                        switchKeys(buildLockDefs()), this::loadLockMenu),
+                createCategory(R.drawable.ic_ie_compass, getString(R.string.menu_navigation), A_APPEARANCE,
+                        switchKeys(buildNavigationDefs()), this::loadNavigationMenu),
+                createCategory(R.drawable.ic_ie_reels, getString(R.string.menu_reels), A_APPEARANCE,
+                        switchKeys(buildReelsDefs()), this::loadReelsMenu),
+                createCategory(R.drawable.ic_ie_story, getString(R.string.menu_stories), A_APPEARANCE,
+                        switchKeys(buildStoriesDefs()), this::loadStoriesMenu),
+                createCategory(R.drawable.ic_ie_eye, getString(R.string.menu_profiles), A_SOCIAL,
+                        switchKeys(buildProfilesDefs()), this::loadProfilesMenu),
+                createCategory(R.drawable.ic_ie_copy, getString(R.string.menu_post_menu), A_MEDIA,
+                        switchKeys(buildPostMenuDefs()), this::loadPostMenuMenu),
+                createCategory(R.drawable.ic_ie_brush, getString(R.string.theme_section_fonts), A_APPEARANCE,
+                        Arrays.asList("customFontEnabled", "customEmojiEnabled"), this::loadFontsMenu),
+                createCategory(R.drawable.ic_ie_smartphone, getString(R.string.menu_app), A_TOOLS,
+                        switchKeys(buildAppDefs()), this::loadAppMenu)
+        ));
+
         defs.add(getString(R.string.feat_tools));
         defs.add(Arrays.asList(
                 withSubtitle(createNav(R.drawable.ic_ie_brush, getString(R.string.ig_dialog_icon_style), FeatureAccents.THEME, this::loadIconStyleMenu),
@@ -1103,6 +1129,12 @@ public class FeaturesFragment extends Fragment {
                 createSwitch(R.drawable.ic_ie_timer, getString(R.string.ig_dialog_ghost_keep_disappearing), "keepEphemeralMessages")
         ));
 
+        defs.add(getString(R.string.feat_more));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_eye, FeatureAccents.GHOST, getString(R.string.ig_dialog_ghost_read_receipt_chats), "readReceiptChats"),
+                createExtrasSwitch(FeatureAccents.GHOST, "airplaneMode")
+        ));
+
         defs.add(Arrays.asList(withSubtitle(createNav(R.drawable.ic_ie_zap, getString(R.string.ig_dialog_customize_quick_toggle),
                 FeatureAccents.GHOST, this::loadQuickTogglesMenu), getString(R.string.feat_quick_toggle_desc))));
 
@@ -1154,6 +1186,11 @@ public class FeaturesFragment extends Fragment {
                 createSwitch(R.drawable.ic_link, getString(R.string.ig_dialog_ad_disable_tracking), "disableTrackingLinks")
         ));
 
+        defs.add(getString(R.string.feat_more));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_search, FeatureAccents.ADS, getString(R.string.ig_disable_search_history), "disableSearchHistory")
+        ));
+
         showMenu(getString(R.string.ig_dialog_section_ad_analytics), defs);
         currentMenu = "ads";
     }
@@ -1165,7 +1202,19 @@ public class FeaturesFragment extends Fragment {
         defs.add(getString(R.string.feat_features));
         defs.add(Arrays.asList(
                 createSwitch(R.drawable.ic_sparkle, getString(R.string.ig_dialog_clean_feed_hide_suggested), "hideSuggestionsInFeed"),
-                createSwitch(R.drawable.ic_at, getString(R.string.ig_dialog_clean_feed_hide_threads), "hideThreadsSuggestions")
+                createSwitch(R.drawable.ic_at, getString(R.string.ig_dialog_clean_feed_hide_threads), "hideThreadsSuggestions"),
+                createSwitch(R.drawable.ic_sparkle, FeatureAccents.CLEAN_FEED, getString(R.string.ig_dialog_clean_feed_hide_liked), "hideLikedPosts"),
+                createSwitch(R.drawable.ic_sparkle, FeatureAccents.CLEAN_FEED, getString(R.string.ig_dialog_clean_feed_hide_community_notes), "hideCommunityNotes"),
+                createSwitch(R.drawable.ic_sparkle, FeatureAccents.CLEAN_FEED, getString(R.string.ig_dialog_clean_feed_following_only), "followingOnlyFeed")
+        ));
+
+        defs.add(getString(R.string.feat_options));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_sparkle, FeatureAccents.CLEAN_FEED, getString(R.string.ig_dialog_clean_feed_expand_captions), "expandCaptions"),
+                createSwitch(R.drawable.ic_timer, FeatureAccents.CLEAN_FEED, getString(R.string.ig_dialog_misc_exact_timestamps), "exactTimestamps"),
+                timestampFormatItem(),
+                createSwitch(R.drawable.ic_restart, FeatureAccents.CLEAN_FEED, getString(R.string.ig_confirm_refresh), "confirmFeedRefresh"),
+                upClickable(R.drawable.ic_sparkle, FeatureAccents.CLEAN_FEED, feedCornerText(), this::chooseFeedCorner)
         ));
 
         showMenu(getString(R.string.ig_dialog_section_clean_feed), defs);
@@ -1203,6 +1252,14 @@ public class FeaturesFragment extends Fragment {
                 createSwitchLockedByExtreme(R.drawable.ic_ie_comment, getString(R.string.ig_dialog_distraction_disable_comments), "disableComments")
         ));
 
+        defs.add(getString(R.string.feat_options));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_sparkle, FeatureAccents.DISTRACTION, getString(R.string.ig_dialog_misc_remove_meta_ai), "removeMetaAI"),
+                createExtrasSwitch(FeatureAccents.DISTRACTION, "hideOnboardingPrompts"),
+                createSwitch(R.drawable.ic_sparkle, FeatureAccents.DISTRACTION, getString(R.string.ig_dialog_clean_feed_hide_plus), "hidePlusUpsells"),
+                createSwitch(R.drawable.ic_block, FeatureAccents.DISTRACTION, getString(R.string.ig_hide_instants), "hideInstants")
+        ));
+
         showMenu(getString(R.string.ig_dialog_section_distraction_free), defs);
         currentMenu = "distract";
     }
@@ -1233,7 +1290,10 @@ public class FeaturesFragment extends Fragment {
                 createSwitch(R.drawable.ic_heart, getString(R.string.ig_dialog_misc_disable_double_tap_like), "disableDoubleTapLike"),
                 createSwitch(R.drawable.ic_content_copy, getString(R.string.ig_dialog_misc_copy_comment), "enableCopyComment"),
                 createSwitch(R.drawable.ic_subject, getString(R.string.ig_dialog_misc_copy_caption), "enableCaptionCopy"),
-                createSwitch(R.drawable.ic_group, getString(R.string.ig_dialog_misc_disable_discover_people), "disableDiscoverPeople")
+                createSwitch(R.drawable.ic_group, getString(R.string.ig_dialog_misc_disable_discover_people), "disableDiscoverPeople"),
+                createSwitch(R.drawable.ic_heart, FeatureAccents.MISC, getString(R.string.ig_dialog_misc_like_undo), "likeUndo"),
+                createSwitch(R.drawable.ic_heart, FeatureAccents.MISC, getString(R.string.ig_confirm_likes), "confirmLikes"),
+                createSwitch(R.drawable.ic_search, FeatureAccents.MISC, getString(R.string.ig_dialog_misc_comment_search), "commentSearch")
         ));
 
         defs.add(getString(R.string.feat_group_notifications));
@@ -1299,6 +1359,13 @@ public class FeaturesFragment extends Fragment {
         defs.add(Arrays.asList(withSubtitle(createClickable(R.drawable.ic_movie,
                 getString(R.string.ig_dialog_quality_force_reels), () -> pickQuality(current)), qualityLabel(current))));
 
+        defs.add(getString(R.string.feat_more));
+        defs.add(Arrays.asList(
+                createExtrasSwitch(FeatureAccents.QUALITY, "highResolutionImages"),
+                createSwitch(R.drawable.ic_upload, FeatureAccents.QUALITY, getString(R.string.ig_dialog_max_upload_quality), "maxUploadQuality"),
+                upClickable(R.drawable.ic_movie, FeatureAccents.QUALITY, spoofDeviceLabel(), this::showSpoofDeviceDialog)
+        ));
+
         showMenu(getString(R.string.ig_dialog_section_quality), defs);
         currentMenu = "quality";
     }
@@ -1355,6 +1422,25 @@ public class FeaturesFragment extends Fragment {
                 createSwitch(R.drawable.ic_timer, getString(R.string.ig_dialog_downloader_add_timestamp), "downloaderAddTimestamp"),
                 createNav(R.drawable.ic_history, getString(R.string.feat_downloader_view_history), this::openDownloadHistory)
         ));
+
+        defs.add(getString(R.string.feat_more));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_download, FeatureAccents.DOWNLOADER, getString(R.string.ig_dialog_downloader_stickers), "enableStickerDownload"),
+                createSwitch(R.drawable.ic_download, FeatureAccents.DOWNLOADER, getString(R.string.ig_dialog_downloader_dm_media), "enableDmMediaDownload"),
+                createSwitch(R.drawable.ic_download, FeatureAccents.DOWNLOADER, getString(R.string.ig_dialog_downloader_offer_audio), "offerAudioDownload"),
+                createSwitch(R.drawable.ic_download, FeatureAccents.DOWNLOADER, getString(R.string.ig_dialog_misc_save_instants), "saveInstants"),
+                createSwitch(R.drawable.ic_download, FeatureAccents.DOWNLOADER, getString(R.string.ig_dialog_misc_cache_stories), "cacheStories")
+        ));
+
+        defs.add(getString(R.string.menu_quality));
+        List<FeatureItem> dlQuality = new ArrayList<>();
+        dlQuality.add(createTool(R.drawable.ic_download, FeatureAccents.DOWNLOADER, getString(R.string.ie_download_quality),
+                downloadModeLabel(), this::chooseDownloadQuality));
+        if (!getCurrentState("downloaderUseOriginal")) {
+            dlQuality.add(createSwitch(R.drawable.ic_tune, FeatureAccents.DOWNLOADER, getString(R.string.ie_download_compatibility), "downloaderCompatibility"));
+            dlQuality.add(createSwitch(R.drawable.ic_download, FeatureAccents.DOWNLOADER, getString(R.string.ie_download_fallback), "downloaderAllowFallback"));
+        }
+        defs.add(dlQuality);
 
         String customPath = localCache.getString("downloaderCustomPath", "");
 
@@ -1601,4 +1687,766 @@ public class FeaturesFragment extends Fragment {
         super.onPause();
         requireContext().unregisterReceiver(prefsReceiver);
     }
+
+    private static final String A_APPEARANCE = "#FF375F", A_PRIVACY = "#5E5CE6", A_MEDIA = "#FF9F0A", A_SOCIAL = "#BF5AF2", A_TOOLS = "#8E8E93";
+
+    private FeatureItem createSwitch(int iconRes, String accentHex, String title, String prefKey) {
+        FeatureItem item = createSwitch(title, prefKey);
+        item.iconRes = iconRes;
+        item.accentColor = FeatureAccents.color(accentHex);
+        return item;
+    }
+
+    private FeatureItem upNav(int iconRes, String accentHex, String title, Runnable navAction) {
+        return createNav(iconRes, title, accentHex, navAction);
+    }
+
+    private FeatureItem upClickable(int iconRes, String accentHex, String title, Runnable onClick) {
+        return createClickable(iconRes, title, accentHex, onClick);
+    }
+
+    private void showUpMenu(String title, String accentHex, String key, List<Object> defs) {
+        menuAccent = FeatureAccents.color(accentHex);
+        showMenu(title, defs);
+        currentMenu = key;
+    }
+
+    private void loadMessagesMenu() { showUpMenu(getString(R.string.menu_messages), A_PRIVACY, "messages", buildMessagesDefs()); }
+    private void loadNavigationMenu() { showUpMenu(getString(R.string.menu_navigation), A_APPEARANCE, "navigation", buildNavigationDefs()); }
+    private void loadReelsMenu() { showUpMenu(getString(R.string.menu_reels), A_APPEARANCE, "reels", buildReelsDefs()); }
+    private void loadStoriesMenu() { showUpMenu(getString(R.string.menu_stories), A_APPEARANCE, "stories", buildStoriesDefs()); }
+    private void loadProfilesMenu() { showUpMenu(getString(R.string.menu_profiles), A_SOCIAL, "profiles", buildProfilesDefs()); }
+    private void loadAppMenu() { showUpMenu(getString(R.string.menu_app), A_TOOLS, "app", buildAppDefs()); }
+    private void loadLockMenu() { showUpMenu(getString(R.string.ig_dialog_misc_lock_section), A_PRIVACY, "lock", buildLockDefs()); }
+    private void loadHideChatsMenu() { showUpMenu(getString(R.string.ig_hide_chats_title), A_PRIVACY, "hidechats", buildHideChatsDefs()); }
+    private void loadPostMenuMenu() { showUpMenu(getString(R.string.menu_post_menu), A_MEDIA, "postmenu", buildPostMenuDefs()); }
+    private void loadFeedMenu() { loadCleanFeedMenu(); }
+
+    private void loadFontsMenu() {
+        List<Object> defs = new ArrayList<>();
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_palette, "#FF375F", getString(R.string.ig_dialog_misc_custom_font), "customFontEnabled"),
+                createSwitch(R.drawable.ic_palette, "#FF375F", getString(R.string.ig_dialog_misc_custom_emoji), "customEmojiEnabled")
+        ));
+        showUpMenu(getString(R.string.theme_section_fonts), A_APPEARANCE, "fonts", defs);
+    }
+
+    private static List<String> switchKeys(List<Object> defs) {
+        List<String> keys = new ArrayList<>();
+        for (Object def : defs) {
+            if (!(def instanceof List)) continue;
+            for (Object o : (List<?>) def) {
+                if (o instanceof FeatureItem fi && fi.type == FeatureItem.TYPE_SWITCH && fi.prefKey != null
+                        && !keys.contains(fi.prefKey)) keys.add(fi.prefKey);
+            }
+        }
+        return keys;
+    }
+
+
+    /** Date format row: greyed out until "Show exact dates" is on (#265). */
+    private FeatureItem timestampFormatItem() {
+        FeatureItem item = upClickable(R.drawable.ic_timer, "#64D2FF",
+                getString(R.string.ig_timestamp_format) + "  ·  " + timestampFormatName(localCache.getString("exactTimestampFormat", "")),
+                this::showTimestampFormatDialog);
+        item.requiresAnyOf = Arrays.asList("exactTimestamps");
+        return item;
+    }
+
+    private String feedCornerText() {
+        int dp = localCache.getInt("feedCornerRadius", 0);
+        return getString(R.string.ig_feed_corner_radius) + "  ·  "
+                + (dp <= 0 ? getString(R.string.ig_dialog_extras_share_domain_off) : dp + " dp");
+    }
+
+    private void chooseFeedCorner() {
+        int[] radii = ps.reso.instaeclipse.utils.dialog.IeMenu.FEED_CORNER_RADII;
+        String[] labels = new String[radii.length];
+        int current = localCache.getInt("feedCornerRadius", 0), selected = 0;
+        for (int i = 0; i < radii.length; i++) {
+            labels[i] = radii[i] <= 0 ? getString(R.string.ig_dialog_extras_share_domain_off) : radii[i] + " dp";
+            if (radii[i] == current) selected = i;
+        }
+        new MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.ig_feed_corner_radius)
+                .setSingleChoiceItems(labels, selected, (dialog, which) -> {
+                    putIntPref("feedCornerRadius", radii[which]);
+                    dialog.dismiss(); loadFeedMenu();
+                }).setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    /** #238: reorder the bottom-nav tabs (saved as the "navTabOrder" string pref). */
+    private void showTabOrderDialog() {
+        final String[] ids = ps.reso.instaeclipse.mods.ui.DistractionFreeUIHook.ORDERABLE_TABS;
+        final java.util.Map<String, String> labels = new java.util.HashMap<>();
+        labels.put("feed_tab", getString(R.string.ig_nav_name_home));
+        labels.put("clips_tab", getString(R.string.ig_nav_name_reels));
+        labels.put("search_tab", getString(R.string.ig_nav_name_search));
+        labels.put("creation_tab", getString(R.string.ig_nav_name_create));
+        labels.put("direct_tab", getString(R.string.ig_nav_name_messages));
+        labels.put("news_tab", getString(R.string.ig_nav_name_activity));
+        labels.put("profile_tab", getString(R.string.ig_nav_name_profile));
+        final java.util.List<String> order = new java.util.ArrayList<>();
+        for (String n : localCache.getString("navTabOrder", "").split(","))
+            if (java.util.Arrays.asList(ids).contains(n.trim()) && !order.contains(n.trim())) order.add(n.trim());
+        for (String n : ids) if (!order.contains(n)) order.add(n);
+
+        final android.widget.LinearLayout list = new android.widget.LinearLayout(requireContext());
+        list.setOrientation(android.widget.LinearLayout.VERTICAL);
+        int pad = (int) (16 * getResources().getDisplayMetrics().density);
+        list.setPadding(pad, pad / 2, pad, 0);
+        final Runnable[] render = new Runnable[1];
+        render[0] = () -> {
+            list.removeAllViews();
+            for (int i = 0; i < order.size(); i++) {
+                final int idx = i;
+                android.widget.LinearLayout row = new android.widget.LinearLayout(requireContext());
+                row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                android.widget.TextView name = new android.widget.TextView(requireContext());
+                name.setText((i + 1) + ".  " + labels.get(order.get(i)));
+                name.setTextSize(16);
+                row.addView(name, new android.widget.LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                for (final int dir : new int[]{-1, 1}) {
+                    android.widget.Button b = new android.widget.Button(requireContext(), null, android.R.attr.borderlessButtonStyle);
+                    b.setText(dir < 0 ? "↑" : "↓");
+                    b.setEnabled(dir < 0 ? idx > 0 : idx < order.size() - 1);
+                    b.setOnClickListener(v -> {
+                        java.util.Collections.swap(order, idx, idx + dir);
+                        render[0].run();
+                    });
+                    row.addView(b, new android.widget.LinearLayout.LayoutParams(
+                            (int) (48 * getResources().getDisplayMetrics().density), ViewGroup.LayoutParams.WRAP_CONTENT));
+                }
+                list.addView(row);
+            }
+        };
+        render[0].run();
+        android.widget.TextView hint = new android.widget.TextView(requireContext());
+        hint.setText(R.string.ig_nav_tab_order_hint);
+        hint.setPadding(0, pad / 2, 0, 0);
+        android.widget.LinearLayout box = new android.widget.LinearLayout(requireContext());
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        box.addView(list);
+        box.addView(hint);
+        box.setPadding(pad, 0, pad, 0);
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.ig_nav_tab_order)
+                .setView(box)
+                .setPositiveButton(android.R.string.ok, (d, w) -> saveTabOrder(String.join(",", order)))
+                .setNeutralButton(R.string.ig_nav_tab_order_reset, (d, w) -> saveTabOrder(""))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private String startupTabLabel() {
+        int i = Arrays.asList(ps.reso.instaeclipse.mods.ui.StartupTabHook.TABS).indexOf(localCache.getString("startupTab", ""));
+        return getString(R.string.ig_dialog_extras_startup_tab) + "  ·  " + startupTabNames()[Math.max(i, 0)];
+    }
+
+    /** Which tab Instagram opens on (saved as the "startupTab" string pref). */
+    private void showStartupTabDialog() {
+        String[] tabs = ps.reso.instaeclipse.mods.ui.StartupTabHook.TABS;
+        int current = Math.max(Arrays.asList(tabs).indexOf(localCache.getString("startupTab", "")), 0);
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.ig_dialog_extras_startup_tab)
+                .setSingleChoiceItems(startupTabNames(), current, (d, which) -> {
+                    localCache.edit().putString("startupTab", tabs[which]).commit();
+                    makeLocalCacheWorldReadable();
+                    Intent b = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING");
+                    b.putExtra("key", "startupTab");
+                    b.putExtra("value", tabs[which]);
+                    ps.reso.instaeclipse.utils.core.CommonUtils.broadcastToInstagram(requireContext(), b);
+                    d.dismiss();
+                    loadNavigationMenu();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /** A switch for an {@link ps.reso.instaeclipse.utils.feature.ExtrasFeatures} flag, with its label and icon. */
+    private FeatureItem createExtrasSwitch(String accentHex, String flag) {
+        ps.reso.instaeclipse.utils.feature.ExtrasFeatures.Entry e = ps.reso.instaeclipse.utils.feature.ExtrasFeatures.entry(flag);
+        if (e == null) throw new IllegalArgumentException("Not an Extras flag: " + flag);
+        return createSwitch(e.icon, accentHex, getString(e.label), flag);
+    }
+
+    private void chooseStoryTraySize() {
+        int[] sizes = ps.reso.instaeclipse.utils.dialog.IeMenu.STORY_TRAY_SIZES;
+        String[] labels = new String[sizes.length];
+        int current = localCache.getInt("storyTrayScale", 100), selected = 0;
+        for (int i = 0; i < sizes.length; i++) {
+            labels[i] = sizes[i] + "%";
+            if (sizes[i] == current) selected = i;
+        }
+        new MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.ig_story_tray_size)
+                .setSingleChoiceItems(labels, selected, (dialog, which) -> {
+                    putIntPref("storyTrayScale", sizes[which]);
+                    dialog.dismiss(); loadStoriesMenu();
+                }).setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    private String storyRingColorText() {
+        String v = localCache.getString("storyRingColor", "");
+        return getString(R.string.ig_story_ring_color) + "  ·  "
+                + (v.isEmpty() ? getString(R.string.ig_story_ring_default) : v.replace(",", " → "));
+    }
+
+    /** Same picker as inside Instagram: live preview, one color or a gradient of up to 4. */
+    private void chooseStoryRingColor() {
+        Context ctx = requireContext();
+        String[] picked = {localCache.getString("storyRingColor", "")};
+        int text = com.google.android.material.color.MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorOnSurface, Color.WHITE);
+        int sub = com.google.android.material.color.MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorOnSurfaceVariant, Color.GRAY);
+        int field = com.google.android.material.color.MaterialColors.getColor(ctx, com.google.android.material.R.attr.colorSurfaceContainerHighest, Color.DKGRAY);
+        int accent = com.google.android.material.color.MaterialColors.getColor(ctx, androidx.appcompat.R.attr.colorPrimary, 0xFF0095F6);
+        View picker = ps.reso.instaeclipse.utils.dialog.RingColorPicker.build(ctx, picked[0],
+                new ps.reso.instaeclipse.utils.dialog.RingColorPicker.Palette(text, sub, field, accent), v -> picked[0] = v);
+        android.widget.ScrollView scroll = new android.widget.ScrollView(ctx);
+        int pad = Math.round(20 * getResources().getDisplayMetrics().density);
+        picker.setPadding(pad, pad / 2, pad, 0);
+        scroll.addView(picker);
+        new MaterialAlertDialogBuilder(ctx).setTitle(R.string.ig_story_ring_color)
+                .setView(scroll)
+                .setPositiveButton(android.R.string.ok, (d, w) -> {
+                    putStringPref("storyRingColor", picked[0]);
+                    loadStoriesMenu();
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    /** Profile spoofer values row: greyed out until "Profile spoofer" is on. */
+    private FeatureItem profileSpoofItem() {
+        FeatureItem item = upClickable(R.drawable.ic_tune, A_SOCIAL, getString(R.string.ig_profile_spoofer_edit), this::showProfileSpoofDialog);
+        item.requiresAnyOf = Arrays.asList("profileSpoofer");
+        return item;
+    }
+
+    private String shareDomainLabel() {
+        String d = localCache.getString("customShareDomain", "");
+        return getString(R.string.ig_dialog_extras_share_domain) + "  ·  "
+                + (d.isEmpty() ? getString(R.string.ig_dialog_extras_share_domain_off) : d);
+    }
+
+    /** Custom share domain (saved as the "customShareDomain" string pref). */
+    private void showShareDomainDialog() {
+        final android.widget.EditText input = new android.widget.EditText(requireContext());
+        input.setSingleLine(true);
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        input.setHint("ddinstagram.com");
+        input.setText(localCache.getString("customShareDomain", ""));
+        int pad = (int) (20 * getResources().getDisplayMetrics().density);
+        android.widget.FrameLayout box = new android.widget.FrameLayout(requireContext());
+        box.setPadding(pad, pad / 2, pad, 0);
+        box.addView(input);
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.ig_dialog_extras_share_domain)
+                .setMessage(R.string.ig_dialog_extras_share_domain_hint)
+                .setView(box)
+                .setPositiveButton(android.R.string.ok, (d, w) -> {
+                    String domain = ps.reso.instaeclipse.mods.ads.ShareDomain.normalize(input.getText().toString());
+                    if (domain == null) {
+                        ps.reso.instaeclipse.utils.toast.IeToast.makeText(requireContext(), R.string.ig_dialog_extras_share_domain_invalid,
+                                android.widget.Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    localCache.edit().putString("customShareDomain", domain).commit();
+                    makeLocalCacheWorldReadable();
+                    Intent b = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING");
+                    b.putExtra("key", "customShareDomain");
+                    b.putExtra("value", domain);
+                    ps.reso.instaeclipse.utils.core.CommonUtils.broadcastToInstagram(requireContext(), b);
+                    loadAppMenu();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void pickAutoClearSize() {
+        // Same reachable presets as the in-IG dialog (IG's real cache is small).
+        final int[] values = {50, 100, 200, 500};
+        int current = localCache.getInt("autoClearCacheSizeMb", 100);
+        String[] labels = new String[values.length];
+        int sel = 0;
+        for (int i = 0; i < values.length; i++) {
+            labels[i] = values[i] + " MB";
+            if (values[i] == current) sel = i;
+        }
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(getString(R.string.ig_dialog_section_auto_clear_cache))
+                .setSingleChoiceItems(labels, sel, (dialog, which) -> {
+                    putIntPref("autoClearCacheSizeMb", values[which]);
+                    dialog.dismiss();
+                    loadAppMenu();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /** Tools action row: own accent, normal title colour, a one-line description and an arrow. */
+    private FeatureItem createTool(int iconRes, String accentHex, String title, String subtitle, Runnable onClick) {
+        FeatureItem item = upNav(iconRes, accentHex, title, onClick);
+        item.subtitle = subtitle;
+        return item;
+    }
+
+    private void openInstagram() {
+        Intent launch = requireContext().getPackageManager()
+                .getLaunchIntentForPackage(ps.reso.instaeclipse.utils.core.CommonUtils.IG_PACKAGE_NAME);
+        if (launch != null) startActivity(launch);
+        else ps.reso.instaeclipse.utils.toast.IeToast.makeText(requireContext(),
+                getString(R.string.not_installed_instagram), Toast.LENGTH_SHORT).show();
+    }
+
+    /** Standard (the original downloader) or Best, with its resolution cap. */
+    private String downloadModeLabel() {
+        if (getCurrentState("downloaderUseOriginal")) return getString(R.string.ie_downloader_original);
+        int ceiling = localCache.getInt("downloaderQualityMaxShortSide", 0);
+        return ceiling <= 0 ? getString(R.string.ie_download_best) : getString(R.string.ie_download_ceiling, ceiling);
+    }
+
+    /** One choice for both: Standard, or Best with no cap / up to a resolution. */
+    private void chooseDownloadQuality() {
+        int[] values = {-1, 0, 2160, 1440, 1080, 720, 480}; // -1 = Standard
+        String[] labels = new String[values.length];
+        boolean standard = getCurrentState("downloaderUseOriginal");
+        int current = localCache.getInt("downloaderQualityMaxShortSide", 0), selected = 0;
+        for (int i=0; i<values.length; i++) {
+            labels[i] = values[i] < 0 ? getString(R.string.ie_downloader_original)
+                    : values[i] == 0 ? getString(R.string.ie_download_best) : getString(R.string.ie_download_ceiling, values[i]);
+            if (!standard && values[i] == current) selected = i;
+        }
+        new MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.ie_download_quality)
+                .setSingleChoiceItems(labels, selected, (dialog, which) -> {
+                    putBoolPref("downloaderUseOriginal", values[which] < 0);
+                    if (values[which] >= 0) putIntPref("downloaderQualityMaxShortSide", values[which]);
+                    dialog.dismiss(); loadDownloaderMenu();
+                }).setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    private String spoofDeviceLabel() {
+        int i = Arrays.asList(ps.reso.instaeclipse.mods.misc.DeviceSpoofHook.DEVICES).indexOf(localCache.getString("spoofDevice", ""));
+        return getString(R.string.ig_spoof_device) + "  ·  " + spoofDeviceNames()[Math.max(i, 0)];
+    }
+
+    /** Which device Instagram sees (saved as the "spoofDevice" string pref). */
+    private void showSpoofDeviceDialog() {
+        String[] ids = ps.reso.instaeclipse.mods.misc.DeviceSpoofHook.DEVICES;
+        int current = Math.max(Arrays.asList(ids).indexOf(localCache.getString("spoofDevice", "")), 0);
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.ig_spoof_device)
+                .setSingleChoiceItems(spoofDeviceNames(), current, (d, which) -> {
+                    localCache.edit().putString("spoofDevice", ids[which]).commit();
+                    makeLocalCacheWorldReadable();
+                    Intent b = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING");
+                    b.putExtra("key", "spoofDevice");
+                    b.putExtra("value", ids[which]);
+                    ps.reso.instaeclipse.utils.core.CommonUtils.broadcastToInstagram(requireContext(), b);
+                    d.dismiss();
+                    ps.reso.instaeclipse.utils.toast.IeToast.makeText(requireContext(), R.string.ig_spoof_device_note, Toast.LENGTH_LONG).show();
+                    loadQualityMenu();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    // =========================================================
+    // TOOLS ACTIONS & HANDLERS
+    // =========================================================
+
+    /**
+     * Makes the localCache SharedPreferences file world-readable so the module can
+     * access it via XSharedPreferences on a cold Instagram start (when the sync
+     * broadcast was never delivered because Instagram wasn't running at the time).
+     * Apps are allowed to change permissions on their own files.
+     */
+    private void makeLocalCacheWorldReadable() {
+        try {
+            java.io.File prefsFile = new java.io.File(
+                    requireContext().getApplicationInfo().dataDir + "/shared_prefs/instaeclipse_cache.xml");
+            prefsFile.setReadable(true, false);
+        } catch (Throwable ignored) {}
+    }
+
+    private String timestampFormatName(String pattern) {
+        String sample = ps.reso.instaeclipse.utils.text.TimestampFormat.format(pattern, new java.util.Date(), java.util.Locale.getDefault());
+        return pattern.isEmpty() ? getString(R.string.ig_timestamp_format_default) + "  ·  " + sample : sample;
+    }
+
+    /** Presets shown as today's date in that format, plus a custom pattern with a live preview. */
+    private void showTimestampFormatDialog() {
+        String[] presets = ps.reso.instaeclipse.utils.text.TimestampFormat.PRESETS;
+        String current = localCache.getString("exactTimestampFormat", "");
+        String[] rows = new String[presets.length + 1];
+        int checked = presets.length;
+        for (int i = 0; i < presets.length; i++) {
+            rows[i] = timestampFormatName(presets[i]);
+            if (presets[i].equals(current)) checked = i;
+        }
+        rows[presets.length] = checked == presets.length
+                ? getString(R.string.ig_timestamp_format_custom) + "  ·  " + timestampFormatName(current)
+                : getString(R.string.ig_timestamp_format_custom);
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.ig_timestamp_format)
+                .setSingleChoiceItems(rows, checked, (d, which) -> {
+                    d.dismiss();
+                    if (which == presets.length) showCustomTimestampFormat();
+                    else saveTimestampFormat(presets[which]);
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void saveTabOrder(String value) {
+        localCache.edit().putString("navTabOrder", value).commit();
+        makeLocalCacheWorldReadable();
+        Intent b = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING");
+        b.putExtra("key", "navTabOrder");
+        b.putExtra("value", value);
+        ps.reso.instaeclipse.utils.core.CommonUtils.broadcastToInstagram(requireContext(), b);
+    }
+
+    private String[] startupTabNames() {
+        return new String[]{
+                getString(R.string.ig_dialog_extras_share_domain_off),
+                getString(R.string.ig_nav_name_home),
+                getString(R.string.ig_nav_name_reels),
+                getString(R.string.ig_nav_name_messages),
+                getString(R.string.ig_nav_name_search),
+                getString(R.string.ig_nav_name_profile),
+                getString(R.string.ig_nav_name_activity)};
+    }
+
+    /** Same editor as inside Instagram (preview + grouped fields); the photo is picked here. */
+    private void showProfileSpoofDialog() {
+        Context c = requireContext();
+        ps.reso.instaeclipse.utils.dialog.ProfileSpoofEditor.Values v = new ps.reso.instaeclipse.utils.dialog.ProfileSpoofEditor.Values();
+        v.username = localCache.getString("spoofUsername", "");
+        v.name = localCache.getString("spoofName", "");
+        v.bio = localCache.getString("spoofBio", "");
+        v.avatar = localCache.getString("spoofAvatar", "");
+        v.posts = localCache.getInt("spoofPosts", -1);
+        v.followers = localCache.getInt("spoofFollowers", -1);
+        v.following = localCache.getInt("spoofFollowing", -1);
+        v.verified = localCache.getBoolean("spoofVerified", false);
+        int text = com.google.android.material.color.MaterialColors.getColor(c, com.google.android.material.R.attr.colorOnSurface, Color.WHITE);
+        int sub = com.google.android.material.color.MaterialColors.getColor(c, com.google.android.material.R.attr.colorOnSurfaceVariant, Color.GRAY);
+        int field = com.google.android.material.color.MaterialColors.getColor(c, com.google.android.material.R.attr.colorSurfaceContainerHighest, Color.DKGRAY);
+        int accent = com.google.android.material.color.MaterialColors.getColor(c, androidx.appcompat.R.attr.colorPrimary, 0xFF0095F6);
+        int border = com.google.android.material.color.MaterialColors.getColor(c, com.google.android.material.R.attr.colorOutlineVariant, 0x33808080);
+        ps.reso.instaeclipse.utils.dialog.ProfileSpoofEditor editor = new ps.reso.instaeclipse.utils.dialog.ProfileSpoofEditor(c, v,
+                new ps.reso.instaeclipse.utils.dialog.ProfileSpoofEditor.Palette(text, sub, field, accent, border),
+                () -> profilePhotoLauncher.launch("image/*"), null, null);
+        profileSpoofEditor = editor;
+        android.widget.ScrollView scroll = new android.widget.ScrollView(c);
+        int pad = Math.round(20 * getResources().getDisplayMetrics().density);
+        editor.view().setPadding(pad, pad / 2, pad, 0);
+        scroll.addView(editor.view());
+        new MaterialAlertDialogBuilder(c)
+                .setTitle(R.string.ig_profile_spoofer_editor_title)
+                .setView(scroll)
+                .setPositiveButton(R.string.ig_profile_spoofer_save, (d, w) -> saveProfileSpoof(v, editor.values()))
+                .setNegativeButton(android.R.string.cancel, null)
+                .setOnDismissListener(d -> { if (profileSpoofEditor == editor) profileSpoofEditor = null; })
+                .show();
+    }
+
+    private String[] spoofDeviceNames() {
+        String[] ids = ps.reso.instaeclipse.mods.misc.DeviceSpoofHook.DEVICES;
+        String[] names = new String[ids.length];
+        for (int i = 0; i < ids.length; i++) {
+            String n = ps.reso.instaeclipse.mods.misc.DeviceSpoofHook.deviceName(ids[i]);
+            names[i] = n != null ? n : getString(R.string.ig_dialog_extras_share_domain_off);
+        }
+        return names;
+    }
+
+    private void showCustomTimestampFormat() {
+        android.content.Context c = requireContext();
+        int pad = (int) (20 * getResources().getDisplayMetrics().density);
+        android.widget.LinearLayout box = new android.widget.LinearLayout(c);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        box.setPadding(pad, pad / 2, pad, 0);
+        final android.widget.EditText input = new android.widget.EditText(c);
+        input.setSingleLine(true);
+        String current = localCache.getString("exactTimestampFormat", "");
+        input.setText(current.isEmpty() ? "yyyy-MM-dd HH:mm:ss" : current);
+        final android.widget.TextView preview = new android.widget.TextView(c);
+        preview.setPadding(0, pad / 2, 0, 0);
+        preview.setTextSize(16);
+        box.addView(input);
+        box.addView(preview);
+        Runnable update = () -> {
+            String p = input.getText().toString();
+            preview.setText(ps.reso.instaeclipse.utils.text.TimestampFormat.isValid(p) && !p.isEmpty()
+                    ? ps.reso.instaeclipse.utils.text.TimestampFormat.format(p, new java.util.Date(), java.util.Locale.getDefault())
+                    : getString(R.string.ig_timestamp_format_invalid));
+        };
+        input.addTextChangedListener(new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int a, int b, int n) {}
+            public void onTextChanged(CharSequence s, int a, int b, int n) {}
+            public void afterTextChanged(android.text.Editable s) { update.run(); }
+        });
+        update.run();
+        new MaterialAlertDialogBuilder(c)
+                .setTitle(R.string.ig_timestamp_format_custom)
+                .setMessage(R.string.ig_timestamp_format_custom_hint)
+                .setView(box)
+                .setPositiveButton(android.R.string.ok, (d, w) -> {
+                    String p = input.getText().toString().trim();
+                    if (!ps.reso.instaeclipse.utils.text.TimestampFormat.isValid(p)) {
+                        ps.reso.instaeclipse.utils.toast.IeToast.makeText(c, R.string.ig_timestamp_format_invalid,
+                                android.widget.Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    saveTimestampFormat(p);
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void saveTimestampFormat(String pattern) {
+        localCache.edit().putString("exactTimestampFormat", pattern).commit();
+        makeLocalCacheWorldReadable();
+        Intent b = new Intent("ps.reso.instaeclipse.ACTION_UPDATE_PREF_STRING");
+        b.putExtra("key", "exactTimestampFormat");
+        b.putExtra("value", pattern);
+        ps.reso.instaeclipse.utils.core.CommonUtils.broadcastToInstagram(requireContext(), b);
+        loadFeedMenu();
+    }
+
+    /** Sends only what changed, so untouched settings keep Instagram's newer values. */
+    private void saveProfileSpoof(ps.reso.instaeclipse.utils.dialog.ProfileSpoofEditor.Values old,
+                                  ps.reso.instaeclipse.utils.dialog.ProfileSpoofEditor.Values now) {
+        if (!now.username.equals(old.username)) putStringPref("spoofUsername", now.username);
+        if (!now.name.equals(old.name)) putStringPref("spoofName", now.name);
+        if (!now.bio.equals(old.bio)) putStringPref("spoofBio", now.bio);
+        if (!now.avatar.equals(old.avatar)) putStringPref("spoofAvatar", now.avatar);
+        if (now.posts != old.posts) putIntPref("spoofPosts", now.posts);
+        if (now.followers != old.followers) putIntPref("spoofFollowers", now.followers);
+        if (now.following != old.following) putIntPref("spoofFollowing", now.following);
+        if (now.verified != old.verified) putBoolPref("spoofVerified", now.verified);
+    }
+
+    private List<Object> buildMessagesDefs() {
+        List<Object> defs = new ArrayList<>();
+
+        defs.add(getString(R.string.feat_features));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_chat, "#5E5CE6", getString(R.string.ig_dialog_ghost_keep_unsent), "keepUnsentMessages"),
+                createSwitch(R.drawable.ic_chat, "#5E5CE6", getString(R.string.ie_keep_unsent_in_chat), "keepUnsentInChat"),
+                createSwitch(R.drawable.ic_delete, "#5E5CE6", getString(R.string.ie_show_deleted_button), "showDeletedMessagesButton"),
+                createSwitch(R.drawable.ic_chat, "#5E5CE6", getString(R.string.ig_dialog_ghost_edit_history), "keepEditHistory"),
+                createSwitch(R.drawable.ic_jump_first, "#5E5CE6", getString(R.string.ig_dialog_ghost_jump_first), "jumpToFirstMessage"),
+                createSwitch(R.drawable.ic_shield, "#5E5CE6", getString(R.string.ig_call_confirm), "confirmCalls"),
+                createSwitch(R.drawable.ic_chat, "#5E5CE6", getString(R.string.ig_dialog_translate_messages), "translateMessages"),
+                createSwitch(R.drawable.ic_chat, "#5E5CE6", getString(R.string.ig_dialog_bulk_unsend), "bulkUnsend"),
+                createSwitch(R.drawable.ic_download, "#5E5CE6", getString(R.string.ig_dialog_ghost_chat_export), "chatExport"),
+                createSwitch(R.drawable.ic_block, "#5E5CE6", getString(R.string.ig_dialog_distraction_hide_notes_tray), "hideNotesTray"),
+                createSwitch(R.drawable.ic_block, "#5E5CE6", getString(R.string.ig_hide_dm_suggestions), "hideDmSuggestions"),
+                createSwitch(R.drawable.ic_block, "#5E5CE6", getString(R.string.ig_dialog_hide_dm_blend), "hideDmBlend"),
+                createSwitch(R.drawable.ic_block, "#5E5CE6", getString(R.string.ig_dialog_misc_hide_share_create_group), "hideShareCreateGroup")
+        ));
+
+        return defs;
+    }
+
+    private List<Object> buildNavigationDefs() {
+        List<Object> defs = new ArrayList<>();
+
+        defs.add(getString(R.string.menu_nav_tabs));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_block, "#30D158", getString(R.string.ig_nav_tab_home), "hideTabHome"),
+                createSwitch(R.drawable.ic_block, "#30D158", getString(R.string.ig_nav_tab_reels), "hideTabReels"),
+                createSwitch(R.drawable.ic_block, "#30D158", getString(R.string.ig_nav_tab_create), "hideTabCreate"),
+                createSwitch(R.drawable.ic_block, "#30D158", getString(R.string.ig_nav_tab_messages), "hideTabMessages"),
+                createSwitch(R.drawable.ic_block, "#30D158", getString(R.string.ig_nav_tab_activity), "hideTabActivity"),
+                createSwitch(R.drawable.ic_block, "#30D158", getString(R.string.ig_nav_tab_profile), "hideTabProfile")
+        ));
+
+        defs.add(getString(R.string.menu_nav_order));
+        defs.add(Arrays.asList(
+                upClickable(R.drawable.ic_tune, "#30D158", getString(R.string.ig_nav_tab_order), this::showTabOrderDialog),
+                upClickable(R.drawable.ic_tune, "#30D158", startupTabLabel(), this::showStartupTabDialog)
+        ));
+
+        defs.add(getString(R.string.menu_nav_gestures));
+        defs.add(Arrays.asList(createExtrasSwitch("#30D158", "disableSwipeToCamera"),
+                createSwitch(R.drawable.ic_home, "#30D158", getString(R.string.ig_back_leaves_home), "backLeavesHome")));
+
+        return defs;
+    }
+
+    private List<Object> buildReelsDefs() {
+        List<Object> defs = new ArrayList<>();
+        defs.add(Arrays.asList(
+                createExtrasSwitch("#32D74B", "reelsAutoScroll"),
+                createExtrasSwitch("#32D74B", "reelsLockScroll"),
+                createSwitch(R.drawable.ic_movie, "#32D74B", getString(R.string.ig_dialog_downloader_reel_scrubber), "forceReelScrubber"),
+                createSwitch(R.drawable.ic_movie, "#32D74B", getString(R.string.ig_dialog_reels_hold_left_slow), "holdLeftSlowMotion"),
+                createSwitch(R.drawable.ic_movie, "#32D74B", getString(R.string.ig_dialog_downloader_offer_speed), "offerPlaybackSpeed")
+        ));
+
+        return defs;
+    }
+
+    private List<Object> buildStoriesDefs() {
+        List<Object> defs = new ArrayList<>();
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_link, "#32D74B", getString(R.string.ig_dialog_misc_story_links), "storyLinks"),
+                createSwitch(R.drawable.ic_info, "#32D74B", getString(R.string.ig_dialog_misc_story_info), "storyInfo"),
+                createSwitch(R.drawable.ic_search, "#32D74B", getString(R.string.ig_dialog_misc_viewer_search), "storyViewerSearch"),
+                createExtrasSwitch("#32D74B", "hideStoriesTray")
+        ));
+        defs.add(Arrays.asList(
+                upClickable(R.drawable.ic_story_ring, "#32D74B",
+                        getString(R.string.ig_story_tray_size) + "  ·  " + localCache.getInt("storyTrayScale", 100) + "%",
+                        this::chooseStoryTraySize),
+                upClickable(R.drawable.ic_palette, "#32D74B", storyRingColorText(), this::chooseStoryRingColor)
+        ));
+
+        return defs;
+    }
+
+    private List<Object> buildProfilesDefs() {
+        List<Object> defs = new ArrayList<>();
+
+        defs.add(getString(R.string.feat_features));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_content_copy, A_SOCIAL, getString(R.string.ig_profile_menu_tools), "profileMenuTools"),
+                createSwitch(R.drawable.ic_heart, A_SOCIAL, getString(R.string.ig_post_counts_feature), "postCountSpoof"),
+                createSwitch(R.drawable.ic_eye, A_SOCIAL, getString(R.string.ig_profile_spoofer), "profileSpoofer"),
+                profileSpoofItem(),
+                createSwitch(R.drawable.ic_search, A_SOCIAL, getString(R.string.ig_profile_analyzer), "profileAnalyzer"),
+                createSwitch(R.drawable.ic_notification, A_SOCIAL, getString(R.string.ig_confirm_follows), "confirmFollows"),
+                createSwitch(R.drawable.ic_notification, A_SOCIAL, getString(R.string.ig_dialog_misc_profile_follows_label), "profileFollowsYouLabel"),
+                createSwitch(R.drawable.ic_notification, A_SOCIAL, getString(R.string.ig_dialog_fancy_bio_font), "fancyBioFont"),
+                createSwitch(R.drawable.ic_block, A_SOCIAL, getString(R.string.ig_dialog_hide_threads_button), "hideThreadsButton"),
+                createSwitch(R.drawable.ic_download, A_SOCIAL, getString(R.string.ig_dialog_misc_follow_export), "followListExport"),
+                createSwitch(R.drawable.ic_eye, A_SOCIAL, getString(R.string.ig_feat_followers_history), "followersHistory"),
+                createSwitch(R.drawable.ic_save, A_SOCIAL, getString(R.string.ig_saved_on_profile), "savedOnProfile")
+        ));
+
+        return defs;
+    }
+
+    private List<Object> buildAppDefs() {
+        List<Object> defs = new ArrayList<>();
+
+        defs.add(getString(R.string.feat_features));
+        defs.add(Arrays.asList(
+                createExtrasSwitch("#0A84FF", "unlimitedAccounts"),
+                createExtrasSwitch("#0A84FF", "fixNotificationRegistration"),
+                createSwitch(R.drawable.ic_link, "#0A84FF", getString(R.string.ig_dialog_open_links_externally), "openLinksExternally"),
+                upClickable(R.drawable.ic_link, "#0A84FF", shareDomainLabel(), this::showShareDomainDialog)
+        ));
+        // Auto-clear cache (mirrors the in-IG dialog's Tools section).
+        defs.add(getString(R.string.ig_dialog_section_auto_clear_cache));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_timer, "#FF9F0A", getString(R.string.ig_dialog_auto_clear_cache), "autoClearCache"),
+                upClickable(R.drawable.ic_folder, "#FF9F0A",
+                        getString(R.string.ig_dialog_auto_clear_cache_size, localCache.getInt("autoClearCacheSizeMb", 100)),
+                        this::pickAutoClearSize)
+        ));
+
+        return defs;
+    }
+
+    private List<Object> buildLockDefs() {
+        List<Object> defs = new ArrayList<>();
+
+        defs.add(getString(R.string.feat_features));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_shield, "#5E5CE6", getString(R.string.ig_dialog_misc_lock_dms), "lockDirectMessages"),
+                createSwitch(R.drawable.ic_shield, "#5E5CE6", getString(R.string.ig_dialog_misc_lock_dms_always), "lockDirectAlways"),
+                createSwitch(R.drawable.ic_shield, "#5E5CE6", getString(R.string.ig_dialog_misc_lock_whole_app), "lockWholeApp"),
+                createSwitch(R.drawable.ic_shield, "#5E5CE6", getString(R.string.ig_locked_coll_setting), "lockSavedCollections"),
+                createSwitch(R.drawable.ic_shield, "#5E5CE6", getString(R.string.ig_dialog_misc_lock_fingerprint), "lockUseFingerprint")
+        ));
+
+        // The passcode is set from inside Instagram (stored hashed in IG's own prefs), so the app
+        // only points there; tapping opens Instagram.
+        defs.add(Arrays.asList(
+                createTool(R.drawable.ic_shield, "#5E5CE6", getString(R.string.ig_dialog_misc_lock_dms_set),
+                        getString(R.string.lock_code_set_in_ig), this::openInstagram)
+        ));
+
+        return defs;
+    }
+
+    private List<Object> buildHideChatsDefs() {
+        List<Object> defs = new ArrayList<>();
+
+        defs.add(getString(R.string.feat_features));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ig_dialog_misc_hide_chats), "hideSpecificChats"),
+                createSwitch(R.drawable.ic_eye_off, "#5E5CE6", getString(R.string.ie_show_hide_button), "showHideChatButton")
+        ));
+
+        // Note: hiding/unhiding a specific chat is done from inside Instagram.
+
+        return defs;
+    }
+
+    private List<Object> buildPostMenuDefs() {
+        List<Object> defs = new ArrayList<>();
+
+        defs.add(getString(R.string.feat_features));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_link, "#FF9F0A", getString(R.string.ig_dialog_downloader_copy_link), "copyMediaLink"),
+                createSwitch(R.drawable.ic_content_copy, "#FF9F0A", getString(R.string.ig_dialog_downloader_offer_copy_image), "offerCopyImage"),
+                createSwitch(R.drawable.ic_search, "#FF9F0A", getString(R.string.ig_dialog_downloader_offer_media_info), "offerMediaInfo")
+        ));
+        defs.add(getString(R.string.feat_options));
+        defs.add(Arrays.asList(
+                createSwitch(R.drawable.ic_upload, "#FF9F0A", getString(R.string.ig_dialog_misc_upload_instants), "uploadInstants")
+        ));
+
+        return defs;
+    }
+    private void putIntPref(String key, int value) {
+        SharedPreferences.Editor ed = localCache.edit();
+        ed.putInt(key, value);
+        long updatedAt = touchAndFlush(ed);
+        makeLocalCacheWorldReadable();
+        sendIntPref(key, value, updatedAt);
+    }
+
+    private void putStringPref(String key, String value) {
+        SharedPreferences.Editor ed = localCache.edit();
+        ed.putString(key, value);
+        long updatedAt = touchAndFlush(ed);
+        makeLocalCacheWorldReadable();
+        sendStringPref(key, value, updatedAt);
+    }
+
+    private void putBoolPref(String key, boolean value) {
+        stagedChanges.remove(key);
+        SharedPreferences.Editor ed = localCache.edit();
+        ed.putBoolean(key, value);
+        long updatedAt = touchAndFlush(ed);
+        makeLocalCacheWorldReadable();
+        sendBoolPref(key, value, updatedAt);
+    }
+
+
+    /** The open spoofer editor, so a picked photo lands in it. */
+    private ps.reso.instaeclipse.utils.dialog.ProfileSpoofEditor profileSpoofEditor;
+
+    /** Picked photo: downscaled, JPEG, Base64 (SpoofAvatar), into the open editor; saved with it. */
+    private void onProfilePhotoPicked(Uri uri) {
+        if (uri == null || !isAdded()) return;
+        Context app = requireContext().getApplicationContext();
+        new Thread(() -> {
+            String b64 = ps.reso.instaeclipse.utils.profile.SpoofAvatar.encode(app.getContentResolver(), uri);
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                if (b64 == null) {
+                    ps.reso.instaeclipse.utils.toast.IeToast.makeText(app,
+                            app.getString(R.string.ig_profile_spoofer_photo_failed), Toast.LENGTH_SHORT).show();
+                } else if (profileSpoofEditor != null) {
+                    profileSpoofEditor.setAvatar(b64);
+                }
+            });
+        }, "IE-ProfilePhoto").start();
+    }
+    private ActivityResultLauncher<String> profilePhotoLauncher;
+
 }

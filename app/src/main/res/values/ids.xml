@@ -4,4 +4,6 @@
     <item name="tag_module_root_tracked" type="id" />
     <item name="tag_theme_layout_listener" type="id" />
     <item name="tag_theme_sweep_gen" type="id" />
+    <item name="ie_follows_you_tag" type="id" />
+    <item name="ie_fancy_font" type="id" />
 </resources>

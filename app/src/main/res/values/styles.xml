@@ -214,4 +214,15 @@
         <item name="android:padding">20dp</item>
         <item name="android:textAppearance">?attr/textAppearanceTitleMedium</item>
     </style>
+    <style name="IeSectionLabel" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:textColor">?attr/colorPrimary</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.06</item>
+        <item name="android:textAllCaps">true</item>
+    </style>
+    <style name="IeHairline">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">1dp</item>
+        <item name="android:background">?attr/colorOutlineVariant</item>
+    </style>
 </resources>

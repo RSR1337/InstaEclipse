@@ -23,8 +23,8 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
+import ps.reso.instaeclipse.xposedcompat.XC_MethodHook;
+import ps.reso.instaeclipse.xposedcompat.XposedBridge;
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.utils.core.ViewAttachDispatcher;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
@@ -46,7 +46,8 @@ public class VoiceDownloadHook {
     private static final String[] AUDIO_URL_METHODS = {
             "BQp", "BQO", "Bfd", "C79",
             "BTm", "Bij", "CB7",
-            "BUR", "Bja", "CCC"
+            "BUR", "Bja", "CCC",
+            "BVe", "Bls", "CFB"
     };
 
     private static final long CAPTURE_FRESHNESS_MS = 30_000;

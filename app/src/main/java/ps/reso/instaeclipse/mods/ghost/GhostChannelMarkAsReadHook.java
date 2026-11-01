@@ -28,22 +28,13 @@ public class GhostChannelMarkAsReadHook {
 
                 Context context = view.getContext();
 
-                if (sCachedSeenStateId == 0) {
-                    @SuppressLint("DiscouragedApi")
-                    int id = context.getResources().getIdentifier(
-                            "seen_state_text", "id", context.getPackageName());
-                    sCachedSeenStateId = id;
-                }
+                    // Cached, including "not found" (a miss used to be looked up on every attach).
+                    sCachedSeenStateId = ps.reso.instaeclipse.utils.ui.ResIds.id(context, "seen_state_text");
 
                 if (sCachedSeenStateId == 0 || view.getId() != sCachedSeenStateId) return;
                 if (!(view instanceof TextView seenTextView)) return;
 
-                if (sCachedHeaderButtonsId == 0) {
-                    @SuppressLint("DiscouragedApi")
-                    int id = context.getResources().getIdentifier(
-                            "header_right_buttons", "id", context.getPackageName());
-                    sCachedHeaderButtonsId = id;
-                }
+                    sCachedHeaderButtonsId = ps.reso.instaeclipse.utils.ui.ResIds.id(context, "header_right_buttons");
 
                 if (sCachedHeaderButtonsId != 0) {
                     View container = view.getRootView().findViewById(sCachedHeaderButtonsId);
@@ -103,7 +94,7 @@ public class GhostChannelMarkAsReadHook {
                 view.postDelayed(() -> {
                     group.scrollBy(0, 300);
                     FeatureFlags.isGhostSeen = true;
-                    Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_channel_seen_sent), Toast.LENGTH_SHORT).show();
+                    ps.reso.instaeclipse.utils.toast.IeToast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_channel_seen_sent), Toast.LENGTH_SHORT).show();
                 }, 400);
             }
         } catch (Exception e) {

@@ -10,8 +10,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.List;
 
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
+import ps.reso.instaeclipse.xposedcompat.XC_MethodHook;
+import ps.reso.instaeclipse.xposedcompat.XposedBridge;
 import ps.reso.instaeclipse.Xposed.Module;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
@@ -24,7 +24,7 @@ public class GhostTypingIndicatorHook {
     public void handleTypingBlock(DexKitBridge bridge) {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
-            protected void beforeHookedMethod(MethodHookParam param) {
+            protected void beforeHookedMethod(MethodHookParam param) { ps.reso.instaeclipse.utils.core.JitGuard.tick(param.method);
                 if (FeatureFlags.isGhostTyping) param.setResult(null);
             }
         };
@@ -51,6 +51,7 @@ public class GhostTypingIndicatorHook {
 
             if (methods.isEmpty()) {
                 ModuleLog.line("(InstaEclipse | TypingBlock): ❌ No methods found containing 'is_typing_indicator_enabled'");
+                if (FeatureFlags.isGhostTyping) FeatureStatusTracker.setBroken("GhostTyping");
                 return;
             }
 
@@ -103,6 +104,7 @@ public class GhostTypingIndicatorHook {
             }
 
             ModuleLog.line("(InstaEclipse | TypingBlock): ❌ No candidate matched the expected method shape");
+            if (FeatureFlags.isGhostTyping) FeatureStatusTracker.setBroken("GhostTyping");
 
         } catch (Throwable t) {
             ModuleLog.line("(InstaEclipse | TypingBlock): ❌ Exception: " + t.getMessage());

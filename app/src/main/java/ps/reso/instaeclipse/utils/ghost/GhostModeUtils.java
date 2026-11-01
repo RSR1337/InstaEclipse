@@ -20,7 +20,6 @@ public class GhostModeUtils {
         if (FeatureFlags.quickToggleStory && FeatureFlags.isGhostStory) return true;
         if (FeatureFlags.quickToggleLive && FeatureFlags.isGhostLive) return true;
         if (FeatureFlags.quickToggleEphemeral && FeatureFlags.keepEphemeralMessages) return true;
-        if (FeatureFlags.quickToggleReplays && FeatureFlags.enableUnlimitedReplays) return true;
         if (FeatureFlags.quickTogglePermanentView && FeatureFlags.permanentViewMode) return true;
         return FeatureFlags.quickToggleAllowScreenshots && FeatureFlags.allowScreenshots;
     }
@@ -39,8 +38,8 @@ public class GhostModeUtils {
             if (activity != null) {
                 GhostEmojiManager.addGhostEmojiNextToInbox(activity, false);
             }
-            Toast.makeText(context, "❗ " + I18n.t(context, R.string.ig_toast_ghost_no_options), Toast.LENGTH_SHORT).show();
-            return;
+            ps.reso.instaeclipse.utils.toast.IeToast.makeText(context, "❗ " + I18n.t(context, R.string.ig_toast_ghost_no_options), Toast.LENGTH_SHORT).show();
+            return; // Nothing to do
         }
 
         boolean newState = !isGhostModeActive();
@@ -52,7 +51,6 @@ public class GhostModeUtils {
         if (FeatureFlags.quickToggleStory) FeatureFlags.isGhostStory = newState;
         if (FeatureFlags.quickToggleLive) FeatureFlags.isGhostLive = newState;
         if (FeatureFlags.quickToggleEphemeral) FeatureFlags.keepEphemeralMessages = newState;
-        if (FeatureFlags.quickToggleReplays) FeatureFlags.enableUnlimitedReplays = newState;
         if (FeatureFlags.quickTogglePermanentView) FeatureFlags.permanentViewMode = newState;
         if (FeatureFlags.quickToggleAllowScreenshots) FeatureFlags.allowScreenshots = newState;
 
@@ -64,9 +62,9 @@ public class GhostModeUtils {
         }
 
         if (newState) {
-            Toast.makeText(context, "👻 " + I18n.t(context, R.string.ig_toast_ghost_enabled), Toast.LENGTH_SHORT).show();
+            ps.reso.instaeclipse.utils.toast.IeToast.makeText(context, "👻 " + I18n.t(context, R.string.ig_toast_ghost_enabled), Toast.LENGTH_SHORT).show();
         } else {
-            Toast.makeText(context, "❌ " + I18n.t(context, R.string.ig_toast_ghost_disabled), Toast.LENGTH_SHORT).show();
+            ps.reso.instaeclipse.utils.toast.IeToast.makeText(context, "❌ " + I18n.t(context, R.string.ig_toast_ghost_disabled), Toast.LENGTH_SHORT).show();
         }
     }
 }

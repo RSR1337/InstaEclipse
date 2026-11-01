@@ -1,5 +1,6 @@
 package ps.reso.instaeclipse.mods.devops;
 
+import ps.reso.instaeclipse.utils.core.DexKitQueryCache;
 import org.luckypray.dexkit.DexKitBridge;
 import org.luckypray.dexkit.query.FindClass;
 import org.luckypray.dexkit.query.FindMethod;
@@ -15,9 +16,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
+import ps.reso.instaeclipse.xposedcompat.XC_MethodHook;
+import ps.reso.instaeclipse.xposedcompat.XposedBridge;
+import ps.reso.instaeclipse.xposedcompat.XposedHelpers;
 import ps.reso.instaeclipse.Xposed.Module;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
@@ -162,7 +163,7 @@ public class DevOptionsUnlockHook {
                 if (candidate.getOpCodes().size() > MAX_GATE_OPCODES) continue;
 
                 Set<String> callerClasses = new HashSet<>();
-                for (MethodData caller : candidate.getCallers()) {
+                for (MethodData caller : DexKitQueryCache.callers(bridge, candidate)) {
                     callerClasses.add(caller.getClassName());
                 }
                 if (callerClasses.size() > bestFanIn) {
@@ -242,7 +243,7 @@ public class DevOptionsUnlockHook {
                     }
                 }
             };
-            for (Method m : clazz.getDeclaredMethods()) {
+            for (Method m : ps.reso.instaeclipse.utils.core.SafeReflect.methods(clazz)) {
                 if (m.getReturnType() != boolean.class) continue;
                 Class<?>[] params = m.getParameterTypes();
                 if (params.length != 1) continue;

@@ -1,5 +1,7 @@
 package ps.reso.instaeclipse.mods.media;
 
+import java.io.OutputStream;
+import ps.reso.instaeclipse.utils.core.DexKitQueryCache;
 import android.app.Activity;
 import android.content.Context;
 import android.view.View;
@@ -21,8 +23,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
+import ps.reso.instaeclipse.xposedcompat.XC_MethodHook;
+import ps.reso.instaeclipse.xposedcompat.XposedBridge;
 import ps.reso.instaeclipse.R;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
@@ -254,29 +256,40 @@ public class ReelDownloadHook {
 
     private static void installReduceOptionsListPatch(DexKitBridge bridge, ClassLoader classLoader) {
         try {
+            Object copyLinkOption = null, infoOption = null, speedOption = null;
             Class<?> optionClass = classLoader.loadClass("com.instagram.feed.media.mediaoption.MediaOption$Option");
             for (Object v : (Object[]) optionClass.getMethod("values").invoke(null)) {
-                if (v.toString().equals("DOWNLOAD")) {
-                    downloadOptionValue = v;
-                    break;
-                }
+                String n = v.toString();
+                if (n.equals("DOWNLOAD")) downloadOptionValue = v;
+                else if (n.equals("COPY_LINK")) copyLinkOption = v;
+                else if (n.equals(PostDownloadContextMenuHook.MEDIA_INFO_CARRIER)) infoOption = v;
+                else if (n.equals(PostDownloadContextMenuHook.SPEED_CARRIER)) speedOption = v;
             }
-            if (downloadOptionValue == null) {
-                ModuleLog.line("(IE|Reel) ❌ DOWNLOAD enum value not found");
+            if (downloadOptionValue == null && copyLinkOption == null) {
+                ModuleLog.line("(IE|Reel) ❌ DOWNLOAD/COPY_LINK enum values not found");
                 return;
             }
             final Object download = downloadOptionValue;
+            final Object copyLink = copyLinkOption;
+            final Object info = infoOption, speedRow = speedOption;
 
             XC_MethodHook hook = new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
-                    if (!FeatureFlags.enableReelDownload) return;
+                    boolean wantDl = FeatureFlags.enableReelDownload && download != null;
+                    boolean wantCl = FeatureFlags.copyMediaLink && copyLink != null;
+                    boolean wantInfo = FeatureFlags.offerMediaInfo && info != null;
+                    boolean wantSpeed = FeatureFlags.offerPlaybackSpeed && speedRow != null;
+                    if (!wantDl && !wantCl && !wantInfo && !wantSpeed) return;
                     try {
                         Object result = param.getResult();
-                        if (result instanceof List<?> list && !list.contains(download)) {
+                        if (result instanceof List<?> list) {
                             @SuppressWarnings("unchecked")
                             List<Object> mutable = (List<Object>) list;
-                            mutable.add(download);
+                            if (wantDl && !mutable.contains(download)) mutable.add(download);
+                            if (wantCl && !mutable.contains(copyLink)) mutable.add(copyLink);
+                            if (wantInfo && !mutable.contains(info)) mutable.add(info);
+                            if (wantSpeed && !mutable.contains(speedRow)) mutable.add(speedRow);
                         }
                     } catch (Throwable t) {
                         ModuleLog.line("(IE|Reel) ❌ options-list patch failed: " + t);
@@ -704,6 +717,10 @@ public class ReelDownloadHook {
     }
 
     private static void startReelDownload(Context ctx, Object media, Object controller) {
+        if (SelectedMediaDownloads.preferred()) {
+            SelectedMediaDownloads.captureAndShowPost(ctx, media, "reel");
+            return;
+        }
         String username = FeedVideoDownloadHook.extractUsernameFromMediaObject(media);
         if (username == null) username = "reel";
 

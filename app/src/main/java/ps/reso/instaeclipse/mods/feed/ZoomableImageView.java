@@ -9,8 +9,13 @@ import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.widget.ImageView;
 
-
-class ZoomableImageView extends ImageView {
+/**
+ * Self-contained pinch-to-zoom + pan + double-tap-to-reset image view, used to show a
+ * feed photo full-screen without navigating away (issue #174). Standard
+ * ScaleGestureDetector/Matrix pattern; no Instagram internals involved.
+ */
+@android.annotation.SuppressLint("AppCompatCustomView") // runs inside Instagram
+public class ZoomableImageView extends ImageView {
 
     private static final float MIN_SCALE = 1f;
     private static final float MAX_SCALE = 5f;
@@ -24,7 +29,7 @@ class ZoomableImageView extends ImageView {
     private final GestureDetector gestureDetector;
     private Runnable onDismissRequest;
 
-    ZoomableImageView(Context ctx) {
+    public ZoomableImageView(Context ctx) {
         super(ctx);
         setScaleType(ScaleType.MATRIX);
         setClickable(true);
@@ -65,8 +70,15 @@ class ZoomableImageView extends ImageView {
         });
     }
 
-    void setOnDismissRequest(Runnable r) {
+    public void setOnDismissRequest(Runnable r) {
         this.onDismissRequest = r;
+    }
+
+    /** Also fits an image that arrives after layout (loaded in the background). */
+    @Override
+    public void setImageBitmap(android.graphics.Bitmap bm) {
+        super.setImageBitmap(bm);
+        post(this::resetZoom);
     }
 
     private static float clamp(float s) {

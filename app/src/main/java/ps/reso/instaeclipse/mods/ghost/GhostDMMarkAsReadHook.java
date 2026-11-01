@@ -2,7 +2,6 @@ package ps.reso.instaeclipse.mods.ghost;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
-import android.content.res.XModuleResources;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.view.Gravity;
@@ -59,7 +58,7 @@ public class GhostDMMarkAsReadHook {
         ghostBtn.setTag(GHOST_BTN_TAG);
 
         try {
-            @SuppressLint("UseCompatLoadingForDrawables") Drawable icon = XModuleResources.createInstance(moduleSourceDir, null)
+            @SuppressLint("UseCompatLoadingForDrawables") Drawable icon = ps.reso.instaeclipse.xposedcompat.ModuleResources.get()
                     .getDrawable(R.drawable.ic_eye, null);
             ghostBtn.setImageDrawable(icon);
         } catch (Exception e) {
@@ -102,7 +101,7 @@ public class GhostDMMarkAsReadHook {
                 view.postDelayed(() -> {
                     group.scrollBy(0, 200);
                     FeatureFlags.isGhostSeen = true;
-                    Toast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_seen_sent), Toast.LENGTH_SHORT).show();
+                    ps.reso.instaeclipse.utils.toast.IeToast.makeText(ctx, I18n.t(ctx, R.string.ig_toast_seen_sent), Toast.LENGTH_SHORT).show();
                 }, 300);
             }
         } catch (Exception e) {

@@ -73,6 +73,30 @@ public final class IgThemeEngine {
 
     private IgThemeEngine() {}
 
+    public static int accentOr(int fallback) {
+        try {
+            if (!isActive()) return fallback;
+            IgThemePalette p = getActivePalette();
+            return p != null ? (p.get(IgThemePalette.SLOT_ACCENT) | 0xFF000000) : fallback;
+        } catch (Throwable t) {
+            return fallback;
+        }
+    }
+
+    public static boolean isNightNow() {
+        try {
+            android.content.Context c = ps.reso.instaeclipse.mods.ui.UIHookManager.getCurrentActivity();
+            if (c == null) c = ps.reso.instaeclipse.xposedcompat.AndroidAppHelper.currentApplication();
+            android.content.res.Configuration cfg = c != null
+                    ? c.getResources().getConfiguration()
+                    : Resources.getSystem().getConfiguration();
+            return (cfg.uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                    == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     public static boolean isActive() {
         return FeatureFlags.customThemeEnabled && !IgColorRemapEngine.isBypassing();
     }

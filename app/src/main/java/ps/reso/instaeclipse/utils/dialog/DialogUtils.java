@@ -78,6 +78,11 @@ public class DialogUtils {
     private static Runnable currentScreen;
     private static int pendingDirection;
     private static final ArrayDeque<Runnable> backStack = new ArrayDeque<>();
+    private static final ArrayDeque<Runnable[]> screenExtras = new ArrayDeque<>();
+    private static Runnable currentOnSave;
+    private static Runnable currentBackTarget;
+    private static String currentTitle;
+    private static boolean buildingScreen;
     private static int sectionAccent = FeatureAccents.color(EclipseAccents.PRIMARY);
     private static int sectionIcon = R.drawable.ic_ie_sliders;
     private static android.content.res.Resources moduleRes;
@@ -109,15 +114,63 @@ public class DialogUtils {
         openScreen(() -> showMainMenu(context));
     }
 
+    public static void showThreadUnsent(Context context, String threadId) {
+        IeMenu.showThreadUnsent(context, threadId);
+    }
+
+    public static void showThreadUnsent(Context context, String threadId, String chatName) {
+        IeMenu.showThreadUnsent(context, threadId, chatName);
+    }
+
+    public static void showThreadUnsent(Context context, String threadId, String chatName, Runnable onBack) {
+        IeMenu.showThreadUnsent(context, threadId, chatName, onBack);
+    }
+
+    public static Drawable moduleIcon(int iconRes, int tintColor) {
+        return IeMenu.moduleIcon(iconRes, tintColor);
+    }
+
+    public static int parseSpoofCount(String s) {
+        return IeMenu.parseSpoofCount(s);
+    }
+
     public static void showSimpleDialog(Context context, String title, String message) {
         showConfirmDialog(context, title, message, I18n.t(context, R.string.ig_dialog_ok), null, false, null, null);
     }
 
     private static void openScreen(Runnable screen) {
-        if (currentScreen != null) backStack.push(currentScreen);
+        if (currentScreen != null) pushCurrentScreen();
         currentScreen = screen;
+        currentOnSave = null;
+        currentBackTarget = null;
         pendingDirection = currentDialog != null ? 1 : 0;
-        IgColorRemapEngine.withBypass(screen);
+        runScreen(screen);
+    }
+
+    private static void pushCurrentScreen() {
+        backStack.push(currentScreen);
+        screenExtras.push(new Runnable[]{currentOnSave, currentBackTarget});
+    }
+
+    private static void runScreen(Runnable screen) {
+        boolean outer = buildingScreen;
+        buildingScreen = true;
+        try {
+            IgColorRemapEngine.withBypass(screen);
+        } finally {
+            buildingScreen = outer;
+        }
+    }
+
+    private static void runOnSave() {
+        Runnable save = currentOnSave;
+        currentOnSave = null;
+        if (save == null) return;
+        try {
+            save.run();
+        } catch (Throwable t) {
+            ModuleLog.line("(InstaEclipse | Menu) save failed: " + t);
+        }
     }
 
     private static Runnable navTo(Runnable screen) {
@@ -125,14 +178,20 @@ public class DialogUtils {
     }
 
     private static void navigateBack() {
+        runOnSave();
         SettingsManager.saveAllFlags();
+        Runnable backTarget = currentBackTarget;
         if (backStack.isEmpty()) {
             dismissSheet();
+            if (backTarget != null) backTarget.run();
             return;
         }
         currentScreen = backStack.pop();
+        Runnable[] extras = screenExtras.isEmpty() ? new Runnable[2] : screenExtras.pop();
+        currentOnSave = extras[0];
+        currentBackTarget = extras[1];
         pendingDirection = -1;
-        IgColorRemapEngine.withBypass(currentScreen);
+        runScreen(currentScreen);
     }
 
     private static void dismissSheet() {
@@ -144,9 +203,16 @@ public class DialogUtils {
     }
 
     private static void resetNavigation() {
+        runOnSave();
+        while (!screenExtras.isEmpty()) {
+            currentOnSave = screenExtras.pop()[0];
+            runOnSave();
+        }
         currentDialog = null;
         sheetHost = null;
         currentScreen = null;
+        currentBackTarget = null;
+        currentTitle = null;
         pendingDirection = 0;
         backStack.clear();
     }
@@ -404,11 +470,45 @@ public class DialogUtils {
                 createCategoryTile(context, p, R.drawable.ic_ie_palette, I18n.t(context, R.string.theme_customize), null,
                         new boolean[]{FeatureFlags.customThemeEnabled}, FeatureAccents.color(FeatureAccents.THEME),
                         () -> openThemeCustomizer(context)));
+        addTileRow(context, grid,
+                ieTile(context, p, R.drawable.ic_ie_bubble, R.string.menu_messages, FeatureAccents.GHOST, "messages",
+                        "keepUnsentMessages", "keepEditHistory", "jumpToFirstMessage", "confirmCalls", "translateMessages",
+                        "bulkUnsend", "chatExport", "hideNotesTray", "hideDmSuggestions", "hideDmBlend", "hideShareCreateGroup"),
+                ieTile(context, p, R.drawable.ic_ie_eye_off, R.string.ig_hide_chats_title, FeatureAccents.GHOST, "hidechats",
+                        "hideSpecificChats"));
+        addTileRow(context, grid,
+                ieTile(context, p, R.drawable.ic_ie_lock, R.string.ig_dialog_misc_lock_section, FeatureAccents.ADS, "lock",
+                        "lockDirectMessages", "lockWholeApp", "lockSavedCollections", "lockUseFingerprint"),
+                ieTile(context, p, R.drawable.ic_ie_compass, R.string.menu_navigation, FeatureAccents.DISTRACTION, "navigation",
+                        "hideTabHome", "hideTabReels", "hideTabCreate", "hideTabMessages", "hideTabActivity", "hideTabProfile",
+                        "disableSwipeToCamera", "backLeavesHome"));
+        addTileRow(context, grid,
+                ieTile(context, p, R.drawable.ic_ie_reels, R.string.menu_reels, FeatureAccents.QUALITY, "reels",
+                        "reelsAutoScroll", "reelsLockScroll", "forceReelScrubber", "holdLeftSlowMotion", "offerPlaybackSpeed"),
+                ieTile(context, p, R.drawable.ic_ie_story, R.string.menu_stories, FeatureAccents.MISC, "stories",
+                        "storyLinks", "storyInfo", "storyViewerSearch", "hideStoriesTray"));
+        addTileRow(context, grid,
+                ieTile(context, p, R.drawable.ic_ie_eye, R.string.menu_profiles, FeatureAccents.MISC, "profiles",
+                        "profileMenuTools", "postCountSpoof", "profileSpoofer", "profileAnalyzer", "confirmFollows",
+                        "profileFollowsYouLabel", "fancyBioFont", "followListExport", "followersHistory", "savedOnProfile",
+                        "hideThreadsButton"),
+                ieTile(context, p, R.drawable.ic_ie_copy, R.string.menu_post_menu, FeatureAccents.DOWNLOADER, "postmenu",
+                        "copyMediaLink", "offerCopyImage", "offerMediaInfo", "uploadInstants"));
+        addTileRow(context, grid,
+                ieTile(context, p, R.drawable.ic_ie_smartphone, R.string.menu_app, FeatureAccents.TOOLS, "app",
+                        "unlimitedAccounts", "fixNotificationRegistration", "openLinksExternally"),
+                ieTile(context, p, R.drawable.ic_ie_brush, R.string.theme_section_fonts, FeatureAccents.THEME, "fonts",
+                        "customFontEnabled", "customEmojiEnabled"));
         body.addView(grid);
 
         String iconStyle = I18n.t(context, FeatureFlags.colorfulFeatureIcons
                 ? R.string.ig_dialog_icon_style_colorful : R.string.ig_dialog_icon_style_yellow);
         LinearLayout tools = addCard(context, p, body, I18n.t(context, R.string.feat_tools));
+        tools.addView(createMenuRow(context, p, R.drawable.ic_ie_check, I18n.t(context, R.string.ig_dialog_menu_feature_status),
+                healthSummary(context), FeatureAccents.color(FeatureAccents.VERIFY), () -> showHealth(context)));
+        tools.addView(createMenuRow(context, p, R.drawable.ic_ie_timer, I18n.t(context, R.string.ig_dialog_section_auto_clear_cache),
+                null,
+                FeatureAccents.color(FeatureAccents.TOOLS), navTo(() -> IeMenu.openSection(context, "autoclear"))));
         tools.addView(createMenuRow(context, p, R.drawable.ic_ie_brush, I18n.t(context, R.string.ig_dialog_icon_style), iconStyle,
                 FeatureAccents.color(FeatureAccents.THEME), navTo(() -> showIconStyleOptions(context))));
         tools.addView(createMenuRow(context, p, R.drawable.ic_ie_archive, I18n.t(context, R.string.ig_dialog_menu_backup_restore), null,
@@ -626,7 +726,7 @@ public class DialogUtils {
                     importIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     importIntent.putExtra("target_package", context.getPackageName());
                     try {
-                        instagramActivity.startActivity(importIntent);
+                        ps.reso.instaeclipse.utils.ipc.CompanionBridge.launchActivity(instagramActivity, importIntent);
                     } catch (Exception e) {
                         ModuleLog.line("InstaEclipse | ❌ Failed to start JsonImportActivity: " + e.getMessage());
                         showSimpleDialog(context, I18n.t(context, R.string.ig_dialog_error), I18n.t(context, R.string.ig_dialog_unable_open_ui));
@@ -654,7 +754,7 @@ public class DialogUtils {
                         exportIntent.setComponent(new ComponentName("ps.reso.instaeclipse", "ps.reso.instaeclipse.mods.devops.config.JsonExportActivity"));
                         exportIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                         exportIntent.putExtra("json_content", sb.toString().trim());
-                        instagramActivity.startActivity(exportIntent);
+                        ps.reso.instaeclipse.utils.ipc.CompanionBridge.launchActivity(instagramActivity, exportIntent);
                     } catch (Exception e) {
                         showSimpleDialog(context, I18n.t(context, R.string.ig_dialog_error), I18n.t(context, R.string.ig_dialog_failed_read_config, e.getMessage()));
                     }
@@ -713,6 +813,10 @@ public class DialogUtils {
             }
         }, DialogUtils::refreshGhostEmoji);
         addToggleCard(context, p, body, I18n.t(context, R.string.feat_options), master, rows);
+
+        addToggleCard(context, p, body, I18n.t(context, R.string.feat_more), null,
+                flagRow(context, R.drawable.ic_ie_eye, R.string.ig_dialog_ghost_read_receipt_chats, "readReceiptChats"),
+                extraRow(context, "airplaneMode"));
 
         addCard(context, p, body, null).addView(
                 createActionRow(context, R.drawable.ic_ie_zap, I18n.t(context, R.string.ig_dialog_customize_quick_toggle),
@@ -779,6 +883,8 @@ public class DialogUtils {
             }
         }, null);
         addToggleCard(context, p, body, I18n.t(context, R.string.feat_features), master, rows);
+        addToggleCard(context, p, body, I18n.t(context, R.string.feat_more), null,
+                flagRow(context, R.drawable.ic_ie_search, R.string.ig_disable_search_history, "disableSearchHistory"));
 
         presentSection(context, I18n.t(context, R.string.ig_dialog_section_ad_analytics), body);
     }
@@ -800,7 +906,24 @@ public class DialogUtils {
             SettingsManager.saveAllFlags();
         });
 
-        addToggleCard(context, p, body, I18n.t(context, R.string.feat_features), null, hideSuggested, hideThreads);
+        addToggleCard(context, p, body, I18n.t(context, R.string.feat_features), null, hideSuggested, hideThreads,
+                flagRow(context, R.drawable.ic_sparkle, R.string.ig_dialog_clean_feed_hide_liked, "hideLikedPosts"),
+                flagRow(context, R.drawable.ic_sparkle, R.string.ig_dialog_clean_feed_hide_community_notes, "hideCommunityNotes"),
+                flagRow(context, R.drawable.ic_sparkle, R.string.ig_dialog_clean_feed_following_only, "followingOnlyFeed"));
+
+        View timestampFormat = IeMenu.timestampFormatRow(context);
+        ToggleRow exactTimestamps = createSwitch(context, R.drawable.ic_timer, I18n.t(context, R.string.ig_dialog_misc_exact_timestamps), FeatureFlags.exactTimestamps);
+        exactTimestamps.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            FeatureFlags.exactTimestamps = isChecked;
+            SettingsManager.saveAllFlags();
+            IeMenu.refreshTimestampFormatRow(timestampFormat);
+        });
+        addToggleCard(context, p, body, I18n.t(context, R.string.feat_options), null,
+                flagRow(context, R.drawable.ic_sparkle, R.string.ig_dialog_clean_feed_expand_captions, "expandCaptions"),
+                exactTimestamps,
+                timestampFormat,
+                flagRow(context, R.drawable.ic_restart, R.string.ig_confirm_refresh, "confirmFeedRefresh"),
+                IeMenu.feedCornerRow(context));
 
         presentSection(context, I18n.t(context, R.string.ig_dialog_section_clean_feed), body);
     }
@@ -891,6 +1014,11 @@ public class DialogUtils {
         addSpacer(context, body, 12);
         body.addView(extreme);
         addToggleCard(context, p, body, I18n.t(context, R.string.feat_features), master, rows);
+        addToggleCard(context, p, body, I18n.t(context, R.string.feat_more), null,
+                flagRow(context, R.drawable.ic_sparkle, R.string.ig_dialog_misc_remove_meta_ai, "removeMetaAI"),
+                extraRow(context, "hideOnboardingPrompts"),
+                flagRow(context, R.drawable.ic_sparkle, R.string.ig_dialog_clean_feed_hide_plus, "hidePlusUpsells"),
+                flagRow(context, R.drawable.ic_block, R.string.ig_hide_instants, "hideInstants"));
 
         presentSection(context, I18n.t(context, R.string.ig_dialog_section_distraction_free), body);
     }
@@ -939,6 +1067,10 @@ public class DialogUtils {
         addToggleCard(context, p, body, I18n.t(context, R.string.feat_group_interactions), null, rows[4], rows[5], rows[6], rows[7], rows[8]);
         addToggleCard(context, p, body, I18n.t(context, R.string.feat_group_notifications), null, rows[9], rows[10]);
         addToggleCard(context, p, body, I18n.t(context, R.string.feat_group_privacy), null, rows[11]);
+        addToggleCard(context, p, body, I18n.t(context, R.string.feat_more), null,
+                flagRow(context, R.drawable.ic_heart, R.string.ig_dialog_misc_like_undo, "likeUndo"),
+                flagRow(context, R.drawable.ic_heart, R.string.ig_confirm_likes, "confirmLikes"),
+                flagRow(context, R.drawable.ic_search, R.string.ig_dialog_misc_comment_search, "commentSearch"));
 
         presentSection(context, I18n.t(context, R.string.ig_dialog_section_misc), body);
     }
@@ -1009,6 +1141,13 @@ public class DialogUtils {
             card.addView(rows[i]);
         }
 
+        LinearLayout more = addCard(context, p, body, I18n.t(context, R.string.feat_more));
+        more.addView(extraRow(context, "highResolutionImages"));
+        more.addView(flagRow(context, R.drawable.ic_upload, R.string.ig_dialog_max_upload_quality, "maxUploadQuality"));
+        more.addView(createActionRow(context, R.drawable.ic_movie, IeMenu.spoofDeviceLabel(context),
+                null, accentColor(), false,
+                () -> IeMenu.showSpoofDeviceDialog(context, null, () -> runScreen(currentScreen))));
+
         presentSection(context, I18n.t(context, R.string.ig_dialog_section_quality), body);
     }
 
@@ -1075,6 +1214,24 @@ public class DialogUtils {
         });
         addCard(context, p, body, I18n.t(context, R.string.feat_options)).addView(batchSwitch);
 
+        LinearLayout more = addCard(context, p, body, I18n.t(context, R.string.feat_more));
+        more.addView(flagRow(context, R.drawable.ic_download, R.string.ig_dialog_downloader_stickers, "enableStickerDownload"));
+        more.addView(flagRow(context, R.drawable.ic_download, R.string.ig_dialog_downloader_dm_media, "enableDmMediaDownload"));
+        more.addView(flagRow(context, R.drawable.ic_download, R.string.ig_dialog_downloader_offer_audio, "offerAudioDownload"));
+        more.addView(flagRow(context, R.drawable.ic_download, R.string.ig_dialog_misc_save_instants, "saveInstants"));
+        more.addView(flagRow(context, R.drawable.ic_download, R.string.ig_dialog_misc_cache_stories, "cacheStories"));
+        more.addView(createActionRow(context, R.drawable.ic_eye, I18n.t(context, R.string.ig_story_cache_view), null,
+                accentColor(), true, navTo(() -> IeMenu.openSection(context, "cachedstories"))));
+
+        LinearLayout quality = addCard(context, p, body, I18n.t(context, R.string.menu_quality));
+        quality.addView(createActionRow(context, R.drawable.ic_download, I18n.t(context, R.string.ie_download_quality),
+                IeMenu.downloadModeLabel(context), accentColor(), false,
+                () -> IeMenu.showDownloadQuality(context, null, () -> runScreen(currentScreen))));
+        if (!FeatureFlags.downloaderUseOriginal) {
+            quality.addView(flagRow(context, R.drawable.ic_tune, R.string.ie_download_compatibility, "downloaderCompatibility"));
+            quality.addView(flagRow(context, R.drawable.ic_download, R.string.ie_download_fallback, "downloaderAllowFallback"));
+        }
+
         presentSection(context, I18n.t(context, R.string.ig_dialog_section_downloader), body);
     }
 
@@ -1126,7 +1283,7 @@ public class DialogUtils {
                         exportIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                         exportIntent.putExtra("json_content", json);
                         exportIntent.putExtra("file_name", "instaeclipse_settings.json");
-                        instagramActivity.startActivity(exportIntent);
+                        ps.reso.instaeclipse.utils.ipc.CompanionBridge.launchActivity(instagramActivity, exportIntent);
                     } catch (Exception e) {
                         showSimpleDialog(context, I18n.t(context, R.string.ig_dialog_error), I18n.t(context, R.string.ig_dialog_backup_failed, e.getMessage()));
                     }
@@ -1144,7 +1301,21 @@ public class DialogUtils {
                     importIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     importIntent.putExtra("target_package", context.getPackageName());
                     importIntent.putExtra("broadcast_action", "ps.reso.instaeclipse.ACTION_RESTORE_SETTINGS");
-                    instagramActivity.startActivity(importIntent);
+                    ps.reso.instaeclipse.utils.ipc.CompanionBridge.launchActivity(instagramActivity, importIntent);
+                }));
+
+        LinearLayout data = addCard(context, p, body, I18n.t(context, R.string.feat_more));
+        data.addView(createActionRow(context, R.drawable.ic_download, I18n.t(context, R.string.ig_data_backup), null,
+                FeatureAccents.color(FeatureAccents.SUCCESS), false, () -> {
+                    Activity a = UIHookManager.getCurrentActivity();
+                    if (a != null && !a.isFinishing()) ps.reso.instaeclipse.mods.media.DataBackup.export(a);
+                    else showSimpleDialog(context, I18n.t(context, R.string.ig_dialog_error), I18n.t(context, R.string.ig_dialog_instagram_not_ready));
+                }));
+        data.addView(createActionRow(context, R.drawable.ic_folder, I18n.t(context, R.string.ig_data_restore), null,
+                FeatureAccents.color(FeatureAccents.INFO), false, () -> {
+                    Activity a = UIHookManager.getCurrentActivity();
+                    if (a != null && !a.isFinishing()) ps.reso.instaeclipse.mods.media.DataBackup.pickAndRestore(a);
+                    else showSimpleDialog(context, I18n.t(context, R.string.ig_dialog_error), I18n.t(context, R.string.ig_dialog_instagram_not_ready));
                 }));
 
         presentSection(context, I18n.t(context, R.string.ig_dialog_section_backup_restore), body);
@@ -1312,6 +1483,7 @@ public class DialogUtils {
     }
 
     private static void presentSection(Context context, String title, LinearLayout body) {
+        currentTitle = title;
         presentScreen(context, buildScreen(context, pal(context), title, false, body, null, 0.72f));
     }
 
@@ -1915,7 +2087,7 @@ public class DialogUtils {
         }
     }
 
-    private static class ToggleRow extends LinearLayout {
+    static class ToggleRow extends LinearLayout {
         private static final Pattern TRAILING_PAREN = Pattern.compile("\\s*[(（][^()（）]*[)）]\\s*$");
 
         private final EclipseUiPalette p;
@@ -2130,7 +2302,7 @@ public class DialogUtils {
         }
     }
 
-    private static class RadioRow extends LinearLayout {
+    static class RadioRow extends LinearLayout {
         private final View checkmark;
         private boolean checked;
 
@@ -2252,4 +2424,159 @@ public class DialogUtils {
         }
         return dialog;
     }
+
+    private static View ieTile(Context context, EclipseUiPalette p, int iconRes, int labelRes, String accentHex,
+                               String section, String... flags) {
+        boolean[] states = new boolean[flags.length];
+        for (int i = 0; i < flags.length; i++) states[i] = flagValue(flags[i]);
+        int accent = FeatureAccents.color(accentHex);
+        return createCategoryTile(context, p, iconRes, I18n.t(context, labelRes), null, states, accent, navTo(() -> {
+            sectionAccent = accent;
+            sectionIcon = iconRes;
+            IeMenu.openSection(context, section);
+        }));
+    }
+
+    private static boolean flagValue(String flag) {
+        try {
+            return FeatureFlags.class.getField(flag).getBoolean(null);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private static ToggleRow flagRow(Context context, int iconRes, int labelRes, String flag) {
+        ToggleRow row = createSwitch(context, iconRes, I18n.t(context, labelRes), flagValue(flag));
+        row.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            try {
+                FeatureFlags.class.getField(flag).setBoolean(null, isChecked);
+            } catch (Throwable ignored) {}
+            SettingsManager.saveAllFlags();
+        });
+        return row;
+    }
+
+    private static ToggleRow extraRow(Context context, String flag) {
+        ps.reso.instaeclipse.utils.feature.ExtrasFeatures.Entry e = ps.reso.instaeclipse.utils.feature.ExtrasFeatures.entry(flag);
+        return flagRow(context, e.icon, e.label, flag);
+    }
+
+    private static String healthSummary(Context context) {
+        int[] counts = healthCounts(null);
+        return counts[1] == 0 ? null : I18n.t(context, R.string.menu_chip_active, counts[0], counts[1]);
+    }
+
+    private static int[] healthCounts(java.util.List<String> inactiveOut) {
+        java.util.Map<String, ps.reso.instaeclipse.utils.feature.FeatureStatusTracker.State> status =
+                ps.reso.instaeclipse.utils.feature.FeatureStatusTracker.getStatus();
+        int total = 0, active = 0;
+        synchronized (status) {
+            for (java.util.Map.Entry<String, ps.reso.instaeclipse.utils.feature.FeatureStatusTracker.State> e : status.entrySet()) {
+                if (e.getValue() == ps.reso.instaeclipse.utils.feature.FeatureStatusTracker.State.OFF) continue;
+                total++;
+                if (e.getValue() == ps.reso.instaeclipse.utils.feature.FeatureStatusTracker.State.HOOKED) active++;
+                else if (inactiveOut != null) inactiveOut.add(e.getKey());
+            }
+        }
+        return new int[]{active, total};
+    }
+
+    private static void showHealth(Context context) {
+        java.util.List<String> inactiveKeys = new java.util.ArrayList<>();
+        int[] counts = healthCounts(inactiveKeys);
+        StringBuilder msg = new StringBuilder();
+        msg.append(I18n.t(context, R.string.menu_chip_instagram, IeMenu.hostVersion(context)))
+                .append("\nInstaEclipse ").append(IeMenu.moduleVersion(context)).append("\n\n");
+        if (inactiveKeys.isEmpty()) {
+            msg.append(I18n.t(context, R.string.menu_inactive_all_good));
+        } else {
+            msg.append(I18n.t(context, R.string.menu_inactive_hint)).append("\n");
+            java.util.List<String> labels = new java.util.ArrayList<>();
+            for (String key : inactiveKeys) labels.add(ps.reso.instaeclipse.utils.feature.FeatureStatusTracker.getLabel(context, key));
+            java.util.Collections.sort(labels);
+            for (String label : labels) msg.append("\n•  ").append(label);
+        }
+        showSimpleDialog(context, I18n.t(context, R.string.menu_chip_active, counts[0], counts[1]), msg.toString());
+    }
+
+    static EclipseUiPalette iePalette(Context context) {
+        return pal(context);
+    }
+
+    static int ieAccent() {
+        return accentColor();
+    }
+
+    static Typeface ieFont(int weight) {
+        return font(weight);
+    }
+
+    static Typeface ieDisplayFont() {
+        return displayFont();
+    }
+
+    static int ieDp(Context context, float value) {
+        return dp(context, value);
+    }
+
+    static LinearLayout ieBody(Context context) {
+        return screenBody(context);
+    }
+
+    static LinearLayout ieCard(Context context) {
+        LinearLayout card = createGroupCard(context, pal(context));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(context, 10);
+        card.setLayoutParams(lp);
+        return card;
+    }
+
+    static TextView ieHeader(Context context, String text) {
+        return sectionHeader(context, pal(context), text);
+    }
+
+    static View ieMenuRow(Context context, int iconRes, String label, String value, int accent, Runnable onClick) {
+        return createMenuRow(context, pal(context), iconRes, label, value, accent, onClick);
+    }
+
+    static View ieActionRow(Context context, int iconRes, String label, int accent, View.OnClickListener onClick) {
+        EclipseUiPalette p = pal(context);
+        LinearLayout row = createBaseRow(context, p);
+        if (iconRes != 0) row.addView(buildIconChip(context, iconRes, accent, p.primaryText));
+        row.addView(createTextColumn(context, p, label, null));
+        row.setOnClickListener(onClick);
+        setButtonRole(row);
+        return row;
+    }
+
+    static View ieInfoRow(Context context, String label, String value) {
+        return createInfoRow(context, pal(context), label, value);
+    }
+
+    static ImageView ieIconChip(Context context, int iconRes, int accent) {
+        return buildIconChip(context, iconRes, accent, pal(context).primaryText);
+    }
+
+    static void ieDismiss() {
+        dismissSheet();
+    }
+
+    static void iePresent(Context context, String title, LinearLayout body, Runnable onSave, Runnable backTarget) {
+        if (body.getParent() instanceof ViewGroup parent) parent.removeView(body);
+        boolean refresh = title != null && title.equals(currentTitle) && currentDialog != null && currentDialog.isShowing();
+        if (!buildingScreen && !refresh) {
+            if (currentScreen != null && currentDialog != null && currentDialog.isShowing()) {
+                pushCurrentScreen();
+                pendingDirection = 1;
+            } else {
+                resetNavigation();
+            }
+            currentScreen = () -> iePresent(context, title, body, onSave, backTarget);
+        }
+        currentOnSave = onSave;
+        currentBackTarget = backTarget;
+        presentSection(context, title, body);
+    }
+
 }

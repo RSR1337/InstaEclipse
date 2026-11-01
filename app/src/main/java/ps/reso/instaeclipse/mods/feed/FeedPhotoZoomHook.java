@@ -14,9 +14,12 @@ import android.view.ViewParent;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.ImageView;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedHelpers;
+import ps.reso.instaeclipse.xposedcompat.XC_MethodHook;
+import ps.reso.instaeclipse.xposedcompat.XposedBridge;
+import ps.reso.instaeclipse.xposedcompat.XposedHelpers;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
 import ps.reso.instaeclipse.utils.log.ModuleLog;
@@ -25,9 +28,11 @@ import ps.reso.instaeclipse.utils.log.ModuleLog;
 public class FeedPhotoZoomHook {
 
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
+    // IG 448+ moved the view to common.ui.widget.imageview; the legacy feed.widget name is kept
+    // as a fallback for older builds. Same API in both (onAttachedToWindow + getIgImageView).
     private static final String[] VIEW_CLASSES = {
             "com.instagram.common.ui.widget.imageview.IgProgressImageView",
-            "com.instagram.feed.widget.IgProgressImageView"
+            "com.instagram.feed.widget.IgProgressImageView",
     };
 
     
@@ -35,22 +40,36 @@ public class FeedPhotoZoomHook {
 
     public void install(ClassLoader classLoader) {
         try {
-            Class<?> viewClass = loadFirst(classLoader, VIEW_CLASSES);
+            ViewBinding binding = ViewBinding.resolve(classLoader, VIEW_CLASSES);
+            if (binding == null) {
+                ModuleLog.line("(IE|PhotoZoom) compatible image wrapper not found");
+                if (FeatureFlags.enablePhotoZoom) FeatureStatusTracker.setBroken("PhotoZoom");
+                return;
+            }
 
-            
-            XposedHelpers.findAndHookMethod(viewClass, "onAttachedToWindow", new XC_MethodHook() {
+            // Hooked at onAttachedToWindow, not the constructor: the view has no parent yet
+            // at construction time, so the feed-row ancestor check below would always fail.
+            XposedBridge.hookMethod(binding.attach, new XC_MethodHook() {
                 @Override
-                protected void afterHookedMethod(MethodHookParam param) {
-                    
-                    
+                protected void afterHookedMethod(MethodHookParam param) { ps.reso.instaeclipse.utils.core.JitGuard.tick(param.method);
+                    // setOnLongClickListener() has a side effect beyond registering the
+                    // callback: it also flips the view's LONG_CLICKABLE flag, which changes
+                    // Android's internal tap-vs-long-press disambiguation timing for that
+                    // view. Attaching it unconditionally to every IgProgressImageView
+                    // instance app-wide was altering touch dispatch on every image view
+                    // regardless of whether Photo Zoom was even enabled or whether the view
+                    // was actually a feed post — causing intermittent dropped taps on
+                    // story-advance and DM media opens. Gate on BOTH the feature flag and a
+                    // feed-row identity check BEFORE attaching, not just inside the callback,
+                    // so the flag is left untouched everywhere else.
                     if (!FeatureFlags.enablePhotoZoom) return;
                     try {
                         View view = (View) param.thisObject;
                         if (!isInsideFeedRow(view)) return;
                         view.setOnLongClickListener(v -> {
-                            if (!FeatureFlags.enablePhotoZoom) return false;
+                            if (!FeatureFlags.enablePhotoZoom || !isInsideFeedRow(v)) return false;
                             try {
-                                Object imgViewObj = XposedHelpers.callMethod(param.thisObject, "getIgImageView");
+                                Object imgViewObj = binding.image.invoke(v);
                                 if (!(imgViewObj instanceof ImageView)) return false;
                                 Bitmap snapshot = viewToBitmap((ImageView) imgViewObj);
                                 if (snapshot == null) return false;
@@ -68,9 +87,42 @@ public class FeedPhotoZoomHook {
             });
 
             FeatureStatusTracker.setHooked("PhotoZoom");
-            ModuleLog.line("(IE|PhotoZoom) ✅ hook installed");
+            ModuleLog.line("(IE|PhotoZoom) ✅ hook installed on " + binding.attach.getDeclaringClass().getName());
         } catch (Throwable t) {
             ModuleLog.line("(IE|PhotoZoom) ❌ install: " + t);
+            if (FeatureFlags.enablePhotoZoom) FeatureStatusTracker.setBroken("PhotoZoom");
+        }
+    }
+
+    /** Resolve a typed child and an owned lifecycle before changing any host listener. */
+    static final class ViewBinding {
+        final Method attach;
+        final Method image;
+
+        private ViewBinding(Method attach, Method image) {
+            this.attach = attach;
+            this.image = image;
+        }
+
+        static ViewBinding resolve(ClassLoader loader, String... names) {
+            for (String name : names) {
+                try {
+                    Class<?> type = loader.loadClass(name);
+                    if (!ViewGroup.class.isAssignableFrom(type)) continue;
+                    Method attach = type.getDeclaredMethod("onAttachedToWindow");
+                    Method image = type.getMethod("getIgImageView");
+                    if (attach.getReturnType() != void.class
+                            || Modifier.isStatic(attach.getModifiers())
+                            || Modifier.isAbstract(attach.getModifiers())
+                            || Modifier.isStatic(image.getModifiers())
+                            || !ImageView.class.isAssignableFrom(image.getReturnType())) continue;
+                    attach.setAccessible(true);
+                    image.setAccessible(true);
+                    return new ViewBinding(attach, image);
+                } catch (ReflectiveOperationException | LinkageError ignored) {
+                }
+            }
+            return null;
         }
     }
 
@@ -85,11 +137,8 @@ public class FeedPhotoZoomHook {
     }
 
     private static boolean isInsideFeedRow(View view) {
-        if (sFeedLikeButtonId == 0) {
-            sFeedLikeButtonId = view.getContext().getResources()
-                    .getIdentifier("row_feed_button_like", "id", view.getContext().getPackageName());
-        }
-        if (sFeedLikeButtonId == 0) return false; 
+        sFeedLikeButtonId = ps.reso.instaeclipse.utils.ui.ResIds.id(view.getContext(), "row_feed_button_like");
+        if (sFeedLikeButtonId == 0) return false; // can't verify — be conservative and skip
 
         ViewParent parent = view.getParent();
         for (int depth = 0; depth < 6 && parent instanceof ViewGroup group; depth++) {

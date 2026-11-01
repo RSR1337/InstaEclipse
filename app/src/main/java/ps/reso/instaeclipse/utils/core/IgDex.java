@@ -41,7 +41,7 @@ public final class IgDex {
     }
 
     public static List<MethodData> findMethod(DexKitBridge bridge, FindMethod query) {
-        List<MethodData> raw = bridge.findMethod(query);
+        List<MethodData> raw = DexKitQueryCache.findMethod(bridge, query);
         List<MethodData> out = new ArrayList<>(raw.size());
         for (MethodData md : raw) {
             if (!isPoolClass(bridge, md.getClassName())) out.add(md);
@@ -50,7 +50,7 @@ public final class IgDex {
     }
 
     public static List<ClassData> findClass(DexKitBridge bridge, FindClass query) {
-        List<ClassData> raw = bridge.findClass(query);
+        List<ClassData> raw = DexKitQueryCache.findClass(bridge, query);
         List<ClassData> out = new ArrayList<>(raw.size());
         for (ClassData cd : raw) {
             if (!isPoolClass(bridge, cd.getName())) out.add(cd);

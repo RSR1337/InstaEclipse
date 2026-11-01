@@ -9,8 +9,8 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.List;
 
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
+import ps.reso.instaeclipse.xposedcompat.XC_MethodHook;
+import ps.reso.instaeclipse.xposedcompat.XposedBridge;
 import ps.reso.instaeclipse.utils.core.DexKitCache;
 import ps.reso.instaeclipse.utils.feature.FeatureFlags;
 import ps.reso.instaeclipse.utils.feature.FeatureStatusTracker;
@@ -25,6 +25,20 @@ public class ForceReelQualityHook {
 
     private static final String CACHE_GETTER_KEY = "ForceReelQuality_VideoVersionsGetter";
     private static final String CACHE_HEIGHT_KEY = "ForceReelQuality_HeightGetterName";
+
+    static final ThreadLocal<Boolean> RAW = new ThreadLocal<>();
+    private static volatile String heightGetter;
+
+    static int heightOf(Object item) {
+        String name = heightGetter;
+        if (item == null || name == null) return -1;
+        try {
+            Object h = item.getClass().getMethod(name).invoke(item);
+            return h instanceof Integer i ? i : -1;
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
 
     public void install(DexKitBridge bridge, ClassLoader classLoader) {
         try {
@@ -54,11 +68,12 @@ public class ForceReelQualityHook {
 
             videoVersionsGetter.setAccessible(true);
             String finalHeightGetterName = heightGetterName;
+            heightGetter = heightGetterName;
 
             XposedBridge.hookMethod(videoVersionsGetter, new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
-                    if (FeatureFlags.forceReelQuality <= 0) return;
+                    if (FeatureFlags.forceReelQuality <= 0 || Boolean.TRUE.equals(RAW.get())) return;
                     try {
                         Object result = param.getResult();
                         if (!(result instanceof List)) return;
